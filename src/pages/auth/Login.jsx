@@ -87,172 +87,222 @@ export default function Login() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
+        :root {
+          font-size: 16px;
+        }
+
         .login-page {
           font-family: 'DM Sans', 'Noto Sans KR', sans-serif;
-          background: #F5F6FA;
           min-height: 100vh;
           display: flex;
           align-items: center;
           justify-content: center;
         }
+
         .login-wrap {
           display: flex;
-          width: 900px;
-          min-height: 560px;
-          border-radius: 20px;
+          width: 84.375rem;   
+          min-height: 52.5rem; 
+          border-radius: 1.875rem; 
           overflow: hidden;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.10);
+          box-shadow: 0 1.875rem 5.625rem rgba(0,0,0,0.10);
         }
+
+        /* 왼쪽 브랜드 패널 */
         .brand-panel {
-          width: 380px;
+          width: 25rem;
           background: #0056B9;
           display: flex;
           flex-direction: column;
           justify-content: center;
-          padding: 52px 44px;
+          padding: 4.875rem 4.125rem;
           position: relative;
           overflow: hidden;
         }
-        .brand-panel::before {
+        /*배경의 물방울 무늬*/
+        .brand-panel::before { 
           content: '';
           position: absolute;
-          top: -80px; right: -80px;
-          width: 260px; height: 260px;
+          top: -7.5rem; right: -7.5rem;
+          width: 24.375rem; height: 24.375rem;
           border-radius: 50%;
           background: rgba(255,255,255,0.05);
         }
+
+        .brand-panel::after {
+          content: '';
+          position: absolute;
+          bottom: -5.625rem; 
+          left: -5.625rem;   
+          
+          width: 18.75rem; 
+          height: 18.75rem; 
+          
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.04);
+          z-index: 0;
+        }
+
         .brand-logo {
+          padding-left: 4rem;
           display: flex;
           align-items: center;
-          gap: 12px;
-          margin-bottom: 48px;
+          gap: 1.125rem;
+          margin-bottom: 4.5rem;
         }
+
         .brand-icon {
-          width: 42px; height: 42px;
-          background: #3B82F6;
-          border-radius: 10px;
-          display: flex; align-items: center; justify-content: center;
+          width: 3.9375rem;
+          height: 3.9375rem;
+          background-image: url('/logo-fff.png'); 
+          background-repeat: no-repeat;
+          background-position: center;
+          background-size: contain;
           flex-shrink: 0;
         }
+
         .brand-name {
-          font-size: 15px;
+          font-size: 1.40625rem;
           font-weight: 600;
           color: #fff;
-          letter-spacing: 0.3px;
+          letter-spacing: 0.028125rem;
         }
+
         .brand-name span {
           display: block;
-          font-size: 11px;
+          font-size: 1.03125rem;
           font-weight: 400;
           color: rgba(255,255,255,0.55);
         }
+
         .brand-headline {
-          font-size: 26px;
+          font-size: 2.4375rem;
           font-weight: 700;
           color: #fff;
           line-height: 1.4;
-          margin-bottom: 16px;
+          margin-bottom: 1.5rem;
         }
+
+        /* 오른쪽 폼 패널 */
         .form-panel {
           flex: 1;
           background: #fff;
           display: flex;
           flex-direction: column;
           justify-content: center;
-          padding: 52px 48px;
+          padding: 4.875rem 4.5rem;
         }
+
         .form-title {
-          font-size: 22px;
+          font-size: 2.0625rem;
           font-weight: 700;
           color: #111827;
-          margin-bottom: 6px;
+          margin-bottom: 0.5625rem;
         }
+
         .form-subtitle {
-          font-size: 13.5px;
+          font-size: 1.2656rem;
           color: #9CA3AF;
-          margin-bottom: 28px;
+          margin-bottom: 2.625rem;
         }
+
         .role-tabs {
           display: flex;
           background: #F3F4F6;
-          border-radius: 10px;
-          padding: 4px;
-          margin-bottom: 28px;
-          gap: 2px;
+          border-radius: 0.9375rem;
+          padding: 0.375rem;
+          margin-bottom: 2.625rem;
+          gap: 0.1875rem;
         }
+
         .role-tab {
           flex: 1;
-          padding: 8px 0;
+          padding: 0.75rem 0;
           border: none;
           background: transparent;
-          border-radius: 7px;
-          font-size: 13px;
+          border-radius: 0.656rem;
+          font-size: 1.21875rem;
           font-weight: 500;
           color: #9CA3AF;
           cursor: pointer;
           transition: all 0.18s;
         }
+
         .role-tab.active {
           background: #fff;
           color: #1A3A5C;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+          box-shadow: 0 0.09375rem 0.375rem rgba(0,0,0,0.10);
         }
-        .field-group { margin-bottom: 18px; }
+
+        .field-group { 
+          margin-bottom: 1.6875rem; 
+        }
+
         .field-label {
           display: block;
-          font-size: 12.5px;
+          font-size: 1.1718rem;
           font-weight: 500;
           color: #374151;
-          margin-bottom: 7px;
+          margin-bottom: 0.65625rem; 
         }
+
         .field-input {
           width: 100%;
-          padding: 11px 14px;
-          border: 1.5px solid #E5E7EB;
-          border-radius: 9px;
-          font-size: 14px;
+          padding: 1.03125rem 1.3125rem;
+          border: 0.1406rem solid #E5E7EB;
+          border-radius: 0.84375rem;
+          font-size: 1.3125rem;
           outline: none;
         }
-        .field-input:focus { border-color: #3B82F6; }
+
+        .field-input:focus { 
+          border-color: #3B82F6; 
+        }
+
         .field-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 24px;
+          margin-bottom: 2.25rem;
         }
+
         .remember-label {
           display: flex;
           align-items: center;
-          gap: 6px;
-          font-size: 12.5px;
+          gap: 0.5625rem;
+          font-size: 1.1718rem;
           color: #6B7280;
           cursor: pointer;
         }
+
         .forgot-link {
-          font-size: 12.5px;
+          font-size: 1.1718rem;
           color: #3B82F6;
           background: none;
           border: none;
           cursor: pointer;
           font-weight: 500;
         }
+
         .btn-login {
           width: 100%;
-          padding: 13px;
+          padding: 1.21875rem;
           background: #1A3A5C;
           color: #fff;
           border: none;
-          border-radius: 10px;
-          font-size: 14.5px;
+          border-radius: 0.9375rem;
+          font-size: 1.359rem;
           font-weight: 600;
           cursor: pointer;
         }
+
         .btn-login:hover { background: #15304d; }
         .btn-login:disabled { background: #9CA3AF; cursor: not-allowed; }
+
         .form-footer {
-          margin-top: 24px;
+          margin-top: 2.25rem;
           text-align: center;
-          font-size: 12px;
+          font-size: 1.125rem;
           color: #9CA3AF;
         }
       `}</style>
@@ -263,7 +313,7 @@ export default function Login() {
             <div className="brand-logo">
               <div className="brand-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" width="22" height="22">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                  {/* <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/> */}
                 </svg>
               </div>
               <div className="brand-name">KMGC<span>경민대학교 국제교육원</span></div>
