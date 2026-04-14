@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
+import useAuthStore from '../../store/authStore';
 
 const ROLES = [
   { label: '관리자', value: 'ADMIN' },
@@ -9,74 +10,51 @@ const ROLES = [
 ];
 
 export default function Login() {
-  const [activeRole, setActiveRole] = useState('ADMIN'); // UI 탭용 상태
+  const [activeRole, setActiveRole] = useState('ADMIN');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
   const navigate = useNavigate();
+  const { setAuth } = useAuthStore();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading) return;
-
     setLoading(true);
 
-    // [수정] 백엔드 DTO 규격에 맞춰 userId, password만 전송 (role 제외)
-    const loginData = {
-      userId: username,
-      password: password,
-    };
-
-    console.group('🔍 로그인 요청 디버깅');
-    console.log('1. 요청 URL:', api.defaults.baseURL + '/api/v1/auth/login');
-    console.log('2. 보낼 데이터(Payload):', loginData);
-    console.groupEnd();
+    const loginData = { userId: username, password: password };
 
     try {
-      // API 호출
       const response = await api.post('/api/v1/auth/login', loginData);
-
-      console.log('✅ 서버 응답 성공:', response.data);
-
       const { success, data, message } = response.data;
 
       if (success) {
-        // 토큰 및 정보 로컬 스토리지 저장
-        localStorage.setItem('accessToken', data.accessToken);
-        localStorage.setItem('refreshToken', data.refreshToken);
-        localStorage.setItem('userId', data.userId);
-        localStorage.setItem('userRole', data.role); // 서버가 리턴해준 실제 권한 저장
+        // authStore에 저장 (PrivateRoute가 이걸 읽음) ← 추가
+        setAuth({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          role: data.role,
+          userId: data.userId,
+        });
 
-        // [이동 로직] 서버가 준 role 값에 따라 App.jsx에 설정된 경로로 이동
-        if (data.role === 'ADMIN') {
-          navigate('/admin/dashboard', { replace: true });
-        } else if (data.role === 'PROFESSOR') {
-          navigate('/professor/dashboard', { replace: true });
-        } else if (data.role === 'STUDENT') {
-          navigate('/student/dashboard', { replace: true });
-        }
+        if (data.role === 'ADMIN') navigate('/admin/dashboard', { replace: true });
+        else if (data.role === 'PROFESSOR') navigate('/professor/dashboard', { replace: true });
+        else if (data.role === 'STUDENT') navigate('/student/dashboard', { replace: true });
       } else {
         alert(message || '로그인 실패');
       }
     } catch (error) {
-      console.group('❌ 에러 발생 상세 분석');
       if (error.response) {
-        console.error('에러 상태 코드:', error.response.status);
-        console.error('서버 응답 데이터:', error.response.data);
-        
-        // 500 에러 처리
         if (error.response.status === 500) {
-          alert('서버 내부 오류(500)가 발생했습니다. 아이디/비밀번호 필드명을 확인하세요.');
+          alert('서버 내부 오류(500)가 발생했습니다.');
         } else {
           alert(error.response.data.message || '로그인 중 오류가 발생했습니다.');
         }
       } else {
-        console.error('네트워크 에러:', error.message);
         alert('서버와 연결할 수 없습니다. 서버 상태를 확인하세요.');
       }
-      console.groupEnd();
     } finally {
       setLoading(false);
     }
@@ -197,7 +175,7 @@ export default function Login() {
           font-size: 2.0625rem;
           font-weight: 700;
           color: #111827;
-          margin-bottom: 0.5625rem;
+          margin-bottom: 4.5rem;
         }
 
         .form-subtitle {
@@ -323,9 +301,9 @@ export default function Login() {
 
           <div className="form-panel">
             <div className="form-title">로그인</div>
-            <div className="form-subtitle">계정 유형을 선택하고 로그인하세요.</div>
+            {/* <div className="form-subtitle">계정 유형을 선택하고 로그인하세요.</div> */}
             
-            <div className="role-tabs">
+            {/* <div className="role-tabs">
               {ROLES.map((role) => (
                 <button
                   key={role.value}
@@ -334,7 +312,7 @@ export default function Login() {
                   type="button"
                 >{role.label}</button>
               ))}
-            </div>
+            </div> */}
 
             <form onSubmit={handleSubmit}>
               <div className="field-group">

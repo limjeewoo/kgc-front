@@ -109,3 +109,42 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ===== TopBar 공통 스타일 ===== */
+.topbar {
+  background: #fff;
+  padding: 0 28px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #E5E7EB;
+  flex-shrink: 0;
+  position: relative;
+}
+.topbar-title { font-size: 16px; font-weight: 700; color: #111827; letter-spacing: -0.2px; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.semester-badge { background: #EFF6FF; color: #1D4ED8; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 20px; }
+.user-greeting { font-size: 13px; color: #374151; font-weight: 500; }
+.user-greeting span { color: #1A3A5C; font-weight: 700; }
+.notif-wrap { position: relative; }
+.notif-btn { width: 34px; height: 34px; border-radius: 8px; background: #F3F4F6; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; transition: background 0.15s; }
+.notif-btn:hover { background: #E5E7EB; }
+.notif-count { position: absolute; top: -4px; right: -4px; background: #EF4444; color: #fff; font-size: 10px; font-weight: 700; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1.5px solid #fff; }
+.notif-dropdown { position: absolute; top: calc(100% + 8px); right: 0; width: 320px; background: #fff; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.13); border: 1px solid #F3F4F6; z-index: 999; overflow: hidden; }
+.notif-dropdown-header { padding: 14px 18px; border-bottom: 1px solid #F3F4F6; display: flex; align-items: center; justify-content: space-between; }
+.notif-dropdown-title { font-size: 13px; font-weight: 700; color: #111827; }
+.notif-unread-badge { font-size: 11px; font-weight: 600; background: #FEF2F2; color: #EF4444; padding: 2px 8px; border-radius: 20px; }
+.notif-item { padding: 12px 18px; border-bottom: 1px solid #F9FAFB; cursor: pointer; transition: background 0.1s; display: flex; gap: 10px; align-items: flex-start; }
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: #FAFAFA; }
+.notif-item.unread { background: #F0F6FF; }
+.notif-item.unread:hover { background: #E8F0FE; }
+.notif-type-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+.notif-item-content { flex: 1; }
+.notif-type-label { font-size: 10.5px; font-weight: 600; margin-bottom: 2px; }
+.notif-message { font-size: 12.5px; color: #374151; line-height: 1.5; }
+.notif-time { font-size: 11px; color: #9CA3AF; margin-top: 3px; }
+.notif-empty { padding: 28px; text-align: center; font-size: 13px; color: #9CA3AF; }
+.logout-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; background: #F3F4F6; border: none; border-radius: 8px; font-size: 12.5px; font-weight: 500; color: #6B7280; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.logout-btn:hover { background: #FEF2F2; color: #DC2626; }
