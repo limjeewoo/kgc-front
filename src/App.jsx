@@ -1,32 +1,83 @@
-// 화면 연결
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import PrivateRoute from './router/PrivateRoute.jsx';
+
+// 페이지 컴포넌트 임포트
 import Login from './pages/auth/Login.jsx';
 import AdminDashboard from './pages/admin/dashboard/AdminDashboard.jsx';
 import ProfDashboard from './pages/professor/dashboard/ProfDashboard.jsx';
 import MyDashboard from './pages/student/dashboard/MyDashboard.jsx';
 
+import StudentList from "./pages/admin/students/StudentList.jsx";
+import BasicTab from "./pages/admin/students/StudentDetail/BasicTab.jsx";
+import VisaTab from "./pages/admin/students/StudentDetail/VisaTab.jsx";
+import TopikTab from "./pages/admin/students/StudentDetail/TopikTab.jsx";
+import EnrollTab from "./pages/admin/students/StudentDetail/EnrollTab.jsx";
+import AttendTab from "./pages/admin/students/StudentDetail/AttendTab.jsx";
+
 function App() {
   return (
     <Router>
       <Routes>
-        {/* 로그인 라우트 */}
+        {/* 공통 라우트 */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
 
-        {/* 대시보드 라우트 - PrivateRoute로 보호 */}
+        {/* --- ADMIN 전용 라우트 --- */}
         <Route path="/admin/dashboard" element={
           <PrivateRoute allowedRoles={['ADMIN']}>
             <AdminDashboard />
           </PrivateRoute>
         } />
 
+        <Route path="/admin/students" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <StudentList />
+          </PrivateRoute>
+        } />
+
+        {/* --- 학생 상세 페이지 모음 --- */}
+        {/* /admin/students/:id 로 들어오면 기본적으로 basic 탭으로 이동 */}
+        <Route path="/admin/students/:id" element={<Navigate replace to="basic" />} />
+
+        <Route path="/admin/students/:id/basic" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <BasicTab />
+          </PrivateRoute>
+        } />
+
+        <Route path="/admin/students/:id/visa" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <VisaTab />
+          </PrivateRoute>
+        } />
+
+        <Route path="/admin/students/:id/topik" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <TopikTab />
+          </PrivateRoute>
+        } />
+
+        <Route path="/admin/students/:id/enroll" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <EnrollTab />
+          </PrivateRoute>
+        } />
+
+        <Route path="/admin/students/:id/attendance" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <AttendTab />
+          </PrivateRoute>
+        } />
+
+        {/* --- PROFESSOR 전용 라우트 --- */}
         <Route path="/professor/dashboard" element={
           <PrivateRoute allowedRoles={['PROFESSOR']}>
             <ProfDashboard />
           </PrivateRoute>
         } />
 
+        {/* --- STUDENT 전용 라우트 --- */}
         <Route path="/student/dashboard" element={
           <PrivateRoute allowedRoles={['STUDENT']}>
             <MyDashboard />
