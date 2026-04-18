@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import api from '../../../api/axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 import StudentList from '../students/StudentList.jsx';
+import SearchByDept from '../search/SearchByDept.jsx';
+import SearchByClass from '../search/SearchByClass.jsx';
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -15,36 +17,27 @@ export default function AdminDashboard() {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-
-        // 👇 백엔드에 필수로 보내야 하는 학과(부서) ID 입니다. (실제 DB에 있는 ID로 맞춰주세요!)
-        const targetDeptId = '101'; 
-
-        // params 객체를 사용하여 쿼리 파라미터(deptId 등)를 깔끔하게 전달합니다.
+        const targetDeptId = '101';
         const [semRes, visaRes, attendRes, onlineRes] = await Promise.all([
           api.get('/api/v1/semesters/current', { params: { deptId: targetDeptId } }),
           api.get('/api/v1/visas/expiring', { params: { days: 30, deptId: targetDeptId } }),
           api.get('/api/v1/academic/attendance-warnings', { params: { deptId: targetDeptId } }),
           api.get('/api/v1/academic/online-violations', { params: { deptId: targetDeptId } }),
         ]);
-
         if (semRes.data.success) setCurrentSemester(semRes.data.data);
         if (visaRes.data.success) setVisaList(visaRes.data.data);
         if (attendRes.data.success) setAttendanceList(attendRes.data.data);
         if (onlineRes.data.success) setOnlineList(onlineRes.data.data);
-
       } catch (error) {
         console.error('데이터 로드 실패:', error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchDashboardData();
   }, []);
 
-  const handleMenuClick = (menuName) => {
-    setActiveMenu(menuName);
-  };
+  const handleMenuClick = (menuName) => setActiveMenu(menuName);
 
   if (loading) return (
     <div style={{ padding: '3rem', textAlign: 'center', color: '#1A3A5C' }}>
@@ -168,8 +161,7 @@ export default function AdminDashboard() {
           <TopBar title={activeMenu} />
 
           <div className="content">
-            {/* 👇 2. 조건부 렌더링을 통해 activeMenu 값에 따라 화면을 교체합니다. */}
-            
+
             {/* 대시보드 화면 */}
             {activeMenu === '대시보드' && (
               <>
@@ -244,14 +236,23 @@ export default function AdminDashboard() {
               <StudentList />
             )}
 
+            {/* 통합 검색 화면 */}
+            {activeMenu === '통합 검색' && (
+              <SearchByDept onBack={() => setActiveMenu('대시보드')} />
+            )}
+
+            {/* 출결 관리 화면 (SearchByClass 렌더링) */}
+            {activeMenu === '출결 관리' && (
+              <SearchByClass onBack={() => setActiveMenu('대시보드')} />
+            )}
             {/* 아직 구현되지 않은 나머지 메뉴들 */}
-            {activeMenu !== '대시보드' && activeMenu !== '학생 목록' && (
+            {activeMenu !== '대시보드' && activeMenu !== '학생 목록' && activeMenu !== '통합 검색' && activeMenu !== '출결 관리' && (
               <div style={{padding:'4rem', textAlign:'center', background:'#fff', borderRadius:'1rem'}}>
                 <h2 style={{fontSize:'1.5rem', marginBottom:'1rem'}}>{activeMenu} 페이지</h2>
                 <p style={{color:'#6B7280'}}>이곳에 {activeMenu} 관련 기능을 구현해 주세요.</p>
               </div>
             )}
-            
+
           </div>
         </div>
       </div>

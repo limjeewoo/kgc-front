@@ -15,6 +15,10 @@ import TopikTab from "./pages/admin/students/StudentDetail/TopikTab.jsx";
 import EnrollTab from "./pages/admin/students/StudentDetail/EnrollTab.jsx";
 import AttendTab from "./pages/admin/students/StudentDetail/AttendTab.jsx";
 
+// 통합 검색 관련 페이지 임포트 추가
+import SearchByDept from './pages/admin/search/SearchByDept.jsx';
+import SearchByClass from './pages/admin/search/SearchByClass.jsx';
+
 function App() {
   return (
     <Router>
@@ -33,6 +37,20 @@ function App() {
         <Route path="/admin/students" element={
           <PrivateRoute allowedRoles={['ADMIN']}>
             <StudentList />
+          </PrivateRoute>
+        } />
+
+        {/* 통합 검색 (학과별) 라우트 추가 */}
+        <Route path="/admin/search/dept" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <SearchByDept />
+          </PrivateRoute>
+        } />
+
+        {/* 출결 관리 (반별 결석 파악) 라우트 추가 */}
+        <Route path="/admin/search/class" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <SearchByClass />
           </PrivateRoute>
         } />
 

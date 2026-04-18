@@ -1,284 +1,257 @@
+import React from 'react';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-export default function ProfDashboard() {
-  const crisisList = [
-    { name: 'Wang Xiaoming', date: '2025.03.27', keywords: '초과근로·경제적어려움', level: 'crisis' },
-    { name: 'Tran Thi Lan', date: '2025.03.20', keywords: '심리적불안·학업포기', level: 'crisis' },
-    { name: 'Liu Yang', date: '2025.03.15', keywords: '결석잦음', level: 'warn' },
+export default function MyDashboard() {
+  // 임시 더미 데이터 (추후 API 연동 시 상태로 관리)
+  const visaInfo = { type: 'D-2', expireDate: '2026-08-31', dDay: 151 };
+  const attendanceSummary = [
+    { course: '컴퓨터개론 (CS101)', total: 13, absent: 1, late: 0, status: '정상' },
+    { course: '자료구조 (CS201)', total: 13, absent: 3, late: 1, status: '주의' },
+    { course: '실용영어 (GE201)', total: 13, absent: 0, late: 0, status: '정상' },
   ];
-
-  const absenceList = [
-    { name: 'Wang Xiaoming', course: '자료구조', count: 5, level: 'danger' },
-    { name: 'Tran Thi Lan', course: '알고리즘', count: 4, level: 'danger' },
-    { name: 'Zhang Wei', course: '운영체제', count: 3, level: 'warn' },
-    { name: 'Nguyen Van An', course: '자료구조', count: 3, level: 'warn' },
-  ];
-
-  const courseList = [
-    { id: 'CS201', name: '자료구조', rate: 72, color: '#3B82F6', warning: 3 },
-    { id: 'CS301', name: '알고리즘', rate: 88, color: '#10B981', warning: 1 },
-    { id: 'CS401', name: '운영체제', rate: 91, color: '#10B981', warning: 0 },
-  ];
-
-  const mileageList = [
-    { name: 'Wang Xiaoming', job: '음식점 주 20시간', date: '2025.03.27', note: '합법 범위 이내', warn: false },
-    { name: 'Nguyen Van An', job: '편의점 주 15시간', date: '2025.03.25', note: '합법 범위 이내', warn: false },
-    { name: 'Zhang Wei', job: '물류 주 28시간', date: '2025.03.24', note: '⚠ 허용 한도(25시간) 초과 — 검토 필요', warn: true },
-  ];
+  const mileage = { total: 250, semester: 100 };
+  const onlineCredit = { used: 3, limit: 6, ratio: 50 };
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap');
 
-        .prof-wrap { display: flex; min-height: 100vh; background: #F0F2F7; font-family: 'DM Sans','Noto Sans KR',sans-serif; font-size: 14px; color: #111827; }
+        /* 글로벌 변수 */
+        :root {
+          --bg-main: #F8FAFC;
+          --bg-card: #FFFFFF;
+          --sidebar-bg: #0F172A;
+          --primary: #3B82F6;
+          --text-dark: #0F172A;
+          --text-gray: #64748B;
+          --text-light: #94A3B8;
+          --border: #E2E8F0;
+        }
 
-        .sidebar { width: 220px; min-height: 100vh; background: #1A3A5C; display: flex; flex-direction: column; flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-        .sb-logo { display: flex; align-items: center; gap: 10px; padding: 22px 18px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 8px; }
-        .logo-icon { width: 32px; height: 32px; background: #3B82F6; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-        .logo-text { font-size: 12.5px; font-weight: 700; color: #fff; line-height: 1.3; }
-        .logo-text span { display: block; font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.45); }
-        .sb-sec { padding: 6px 10px 2px; }
-        .sb-lbl { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.3); letter-spacing: 1px; text-transform: uppercase; padding: 0 8px; margin-bottom: 3px; }
-        .ni { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; color: rgba(255,255,255,0.6); font-size: 12.5px; cursor: pointer; transition: all 0.15s; margin-bottom: 1px; }
-        .ni:hover { background: rgba(255,255,255,0.07); color: #fff; }
-        .ni.active { background: #3B82F6; color: #fff; font-weight: 500; }
-        .ni-icon { width: 15px; height: 15px; flex-shrink: 0; }
-        .nb { margin-left: auto; background: #EF4444; color: #fff; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 20px; }
-        .sb-bot { margin-top: auto; padding: 10px; border-top: 1px solid rgba(255,255,255,0.08); }
-        .urow { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; }
-        .uav { width: 30px; height: 30px; border-radius: 50%; background: #3B82F6; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0; }
-        .un { font-size: 12px; font-weight: 500; color: #fff; }
-        .ur { font-size: 10.5px; color: rgba(255,255,255,0.4); margin-top: 1px; }
+        .student-wrap { 
+          display: flex; min-height: 100vh; background: var(--bg-main); 
+          font-family: 'Pretendard', sans-serif; font-size: 14px; color: var(--text-dark); 
+        }
 
+        /* ---------------- 사이드바 ---------------- */
+        .sidebar { 
+          width: 250px; background: var(--sidebar-bg); display: flex; flex-direction: column; 
+          flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; 
+          border-right: 1px solid rgba(255,255,255,0.05);
+        }
+        .sb-logo { display: flex; align-items: center; gap: 12px; padding: 28px 24px 24px; }
+        .logo-icon { 
+          width: 36px; height: 36px; background: linear-gradient(135deg, var(--primary), #60A5FA); 
+          border-radius: 10px; display: flex; align-items: center; justify-content: center; 
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        .logo-text { font-size: 15px; font-weight: 700; color: #fff; line-height: 1.2; letter-spacing: -0.3px; }
+        .logo-text span { display: block; font-size: 11px; font-weight: 400; color: #94A3B8; margin-top: 2px;}
+        
+        .sb-sec { padding: 8px 16px 4px; margin-bottom: 8px; }
+        .sb-lbl { font-size: 11px; font-weight: 600; color: #64748B; letter-spacing: 0.5px; padding: 0 12px; margin-bottom: 6px; }
+        
+        .ni { 
+          display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; 
+          color: #94A3B8; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; margin-bottom: 2px;
+        }
+        .ni:hover { background: rgba(255,255,255,0.05); color: #F8FAFC; }
+        .ni.active { background: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); }
+        .ni-icon { width: 18px; height: 18px; flex-shrink: 0; }
+
+        .sb-bot { margin-top: auto; padding: 20px 16px; background: rgba(0,0,0,0.15); border-top: 1px solid rgba(255,255,255,0.05); }
+        .urow { display: flex; align-items: center; gap: 12px; }
+        .uav { 
+          width: 40px; height: 40px; border-radius: 12px; background: #1E293B; 
+          display: flex; align-items: center; justify-content: center; font-size: 15px; 
+          font-weight: 700; color: #fff; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .un { font-size: 14px; font-weight: 600; color: #F8FAFC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ur { font-size: 12px; color: #94A3B8; margin-top: 2px; }
+
+        /* ---------------- 메인 콘텐츠 ---------------- */
         .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .content { flex: 1; padding: 22px 24px; overflow-y: auto; }
-
-        .prof-banner { background: linear-gradient(135deg,#1A3A5C,#2563EB); border-radius: 14px; padding: 22px 26px; margin-bottom: 18px; display: flex; align-items: center; gap: 20px; }
-        .prof-av { width: 54px; height: 54px; border-radius: 12px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: #fff; flex-shrink: 0; }
-        .prof-info { flex: 1; }
-        .prof-name { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 3px; }
-        .prof-sub { font-size: 12.5px; color: rgba(255,255,255,0.65); }
-        .prof-stats { display: flex; gap: 20px; }
-        .pst { text-align: center; background: rgba(255,255,255,0.12); border-radius: 10px; padding: 10px 16px; }
-        .pst-val { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
-        .pst-lbl { font-size: 10.5px; color: rgba(255,255,255,0.6); margin-top: 2px; }
-
-        .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px; }
-        .sc { background: #fff; border-radius: 12px; padding: 16px 18px; border: 1px solid #F3F4F6; }
-        .sc-lbl { font-size: 11.5px; color: #9CA3AF; font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
-        .sc-dot { width: 6px; height: 6px; border-radius: 50%; }
-        .sc-val { font-size: 24px; font-weight: 700; color: #111827; letter-spacing: -0.5px; line-height: 1; }
-        .sc-val span { font-size: 13px; font-weight: 400; color: #9CA3AF; }
-        .sc-sub { font-size: 11px; color: #9CA3AF; margin-top: 5px; }
-
-        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
-        .card { background: #fff; border-radius: 12px; border: 1px solid #F3F4F6; overflow: hidden; margin-bottom: 14px; }
-        .ch { padding: 14px 18px; border-bottom: 1px solid #F3F4F6; display: flex; align-items: center; justify-content: space-between; }
-        .ct { font-size: 13px; font-weight: 700; color: #111827; }
-        .cbadge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
-        .b-red { background: #FEF2F2; color: #DC2626; }
-        .b-amber { background: #FFFBEB; color: #D97706; }
+        .content { flex: 1; padding: 32px; overflow-y: auto; max-width: 1200px; margin: 0 auto; width: 100%; }
+        
+        .card { 
+          background: var(--bg-card); border-radius: 20px; border: 1px solid rgba(226, 232, 240, 0.8); 
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04); margin-bottom: 24px; overflow: hidden;
+        }
+        .card-header { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+        .card-title { font-size: 16px; font-weight: 700; color: var(--text-dark); letter-spacing: -0.3px; }
+        
+        .badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
         .b-blue { background: #EFF6FF; color: #1D4ED8; }
-        .b-purple { background: #F5F3FF; color: #7C3AED; }
+        .b-green { background: #F0FDF4; color: #15803D; }
+        .b-amber { background: #FFFBEB; color: #B45309; }
+        .b-red { background: #FEF2F2; color: #B91C1C; }
 
-        .li { display: flex; align-items: center; padding: 11px 18px; border-bottom: 1px solid #F9FAFB; gap: 10px; cursor: pointer; transition: background 0.1s; }
-        .li:last-child { border-bottom: none; }
-        .li:hover { background: #FAFAFA; }
-        .lav { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
-        .linf { flex: 1; min-width: 0; }
-        .lname { font-size: 12.5px; font-weight: 500; color: #111827; }
-        .lsub { font-size: 11px; color: #9CA3AF; margin-top: 1px; }
-        .lright { text-align: right; flex-shrink: 0; }
-        .chip-sm { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+        .top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
 
-        .course-row { padding: 12px 18px; border-bottom: 1px solid #F9FAFB; display: flex; align-items: center; gap: 12px; }
-        .course-row:last-child { border-bottom: none; }
-        .cr-name { font-size: 12.5px; font-weight: 500; color: #111827; width: 130px; flex-shrink: 0; }
-        .cr-bar-wrap { flex: 1; display: flex; align-items: center; gap: 8px; }
-        .cr-bar-bg { flex: 1; height: 6px; background: #F3F4F6; border-radius: 4px; overflow: hidden; }
-        .cr-bar-fill { height: 100%; border-radius: 4px; }
-        .cr-pct { font-size: 11.5px; font-weight: 600; width: 32px; text-align: right; }
-        .cr-count { font-size: 11px; color: #9CA3AF; width: 60px; text-align: right; flex-shrink: 0; }
+        .visa-card { 
+          background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%); 
+          border-radius: 20px; padding: 32px 28px; color: #fff; position: relative; overflow: hidden;
+          box-shadow: 0 12px 30px rgba(37, 99, 235, 0.25); border: none;
+        }
+        .visa-bg-icon { position: absolute; right: -20px; bottom: -20px; opacity: 0.1; width: 150px; height: 150px; }
+        .visa-label { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.8); margin-bottom: 12px; }
+        .visa-dday { font-size: 56px; font-weight: 800; letter-spacing: -2px; line-height: 1; margin-bottom: 12px; text-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .visa-dday span { font-size: 24px; font-weight: 500; opacity: 0.9;}
+        .visa-info { font-size: 14px; color: rgba(255,255,255,0.8); display: flex; align-items: center; gap: 10px; }
+        .visa-type { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; backdrop-filter: blur(4px); }
 
-        .approve-btn { padding: 4px 10px; background: #1A3A5C; color: #fff; border: none; border-radius: 6px; font-size: 11px; cursor: pointer; font-family: inherit; }
-        .reject-btn { padding: 4px 10px; background: #F3F4F6; color: #6B7280; border: none; border-radius: 6px; font-size: 11px; cursor: pointer; font-family: inherit; }
-        .reject-btn.danger { background: #FEF2F2; color: #DC2626; }
+        .mileage-card { background: var(--bg-card); border-radius: 20px; border: 1px solid var(--border); padding: 32px 28px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04); display: flex; flex-direction: column; justify-content: center; }
+        .mileage-label { font-size: 14px; color: var(--text-gray); margin-bottom: 12px; font-weight: 600; }
+        .mileage-value { font-size: 56px; font-weight: 800; color: var(--text-dark); letter-spacing: -2px; line-height: 1; margin-bottom: 12px; }
+        .mileage-value span { font-size: 20px; font-weight: 500; color: var(--text-light); }
+        .mileage-sub { font-size: 14px; color: var(--text-gray); background: #F8FAFC; display: inline-block; padding: 6px 14px; border-radius: 12px; font-weight: 500; }
+        .mileage-sub b { color: #8B5CF6; font-weight: 700; }
+
+        .attend-row { display: flex; align-items: center; padding: 16px 24px; border-bottom: 1px solid #F1F5F9; gap: 16px; transition: background 0.2s; }
+        .attend-row:hover { background: #F8FAFC; }
+        .attend-row:last-child { border-bottom: none; }
+        .attend-course { flex: 1; font-size: 15px; font-weight: 600; color: var(--text-dark); }
+        .attend-counts { font-size: 14px; color: var(--text-gray); width: 140px; text-align: center; font-weight: 500; }
+        .attend-status { width: 60px; text-align: right; }
+
+        .online-body { padding: 24px; }
+        .online-numbers { display: flex; align-items: baseline; gap: 8px; margin-bottom: 16px; }
+        .online-used { font-size: 36px; font-weight: 800; color: var(--text-dark); letter-spacing: -1px; }
+        .online-limit { font-size: 18px; font-weight: 500; color: var(--text-light); }
+        .online-bar-bg { width: 100%; height: 12px; background: #F1F5F9; border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+        .online-bar-fill { height: 100%; border-radius: 10px; transition: width 0.5s ease-out; }
+        .online-desc { font-size: 14px; color: var(--text-gray); }
+        .online-desc b { color: var(--primary); font-weight: 600;}
       `}</style>
 
-      <div className="prof-wrap">
+      <div className="student-wrap">
         {/* 사이드바 */}
         <div className="sidebar">
           <div className="sb-logo">
             <div className="logo-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" width="16" height="16">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" width="18" height="18">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
               </svg>
             </div>
             <div className="logo-text">KMGC <span>경민대학교 국제교육원</span></div>
           </div>
 
           <div className="sb-sec">
-            <div className="sb-lbl">메인</div>
+            <div className="sb-lbl">MAIN</div>
             <div className="ni active">
-              <svg className="ni-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
-              대시보드
+              <svg className="ni-icon" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+              내 현황 홈
             </div>
           </div>
 
           <div className="sb-sec">
-            <div className="sb-lbl">내 학생</div>
+            <div className="sb-lbl">ACADEMIC</div>
             <div className="ni">
-              <svg className="ni-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
-              학생 목록
+              <svg className="ni-icon" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+              수강 내역
             </div>
             <div className="ni">
-              <svg className="ni-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd"/></svg>
-              출결 입력
+              <svg className="ni-icon" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+              출결 현황
             </div>
           </div>
 
           <div className="sb-sec">
-            <div className="sb-lbl">상담·활동</div>
+            <div className="sb-lbl">ACTIVITY</div>
             <div className="ni">
-              <svg className="ni-icon" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/></svg>
-              상담 작성
+              <svg className="ni-icon" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              알바 등록
             </div>
             <div className="ni">
-              <svg className="ni-icon" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd"/></svg>
-              마일리지 승인
-              <span className="nb">3</span>
+              <svg className="ni-icon" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              KM 마일리지
             </div>
           </div>
 
-          {/* 사이드바 하단 — 로그아웃 없이 유저 정보만 (로그아웃은 TopBar에서) */}
+          {/* 사이드바 하단 (로그아웃 버튼 제거됨) */}
           <div className="sb-bot">
             <div className="urow">
-              <div className="uav">홍</div>
-              <div>
-                <div className="un">홍길동 교수</div>
-                <div className="ur">지도교수</div>
+              <div className="uav">S</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="un">Student</div>
+                <div className="ur">STUDENT · 학부생</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 메인 */}
+        {/* 메인 콘텐츠 영역 */}
         <div className="main">
-
-          {/* TopBar 공통 컴포넌트 */}
-          <TopBar title="교수 대시보드" />
+          
+          {/* 👇 AdminDashboard의 TopBar 적용 (하드코딩 된 Topbar 제거됨) */}
+          <TopBar title="내 현황 홈" />
 
           <div className="content">
-            {/* 교수 프로필 배너 */}
-            <div className="prof-banner">
-              <div className="prof-av">홍</div>
-              <div className="prof-info">
-                <div className="prof-name">홍길동 교수</div>
-                <div className="prof-sub">컴퓨터공학과 · 지도교수 · hong@kyungmin.ac.kr</div>
-              </div>
-              <div className="prof-stats">
-                {[{ val: 24, lbl: '담당 학생' }, { val: 3, lbl: '위기 징후' }, { val: 4, lbl: '출결 위험' }, { val: 3, lbl: '승인 대기' }].map((p) => (
-                  <div key={p.lbl} className="pst">
-                    <div className="pst-val">{p.val}</div>
-                    <div className="pst-lbl">{p.lbl}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 통계 카드 4개 */}
-            <div className="stats-row">
-              {[
-                { dot: '#3B82F6', label: '담당 학생 수', value: 24, unit: '명', sub: '등록 22 · 휴학 2' },
-                { dot: '#EF4444', label: '위기 징후 학생', value: 3, unit: '명', sub: '이번 달 상담 필요' },
-                { dot: '#F59E0B', label: '출결 위험군', value: 4, unit: '명', sub: '위험 2 · 주의 2' },
-                { dot: '#8B5CF6', label: '마일리지 승인 대기', value: 3, unit: '건', sub: '이번 주 신청' },
-              ].map((s) => (
-                <div key={s.label} className="sc">
-                  <div className="sc-lbl">
-                    <div className="sc-dot" style={{ background: s.dot }} />
-                    {s.label}
-                  </div>
-                  <div className="sc-val">{s.value} <span>{s.unit}</span></div>
-                  <div className="sc-sub">{s.sub}</div>
+            <div className="top-grid">
+              <div className="visa-card">
+                <svg className="visa-bg-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8h16v10zm-2-1h-6v-2h6v2z"/></svg>
+                <div className="visa-label">체류 비자 만료까지</div>
+                <div className="visa-dday">D-<span>{visaInfo.dDay}</span></div>
+                <div className="visa-info">
+                  <span className="visa-type">{visaInfo.type}</span>
+                  만료 예정일 · {visaInfo.expireDate}
                 </div>
-              ))}
-            </div>
-
-            {/* 위기 징후 + 출결 위험군 */}
-            <div className="grid2">
-              <div className="card" style={{ marginBottom: 0 }}>
-                <div className="ch"><div className="ct">위기 징후 학생</div><div className="cbadge b-red">3명</div></div>
-                {crisisList.map((s) => (
-                  <div key={s.name} className="li">
-                    <div className="lav" style={s.level === 'crisis' ? { background: '#FEE2E2', color: '#DC2626' } : { background: '#FFFBEB', color: '#D97706' }}>{s.name[0]}</div>
-                    <div className="linf">
-                      <div className="lname">{s.name}</div>
-                      <div className="lsub">{s.date} 상담 · {s.keywords}</div>
-                    </div>
-                    <div className="lright">
-                      <div className={`chip-sm ${s.level === 'crisis' ? 'b-red' : 'b-amber'}`}>{s.level === 'crisis' ? '위기' : '주의'}</div>
-                    </div>
-                  </div>
-                ))}
               </div>
-
-              <div className="card" style={{ marginBottom: 0 }}>
-                <div className="ch"><div className="ct">출결 위험군</div><div className="cbadge b-amber">위험 2 · 주의 2</div></div>
-                {absenceList.map((s) => (
-                  <div key={s.name} className="li">
-                    <div className="lav" style={s.level === 'danger' ? { background: '#FEE2E2', color: '#DC2626' } : { background: '#FFFBEB', color: '#D97706' }}>{s.name[0]}</div>
-                    <div className="linf">
-                      <div className="lname">{s.name}</div>
-                      <div className="lsub">{s.course} · 결석 {s.count}회</div>
-                    </div>
-                    <div className="lright">
-                      <div className={`chip-sm ${s.level === 'danger' ? 'b-red' : 'b-amber'}`}>{s.level === 'danger' ? '위험' : '주의'}</div>
-                    </div>
-                  </div>
-                ))}
+              
+              <div className="mileage-card">
+                <div className="mileage-label">보유 중인 KM 마일리지</div>
+                <div className="mileage-value">{mileage.total} <span>점</span></div>
+                <div>
+                  <span className="mileage-sub">이번 학기 신규 획득 <b>+{mileage.semester}점</b></span>
+                </div>
               </div>
             </div>
 
-            {/* 담당 과목 출석률 */}
             <div className="card">
-              <div className="ch"><div className="ct">담당 과목 출석률 현황</div><div className="cbadge b-blue">13주차 기준</div></div>
-              {courseList.map((c) => (
-                <div key={c.id} className="course-row">
-                  <div className="cr-name">{c.name} ({c.id})</div>
-                  <div className="cr-bar-wrap">
-                    <div className="cr-bar-bg">
-                      <div className="cr-bar-fill" style={{ width: `${c.rate}%`, background: c.color }} />
-                    </div>
-                    <div className="cr-pct" style={{ color: c.color }}>{c.rate}%</div>
+              <div className="card-header">
+                <div className="card-title">이번 학기 출결 요약</div>
+                <div className="badge b-blue">13주차 기준</div>
+              </div>
+              <div style={{ padding: '16px 24px 8px', display: 'flex', fontSize: 13, color: '#94A3B8', fontWeight: 600, borderBottom: '1px solid #F1F5F9' }}>
+                <span style={{ flex: 1 }}>수강 과목명</span>
+                <span style={{ width: 140, textAlign: 'center' }}>출석 / 결석 / 지각</span>
+                <span style={{ width: 60, textAlign: 'right' }}>현재 상태</span>
+              </div>
+              {attendanceSummary.map((a) => (
+                <div key={a.course} className="attend-row">
+                  <div className="attend-course">{a.course}</div>
+                  <div className="attend-counts">{a.total - a.absent - a.late} / {a.absent} / {a.late}</div>
+                  <div className="attend-status">
+                    <span className={`badge ${a.status === '정상' ? 'b-green' : a.status === '주의' ? 'b-amber' : 'b-red'}`}>
+                      {a.status}
+                    </span>
                   </div>
-                  <div className="cr-count">위험 {c.warning}명</div>
                 </div>
               ))}
             </div>
 
-            {/* 마일리지 승인 대기 */}
             <div className="card">
-              <div className="ch"><div className="ct">마일리지 승인 대기</div><div className="cbadge b-purple">3건</div></div>
-              {mileageList.map((m) => (
-                <div key={m.name} className="li">
-                  <div className="lav" style={m.warn ? { background: '#FEF3C7', color: '#D97706' } : { background: '#EDE9FE', color: '#7C3AED' }}>{m.name[0]}</div>
-                  <div className="linf">
-                    <div className="lname">{m.name} · {m.job}</div>
-                    <div className="lsub" style={m.warn ? { color: '#D97706' } : {}}>{m.date} 신청 · {m.note}</div>
-                  </div>
-                  <div className="lright">
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="approve-btn">승인</button>
-                      <button className={`reject-btn${m.warn ? ' danger' : ''}`}>반려</button>
-                    </div>
-                  </div>
+              <div className="card-header">
+                <div className="card-title">순수 온라인 강의 수강 한도</div>
+                <div className={`badge ${onlineCredit.ratio >= 30 ? 'b-amber' : 'b-green'}`}>
+                  {onlineCredit.ratio}% 사용
                 </div>
-              ))}
+              </div>
+              <div className="online-body">
+                <div className="online-numbers">
+                  <div className="online-used">{onlineCredit.used}</div>
+                  <div className="online-limit">/ {onlineCredit.limit} 학점</div>
+                </div>
+                <div className="online-bar-bg">
+                  <div className="online-bar-fill" style={{ width: `${onlineCredit.ratio}%`, background: onlineCredit.ratio >= 30 ? '#F59E0B' : '#3B82F6' }} />
+                </div>
+                <div className="online-desc">
+                  졸업 전까지 수강 가능한 순수 온라인 강의 한도 <b>{onlineCredit.limit}학점</b> 중 현재 <b>{onlineCredit.used}학점</b>을 사용했습니다.
+                </div>
+              </div>
             </div>
+
           </div>
         </div>
       </div>
