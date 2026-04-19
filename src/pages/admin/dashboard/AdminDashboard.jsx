@@ -4,6 +4,9 @@ import TopBar from '../../../components/layout/TopBar.jsx';
 import StudentList from '../students/StudentList.jsx';
 import SearchByDept from '../search/SearchByDept.jsx';
 import SearchByClass from '../search/SearchByClass.jsx';
+import SearchByCourse from '../search/SearchByCourse.jsx';
+import OnlineViolation from '../search/OnlineViolation.jsx';
+import CourseList from '../courses/CourseList.jsx';
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -245,6 +248,17 @@ export default function AdminDashboard() {
             {activeMenu === '출결 관리' && (
               <SearchByClass onBack={() => setActiveMenu('대시보드')} />
             )}
+
+            {/* 과목 관리 화면 렌더링 (CourseList 연결) */}
+            {activeMenu === '과목 관리' && (
+              <CourseList onBack={() => setActiveMenu('대시보드')} />
+            )}
+
+            {/* 2. 온라인 30% 확인 화면 렌더링 추가 */}
+            {activeMenu === '온라인 30% 확인' && (
+              <OnlineViolation onBack={() => setActiveMenu('대시보드')} />
+            )}
+            
             {/* 아직 구현되지 않은 나머지 메뉴들 */}
             {activeMenu !== '대시보드' && activeMenu !== '학생 목록' && activeMenu !== '통합 검색' && activeMenu !== '출결 관리' && (
               <div style={{padding:'4rem', textAlign:'center', background:'#fff', borderRadius:'1rem'}}>

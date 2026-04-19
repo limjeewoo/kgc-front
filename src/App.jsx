@@ -18,6 +18,8 @@ import AttendTab from "./pages/admin/students/StudentDetail/AttendTab.jsx";
 // 통합 검색 관련 페이지 임포트 추가
 import SearchByDept from './pages/admin/search/SearchByDept.jsx';
 import SearchByClass from './pages/admin/search/SearchByClass.jsx';
+import CourseList from './pages/admin/courses/CourseList.jsx';
+import OnlineViolation from './pages/admin/search/OnlineViolation.jsx';
 
 function App() {
   return (
@@ -61,6 +63,20 @@ function App() {
         <Route path="/admin/students/:id/basic" element={
           <PrivateRoute allowedRoles={['ADMIN']}>
             <BasicTab />
+          </PrivateRoute>
+        } />
+
+        {/* 과목 관리 라우트 추가 */}
+        <Route path="/admin/courses" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <CourseList />
+          </PrivateRoute>
+        } />
+        
+        {/* 온라인 30% 위반 확인 라우트 추가 */}
+        <Route path="/admin/search/online-violation" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <OnlineViolation />
           </PrivateRoute>
         } />
 
