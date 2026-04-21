@@ -11,6 +11,8 @@ export default function StudentList() {
   const [error, setError] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // 학과 필터 초기값을 'all'로 설정하여 진입 시 바로 데이터가 보이도록 수정
   const [filters, setFilters] = useState({ dept: 'all', year: 'all', visa: 'all' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -21,9 +23,9 @@ export default function StudentList() {
       setError(null);
       
       try {
-        // 1. 학생 목록 및 학과 목록 API 병렬 호출 (학과 API가 없을 경우를 대비해 catch 처리)
+        // 1. 학생 목록 및 학과 목록 API 병렬 호출
         const [studentRes, deptRes] = await Promise.all([
-          api.get('/api/v1/students?deptId='),
+          api.get('/api/v1/students'),
           api.get('/api/v1/depts').catch(() => null)
         ]);
 
@@ -59,7 +61,7 @@ export default function StudentList() {
     fetchData();
   }, []);
 
-  // 필터링 로직 (API 데이터 필드명에 맞게 유연하게 대처)
+  // 필터링 로직: filters.dept가 'all'이므로 진입 시 모든 학생이 필터를 통과함
   const filteredData = useMemo(() => {
     return students.filter(student => {
       const studentId = student.studentId?.toString() || '';
@@ -129,7 +131,7 @@ export default function StudentList() {
         .chip-visa { background: #EFF6FF; color: #1D4ED8; }
         .chip-status-on { background: #F0FDF4; color: #16A34A; }
         .chip-status-off { background: #FEF2F2; color: #DC2626; }
-        .chip-status-pause { background: #FFFBEB; color: #D97706; } /* 휴학 상태용 */
+        .chip-status-pause { background: #FFFBEB; color: #D97706; }
 
         .pagination { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-top: 1px solid #F3F4F6; }
         .page-info { font-size: 0.75rem; color: #9CA3AF; }
@@ -275,7 +277,6 @@ export default function StudentList() {
                 &lt;
               </button>
               
-              {/* 간단한 페이지네이션 렌더링 (최대 5개 페이지만 표시 등 고도화 가능) */}
               {[...Array(totalPages)].map((_, i) => (
                 <button 
                   key={i + 1} 

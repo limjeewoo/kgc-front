@@ -108,7 +108,7 @@ export default function OnlineViolation() {
   const loadList = async (deptId = '') => {
     setLoading(true);
     try {
-      const res = await api.get('/api/v1/academic/online-violations', {
+      const res = await api.get('/api/v1/search/online-violations', {
         params: { deptId: deptId || undefined },
       });
       if (res.data.success) setStudents(res.data.data);
