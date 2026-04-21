@@ -95,6 +95,7 @@ export default function CourseList({ onBack }) {
         .cl-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
         .badge-online { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
         .badge-offline { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+        .badge-blended { background: #F3E8FF; color: #7E22CE; border: 1px solid #E9D5FF;}
         .badge-major { background: #F3F4F6; color: #4B5563; }
         .badge-liberal { background: #FFFBEB; color: #D97706; }
         .cl-course-name { font-weight: 700; color: #111827; font-size: 14px; margin-bottom: 4px; }
@@ -175,10 +176,12 @@ export default function CourseList({ onBack }) {
                     </td>
                     <td style={{ fontWeight: 600 }}>{course.credits}학점</td>
                     <td>
-                      {course.isOnline ? (
-                        <span className="cl-badge badge-online">💻 100% 온라인</span>
+                      {course.onlineType === 'ONLINE' ? (
+                        <span className="badge-online">💻 100% 온라인</span>
+                      ) : course.onlineType === 'BLENDED' ? (
+                        <span className="badge-blended">🌓 블렌디드</span>
                       ) : (
-                        <span className="cl-badge badge-offline">대면 수업</span>
+                        <span className="badge-offline">🏛️ 대면 수업</span>
                       )}
                     </td>
                     <td>

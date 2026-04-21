@@ -24,7 +24,7 @@ export default function StudentList() {
         // 1. 학생 목록 및 학과 목록 API 병렬 호출 (학과 API가 없을 경우를 대비해 catch 처리)
         const [studentRes, deptRes] = await Promise.all([
           api.get('/api/v1/students?deptId='),
-          api.get('/api/v1/departments').catch(() => null)
+          api.get('/api/v1/depts').catch(() => null)
         ]);
 
         let fetchedStudents = [];

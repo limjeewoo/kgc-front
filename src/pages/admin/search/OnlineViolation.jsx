@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../../../api/axios';
 
-//   상수 / 유틸 (비즈니스 로직)
-
+// ─── 상수 / 유틸 ────────────────────────────────────
 const getRiskLevel = (ratio) => {
   const pct = ratio * 100;
   if (pct < 20) return { level: 'safe',      label: 'Safe',      color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0', barColor: '#22C55E' };
@@ -14,55 +13,57 @@ const fmtPct = (ratio) => (ratio * 100).toFixed(1) + '%';
 
 /* 확인서 프린트 유틸 */
 const printCert = (student, enrollments, semesterName) => {
-  const onlineCourses = (enrollments || []).filter(e => e.isOnline);
-  const totalCredits  = (enrollments || []).reduce((s, e) => s + (e.credits || 0), 0);
-  const onlineCredits = onlineCourses.reduce((s, e) => s + (e.credits || 0), 0);
-  const ratio         = totalCredits > 0 ? onlineCredits / totalCredits : 0;
-  
+  // 교수님 요청: ONLINE 타입만 온라인 학점으로 인정 (BLENDED 제외)
+  const onlineCredits = (enrollments || [])
+    .filter(e => e.onlineType === 'ONLINE')
+    .reduce((sum, e) => sum + (e.credits || 0), 0);
+    
+  const totalCredits = (enrollments || []).reduce((s, e) => s + (e.credits || 0), 0);
+  const ratio = totalCredits > 0 ? onlineCredits / totalCredits : 0;
+
   const html = `
     <html><head><meta charset="utf-8"/>
     <style>
       body{font-family:'Malgun Gothic',sans-serif;padding:60px;color:#111;font-size:14px;line-height:1.6;}
       h1{font-size:24px;text-align:center;margin-bottom:10px;letter-spacing:1px;}
-      .sub{text-align:center;color:#666;font-size:14px;margin-bottom:50px; border-bottom: 2px solid #1A3A5C; padding-bottom: 10px;}
+      .sub{text-align:center;color:#666;font-size:14px;margin-bottom:50px;border-bottom:2px solid #1A3A5C;padding-bottom:10px;}
       table{width:100%;border-collapse:collapse;margin-bottom:30px;}
-      th,td{padding:12px 15px;border:1px solid #aaa;font-size:13px; text-align: left;}
-      th{background:#f8f9fa;font-weight:700; width: 20%;}
+      th,td{padding:12px 15px;border:1px solid #aaa;font-size:13px;text-align:left;}
+      th{background:#f8f9fa;font-weight:700;width:20%;}
       .ratio{font-size:18px;font-weight:700;color:${ratio >= 0.3 ? '#DC2626' : '#16A34A'};}
-      .footer{margin-top:80px;text-align:center; position: relative;}
-      .date{text-align: right; margin-bottom: 20px; color: #555;}
-      .seal-text{font-size: 20px; font-weight: 800; color: #1A3A5C; letter-spacing: 2px;}
-      .notice{margin-top: 40px; font-size: 12px; color: #777; border: 1px dashed #ccc; padding: 10px;}
+      .footer{margin-top:80px;text-align:center;position:relative;}
+      .date{text-align:right;margin-bottom:20px;color:#555;}
+      .seal-text{font-size:20px;font-weight:800;color:#1A3A5C;letter-spacing:2px;}
+      .notice{margin-top:40px;font-size:12px;color:#777;border:1px dashed #ccc;padding:10px;}
     </style></head><body>
     <h1>온라인 수업 수강 확인서</h1>
     <div class="sub">경민대학교 국제교육원 · Certificate of Online Course Enrollment</div>
-    
     <h3>1. 학생 인적사항</h3>
     <table>
       <tr><th>학번</th><td>${student.studentId}</td><th>성명</th><td>${student.korName || ''} (${student.engName || ''})</td></tr>
       <tr><th>학과</th><td>${student.deptName || ''}</td><th>해당학기</th><td>${semesterName}</td></tr>
     </table>
-
     <h3>2. 수강 및 온라인 비율 현황</h3>
     <table>
       <tr><th>총 수강학점</th><td>${totalCredits}학점</td><th>온라인 수강학점</th><td>${onlineCredits}학점</td></tr>
       <tr><th>온라인 비율</th><td colspan="3" class="ratio">${fmtPct(ratio)} ${ratio >= 0.3 ? ' (기준 30% 초과 - 관리대상)' : ' (정상)'}</td></tr>
     </table>
-
     <h3>3. 세부 수강 내역</h3>
     <table>
       <thead><tr style="background:#eee;"><th>과목코드</th><th>과목명</th><th>학점</th><th>이수형태</th></tr></thead>
       <tbody>
-        ${(enrollments || []).map(e => `<tr><td>${e.courseId}</td><td>${e.courseName}</td><td>${e.credits}</td><td>${e.isOnline ? '<b>온라인(Online)</b>' : '오프라인(Face-to-face)'}</td></tr>`).join('')}
+        ${(enrollments || []).map(e => `
+          <tr>
+            <td>${e.courseId}</td>
+            <td>${e.courseName}</td>
+            <td>${e.credits}</td>
+            <td>${e.onlineType === 'ONLINE' ? '<b>온라인(Online)</b>' : e.onlineType === 'BLENDED' ? '블렌디드(Blended)' : '오프라인(Face-to-face)'}</td>
+          </tr>`).join('')}
       </tbody>
     </table>
-
-    <div class="notice">
-      ※ 본 확인서는 법무부 유학생 관리 지침(온라인 수업 30% 이내 제한)에 따른 수강 현황을 증명함.
-    </div>
-
+    <div class="notice">※ 본 확인서는 법무부 유학생 관리 지침(온라인 수업 30% 이내 제한)에 따른 수강 현황을 증명함. (블렌디드 수업은 대면 수업으로 분류됨)</div>
     <div class="footer">
-      <div class="date">${new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+      <div class="date">${new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric' })}</div>
       <div class="seal-text">경민대학교 국제교육원장</div>
     </div>
     </body></html>`;
@@ -74,23 +75,20 @@ const printCert = (student, enrollments, semesterName) => {
   setTimeout(() => { w.print(); }, 500);
 };
 
-/* ────────────────────────────────────────────────
-   컴포넌트 시작
-──────────────────────────────────────────────── */
+// ─── 컴포넌트 ────────────────────────────────────────────────────
 export default function OnlineViolation() {
-  const [loading, setLoading]         = useState(true);
-  const [depts, setDepts]             = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [depts, setDepts]               = useState([]);
   const [selectedDept, setSelectedDept] = useState('');
-  const [semester, setSemester]       = useState(null);
-  const [students, setStudents]       = useState([]);   
-  const [filterLevel, setFilterLevel] = useState('all'); 
-  const [sortBy, setSortBy]           = useState('ratio_desc');
-  const [searchQ, setSearchQ]         = useState('');
-  const [detail, setDetail]           = useState(null);  
-  const [detailLoading, setDL]        = useState(false);
+  const [semester, setSemester]         = useState(null);
+  const [students, setStudents]         = useState([]);
+  const [filterLevel, setFilterLevel]   = useState('all');
+  const [sortBy, setSortBy]             = useState('ratio_desc');
+  const [searchQ, setSearchQ]           = useState('');
+  const [detail, setDetail]             = useState(null);
+  const [detailLoading, setDL]          = useState(false);
   const detailRef = useRef(null);
 
-  // 1. 초기 로드 (현재 학기 및 학과 목록)
   useEffect(() => {
     const init = async () => {
       try {
@@ -101,71 +99,56 @@ export default function OnlineViolation() {
         if (semRes.data.success) setSemester(semRes.data.data);
         if (deptRes.data.success) setDepts(deptRes.data.data);
       } catch (err) {
-        console.error("초기 데이터 로드 실패", err);
+        console.error('초기 데이터 로드 실패', err);
       }
     };
     init();
   }, []);
 
-  // 2. 위반 목록 로드 (학과 선택 시마다 실행)
   const loadList = async (deptId = '') => {
     setLoading(true);
     try {
-      // 명세서 8-2: GET /api/v1/academic/online-violations
       const res = await api.get('/api/v1/academic/online-violations', {
-        params: { deptId: deptId || undefined }
+        params: { deptId: deptId || undefined },
       });
-      if (res.data.success) {
-        setStudents(res.data.data);
-      }
+      if (res.data.success) setStudents(res.data.data);
     } catch (e) {
-      console.error("목록 조회 실패", e);
+      console.error('목록 조회 실패', e);
       setStudents([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadList(selectedDept);
-  }, [selectedDept]);
+  useEffect(() => { loadList(selectedDept); }, [selectedDept]);
 
-  // 3. 학생 상세 수강 내역 조회
   const openDetail = async (student) => {
     if (detail?.student?.studentId === student.studentId) {
       setDetail(null);
       return;
     }
-
     setDetail({ student, enrollments: null });
     setDL(true);
     try {
-      // 명세서 7-2: GET /api/v1/students/{studentId}/enrollments
       const r = await api.get(`/api/v1/students/${student.studentId}/enrollments`, {
         params: { semesterId: semester?.semesterId },
       });
-      if (r.data.success) {
-        setDetail({ student, enrollments: r.data.data });
-      }
+      if (r.data.success) setDetail({ student, enrollments: r.data.data });
     } catch (e) {
-      console.error("상세 내역 조회 실패", e);
+      console.error('상세 내역 조회 실패', e);
     } finally {
       setDL(false);
-      // 상세 패널로 스크롤 이동
       setTimeout(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
     }
   };
 
-  /* 프론트엔드 필터링 및 정렬 로직 */
   const displayed = students
     .filter(s => {
-      // 위험도 레벨 필터
       if (filterLevel !== 'all' && getRiskLevel(s.onlineRatio).level !== filterLevel) return false;
-      // 검색 필터
       if (searchQ) {
         const q = searchQ.toLowerCase();
-        return (s.korName || '').includes(q) || 
-               (s.engName || '').toLowerCase().includes(q) || 
+        return (s.korName || '').includes(q) ||
+               (s.engName || '').toLowerCase().includes(q) ||
                (s.studentId || '').includes(q);
       }
       return true;
@@ -184,163 +167,273 @@ export default function OnlineViolation() {
   };
 
   return (
-    <>
+    <div style={{ fontFamily: "'DM Sans','Noto Sans KR',sans-serif", fontSize: '14px', color: '#111827' }}>
       <style>{`
-        /* 기존 스타일 코드 유지 (생략 가능하나 가독성을 위해 핵심만 남김) */
-        .ov-wrap { padding: 24px; background: #F3F4F6; min-height: 100vh; font-family: 'Noto Sans KR', sans-serif; }
-        .ov-banner { background: #1e293b; border-radius: 12px; padding: 20px; color: #fff; display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-        .ov-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-        .ov-sum-card { background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; cursor: pointer; transition: 0.2s; }
-        .ov-sum-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .ov-sum-card.active { border: 2px solid #3b82f6; }
-        .ov-sum-val { font-size: 28px; font-weight: 800; margin: 8px 0; }
-        
-        .ov-toolbar { background: #fff; padding: 16px; border-radius: 12px; display: flex; gap: 12px; align-items: center; margin-bottom: 20px; }
-        .ov-search-input { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; }
-        .ov-select { padding: 8px; border-radius: 8px; border: 1px solid #ddd; }
-        
-        .ov-card { background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; }
-        .ov-row { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #f3f4f6; cursor: pointer; }
-        .ov-row:hover { background: #f9fafb; }
-        .ov-row.selected { background: #eff6ff; }
-        
-        .ov-bar-bg { width: 100%; height: 10px; background: #e5e7eb; border-radius: 5px; position: relative; margin-top: 8px; }
-        .ov-bar-fill { height: 100%; border-radius: 5px; }
-        .ov-deadline-mark { position: absolute; left: 30%; top: -5px; bottom: -5px; width: 2px; background: #ef4444; }
-        
-        .ov-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
-        .ov-detail { margin-top: 24px; background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; padding: 24px; animation: slideUp 0.3s ease; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .ov-enroll-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-        .ov-enroll-table th { background: #f9fafb; padding: 12px; text-align: left; font-size: 12px; color: #6b7280; }
-        .ov-enroll-table td { padding: 12px; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
-        .ov-print-btn { background: #1A3A5C; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+        .ov-topbar { background:#fff; padding:0 28px; height:58px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #E5E7EB; margin-bottom:24px; }
+        .ov-topbar-left  { display:flex; align-items:center; gap:10px; }
+        .ov-topbar-right { display:flex; align-items:center; gap:8px; }
+        .ov-breadcrumb { font-size:13px; color:#9CA3AF; }
+        .ov-breadcrumb span { color:#111827; font-weight:600; }
+
+        .ov-btn { padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:500; cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:5px; transition:all 0.15s; }
+        .ov-btn-secondary { background:#F9FAFB; border:1px solid #E5E7EB; color:#374151; }
+        .ov-btn-secondary:hover { background:#F3F4F6; }
+        .ov-btn-primary { background:#1A3A5C; border:1px solid #1A3A5C; color:#fff; }
+        .ov-btn-primary:hover { background:#153150; }
+
+        .ov-stat-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:18px; }
+        .ov-stat-card { background:#fff; border-radius:12px; border:1.5px solid #F3F4F6; padding:16px 18px; cursor:pointer; transition:all 0.15s; }
+        .ov-stat-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.07); }
+        .ov-stat-card.active { border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,0.12); }
+        .ov-stat-label { font-size:11px; color:#9CA3AF; margin-bottom:6px; }
+        .ov-stat-val { font-size:26px; font-weight:700; letter-spacing:-0.5px; margin-bottom:2px; }
+        .ov-stat-sub { font-size:11px; color:#9CA3AF; }
+
+        .ov-filter-card { background:#fff; border-radius:14px; border:1px solid #F3F4F6; padding:14px 20px; margin-bottom:18px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+        .ov-search { flex:1; min-width:180px; padding:7px 12px; border:1px solid #E5E7EB; border-radius:8px; font-size:12.5px; font-family:inherit; color:#374151; outline:none; }
+        .ov-search:focus { border-color:#3B82F6; }
+        .ov-select { padding:7px 10px; border-radius:8px; border:1px solid #E5E7EB; font-size:12.5px; font-family:inherit; color:#374151; background:#fff; cursor:pointer; outline:none; }
+        .ov-select:focus { border-color:#3B82F6; }
+
+        .ov-semester-badge { background:#EFF6FF; color:#1D4ED8; font-size:12px; font-weight:600; padding:5px 12px; border-radius:20px; white-space:nowrap; }
+
+        .ov-table-card { background:#fff; border-radius:14px; border:1px solid #F3F4F6; overflow:hidden; margin-bottom:16px; }
+        .ov-table-head { padding:16px 22px; border-bottom:1px solid #F3F4F6; display:flex; align-items:center; justify-content:space-between; }
+        .ov-table-title { font-size:13px; font-weight:700; color:#111827; display:flex; align-items:center; gap:8px; }
+
+        .ov-chip { font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; }
+        .ov-chip-blue     { background:#EFF6FF; color:#1D4ED8; }
+        .ov-chip-red      { background:#FEF2F2; color:#DC2626; }
+        .ov-chip-amber    { background:#FFFBEB; color:#D97706; }
+        .ov-chip-green    { background:#F0FDF4; color:#16A34A; }
+
+        .ov-row { display:flex; align-items:center; padding:14px 22px; border-bottom:1px solid #F9FAFB; cursor:pointer; transition:background 0.12s; gap:16px; }
+        .ov-row:last-child { border-bottom:none; }
+        .ov-row:hover { background:#F8FAFC; }
+        .ov-row.selected { background:#EFF6FF; }
+
+        .ov-avatar { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
+        .ov-student-name { font-size:13px; font-weight:600; color:#111827; }
+        .ov-student-sub  { font-size:11.5px; color:#9CA3AF; margin-top:1px; }
+
+        .ov-bar-wrap { flex:2; padding:0 16px; }
+        .ov-bar-head { display:flex; justify-content:space-between; font-size:11px; font-weight:600; margin-bottom:5px; }
+        .ov-bar-bg { width:100%; height:8px; background:#F3F4F6; border-radius:99px; position:relative; overflow:visible; }
+        .ov-bar-fill { height:100%; border-radius:99px; transition:width 0.5s ease; }
+        .ov-bar-limit { position:absolute; left:30%; top:-4px; bottom:-4px; width:2px; background:#EF4444; border-radius:1px; }
+        .ov-bar-limit-label { position:absolute; left:30%; top:-18px; transform:translateX(-50%); font-size:9px; font-weight:700; color:#EF4444; white-space:nowrap; }
+
+        .ov-credit-box { width:90px; text-align:right; flex-shrink:0; }
+        .ov-credit-val { font-size:13px; font-weight:700; color:#111827; }
+        .ov-credit-sub { font-size:10.5px; color:#9CA3AF; }
+
+        .ov-badge-wrap { width:76px; flex-shrink:0; }
+
+        .ov-detail-panel { background:#fff; border-radius:14px; border:1px solid #F3F4F6; overflow:hidden; animation:ov-slide 0.25s ease; }
+        @keyframes ov-slide { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .ov-detail-head { padding:18px 22px; border-bottom:1px solid #F3F4F6; display:flex; align-items:center; justify-content:space-between; }
+        .ov-detail-title { font-size:14px; font-weight:700; color:#111827; }
+        .ov-detail-sub   { font-size:12px; color:#9CA3AF; margin-top:2px; }
+        .ov-detail-actions { display:flex; gap:8px; }
+
+        .ov-enroll-table { width:100%; border-collapse:collapse; }
+        .ov-enroll-table th { padding:10px 14px; font-size:11.5px; font-weight:600; color:#9CA3AF; text-align:left; border-bottom:1px solid #F3F4F6; background:#FAFAFA; white-space:nowrap; }
+        .ov-enroll-table td { padding:11px 14px; font-size:12.5px; color:#374151; border-bottom:1px solid #F9FAFB; vertical-align:middle; }
+        .ov-enroll-table tr:last-child td { border-bottom:none; }
+        .ov-enroll-table tr:hover td { background:#F8FAFC; }
+
+        /* ✅ 수정된 배지 스타일 */
+        .ov-badge { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:600; padding:3px 8px; border-radius:6px; }
+        .ov-badge-online  { background:#FEF2F2; color:#DC2626; }
+        .ov-badge-blended { background:#F5F3FF; color:#7E22CE; }
+        .ov-badge-offline { background:#F3F4F6; color:#6B7280; }
+
+        .ov-empty { padding:48px; text-align:center; color:#9CA3AF; font-size:13px; }
+
+        @media (max-width:900px) {
+          .ov-stat-row { grid-template-columns:repeat(2,1fr); }
+          .ov-bar-wrap { display:none; }
+        }
       `}</style>
 
-      <div className="ov-wrap">
-        {/* 상단 섹션: 학기 정보 */}
-        <div className="ov-banner">
-          <div>
-            <h2 style={{ margin: 0, fontSize: '20px' }}>온라인 수강 비율 모니터링</h2>
-            <p style={{ margin: '4px 0 0 0', opacity: 0.8, fontSize: '13px' }}>
-              외국인 유학생 비자 연장 기준 (온라인 30% 미만) 준수 여부를 확인합니다.
-            </p>
+      {/* ── 탑바 ── */}
+      <div className="ov-topbar">
+        <div className="ov-topbar-left">
+          <div className="ov-breadcrumb">학사 › <span>온라인 30% 초과 확인</span></div>
+        </div>
+        <div className="ov-topbar-right">
+          {semester && (
+            <span className="ov-semester-badge">
+              {semester.year}학년도 {semester.term}학기
+            </span>
+          )}
+          <button className="ov-btn ov-btn-secondary" onClick={() => loadList(selectedDept)}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            새로고침
+          </button>
+        </div>
+      </div>
+
+      {/* ── 통계 배너 ── */}
+      <div className="ov-stat-row">
+        {[
+          { key: 'all',       label: '전체 학생',        count: students.length,  color: '#3B82F6', sub: '조회 대상' },
+          { key: 'violation', label: '기준 초과 (30%+)', count: counts.violation, color: '#EF4444', sub: '즉시 조치 필요' },
+          { key: 'warning',   label: '주의 (20~30%)',    count: counts.warning,   color: '#D97706', sub: '모니터링 필요' },
+          { key: 'safe',      label: '안전 (20% 미만)',  count: counts.safe,      color: '#16A34A', sub: '정상 범위' },
+        ].map(c => (
+          <div
+            key={c.key}
+            className={`ov-stat-card ${filterLevel === c.key ? 'active' : ''}`}
+            onClick={() => setFilterLevel(c.key)}
+          >
+            <div className="ov-stat-label">{c.label}</div>
+            <div className="ov-stat-val" style={{ color: c.color }}>{c.count}</div>
+            <div className="ov-stat-sub">{c.sub}</div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <span style={{ background: 'rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '20px', fontSize: '13px' }}>
-              {semester ? `${semester.year}학년도 ${semester.term}학기` : '학기 정보 조회 중...'}
+        ))}
+      </div>
+
+      {/* ── 필터 툴바 ── */}
+      <div className="ov-filter-card">
+        <svg width="14" height="14" fill="none" stroke="#9CA3AF" strokeWidth="2" viewBox="0 0 24 24" style={{flexShrink:0}}>
+          <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <input
+          className="ov-search"
+          placeholder="이름 또는 학번으로 검색..."
+          value={searchQ}
+          onChange={e => setSearchQ(e.target.value)}
+        />
+        <select className="ov-select" value={selectedDept} onChange={e => setSelectedDept(e.target.value)}>
+          <option value="">전체 학과</option>
+          {depts.map(d => <option key={d.deptId} value={d.deptId}>{d.deptName}</option>)}
+        </select>
+        <select className="ov-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+          <option value="ratio_desc">비율 높은 순</option>
+          <option value="ratio_asc">비율 낮은 순</option>
+          <option value="name">이름 순</option>
+        </select>
+      </div>
+
+      {/* ── 학생 목록 테이블 ── */}
+      <div className="ov-table-card">
+        <div className="ov-table-head">
+          <div className="ov-table-title">
+            온라인 수강 비율 현황
+            <span className="ov-chip ov-chip-blue">{displayed.length}명</span>
+            {counts.violation > 0 && (
+              <span className="ov-chip ov-chip-red">⚠ 초과 {counts.violation}명</span>
+            )}
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:12, fontSize:11, color:'#9CA3AF' }}>
+            <span style={{ display:'flex', alignItems:'center', gap:4 }}>
+              <span style={{ width:2, height:12, background:'#EF4444', borderRadius:1, display:'inline-block' }}/>
+              30% 기준선
             </span>
           </div>
         </div>
 
-        {/* 위험도별 요약 */}
-        <div className="ov-summary">
-          {[
-            { key: 'all', label: '전체 학생', count: students.length, color: '#3b82f6' },
-            { key: 'violation', label: '기준 초과 (30%+)', count: counts.violation, color: '#ef4444' },
-            { key: 'warning', label: '주의 (20~30%)', count: counts.warning, color: '#f59e0b' },
-            { key: 'safe', label: '안전 (<20%)', count: counts.safe, color: '#10b981' },
-          ].map(c => (
-            <div 
-              key={c.key} 
-              className={`ov-sum-card ${filterLevel === c.key ? 'active' : ''}`}
-              onClick={() => setFilterLevel(c.key)}
-            >
-              <div style={{ color: c.color, fontSize: '12px', fontWeight: 700 }}>{c.label}</div>
-              <div className="ov-sum-val" style={{ color: c.color }}>{c.count}</div>
-              <div style={{ fontSize: '11px', color: '#9ca3af' }}>대상 인원(명)</div>
-            </div>
-          ))}
-        </div>
+        {loading ? (
+          <div className="ov-empty">데이터를 불러오는 중입니다...</div>
+        ) : displayed.length === 0 ? (
+          <div className="ov-empty">조회된 학생이 없습니다.</div>
+        ) : (
+          displayed.map(s => {
+            const risk       = getRiskLevel(s.onlineRatio);
+            const isSelected = detail?.student?.studentId === s.studentId;
+            return (
+              <div
+                key={s.studentId}
+                className={`ov-row ${isSelected ? 'selected' : ''}`}
+                onClick={() => openDetail(s)}
+              >
+                <div className="ov-avatar" style={{ background: risk.bg, color: risk.color }}>
+                  {(s.korName || 'U')[0]}
+                </div>
 
-        {/* 컨트롤바 */}
-        <div className="ov-toolbar">
-          <input 
-            className="ov-search-input" 
-            placeholder="이름 또는 학번으로 검색..." 
-            value={searchQ}
-            onChange={e => setSearchQ(e.target.value)}
-          />
-          <select className="ov-select" value={selectedDept} onChange={e => setSelectedDept(e.target.value)}>
-            <option value="">전체 학과</option>
-            {depts.map(d => <option key={d.deptId} value={d.deptId}>{d.deptName}</option>)}
-          </select>
-          <select className="ov-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-            <option value="ratio_desc">비율 높은 순</option>
-            <option value="ratio_asc">비율 낮은 순</option>
-            <option value="name">이름 순</option>
-          </select>
-          <button className="ov-print-btn" style={{ background: '#fff', color: '#374151', border: '1px solid #ddd' }} onClick={() => loadList(selectedDept)}>
-            새로고침
-          </button>
-        </div>
+                <div style={{ width: 160, flexShrink: 0 }}>
+                  <div className="ov-student-name">{s.korName}</div>
+                  <div className="ov-student-sub">{s.studentId} · {s.deptName}</div>
+                </div>
 
-        {/* 메인 리스트 */}
-        <div className="ov-card">
-          {loading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>데이터를 불러오는 중입니다...</div>
-          ) : displayed.length === 0 ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>조회된 학생이 없습니다.</div>
-          ) : (
-            displayed.map(s => {
-              const risk = getRiskLevel(s.onlineRatio);
-              const isSelected = detail?.student?.studentId === s.studentId;
-              return (
-                <div key={s.studentId} className={`ov-row ${isSelected ? 'selected' : ''}`} onClick={() => openDetail(s)}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: risk.bg, color: risk.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, marginRight: '16px' }}>
-                    {(s.korName || 'U')[0]}
+                <div className="ov-bar-wrap">
+                  <div className="ov-bar-head">
+                    <span style={{ color: '#9CA3AF' }}>온라인 비율</span>
+                    <span style={{ color: risk.color }}>{fmtPct(s.onlineRatio)}</span>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: '15px' }}>{s.korName} <span style={{ fontWeight: 400, fontSize: '12px', color: '#6b7280' }}>({s.studentId})</span></div>
-                    <div style={{ fontSize: '12px', color: '#9ca3af' }}>{s.deptName}</div>
-                  </div>
-                  <div style={{ flex: 2, padding: '0 40px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, color: risk.color }}>
-                      <span>온라인 비율</span>
-                      <span>{fmtPct(s.onlineRatio)}</span>
-                    </div>
-                    <div className="ov-bar-bg">
-                      <div className="ov-deadline-mark" />
-                      <div className="ov-bar-fill" style={{ width: `${s.onlineRatio * 100}%`, background: risk.barColor }} />
-                    </div>
-                  </div>
-                  <div style={{ width: '100px', textAlign: 'right', marginRight: '20px' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 700 }}>{s.onlineCredits} / {s.totalCredits}</div>
-                    <div style={{ fontSize: '10px', color: '#9ca3af' }}>수강 학점</div>
-                  </div>
-                  <div style={{ width: '80px' }}>
-                    <span className="ov-badge" style={{ background: risk.bg, color: risk.color }}>{risk.label}</span>
+                  <div className="ov-bar-bg">
+                    <span className="ov-bar-limit-label">30%</span>
+                    <div className="ov-bar-limit" />
+                    <div
+                      className="ov-bar-fill"
+                      style={{ width: `${Math.min(s.onlineRatio * 100, 100)}%`, background: risk.barColor }}
+                    />
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
 
-        {/* 상세 수강 내역 패널 */}
-        {detail && (
-          <div className="ov-detail" ref={detailRef}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-              <div>
-                <h3 style={{ margin: 0 }}>{detail.student.korName} 학생 수강 상세 내역</h3>
-                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6b7280' }}>
-                  {semester?.year}년 {semester?.term}학기 기준 실시간 수강 정보입니다.
-                </p>
+                <div className="ov-credit-box">
+                  <div className="ov-credit-val">{s.onlineCredits} / {s.totalCredits}</div>
+                  <div className="ov-credit-sub">온라인 / 전체 학점</div>
+                </div>
+
+                <div className="ov-badge-wrap">
+                  <span
+                    className="ov-chip"
+                    style={{ background: risk.bg, color: risk.color, border: `1px solid ${risk.border}` }}
+                  >
+                    {risk.label}
+                  </span>
+                </div>
+
+                <svg
+                  width="14" height="14" fill="none" stroke="#D1D5DB" strokeWidth="2" viewBox="0 0 24 24"
+                  style={{ flexShrink: 0, transform: isSelected ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}
+                >
+                  <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {detail.enrollments && (
-                  <button className="ov-print-btn" onClick={() => printCert(detail.student, detail.enrollments, `${semester?.year}년 ${semester?.term}학기`)}>
-                    확인서 출력
-                  </button>
-                )}
-                <button onClick={() => setDetail(null)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', background: '#fff', cursor: 'pointer' }}>닫기</button>
+            );
+          })
+        )}
+      </div>
+
+      {/* ── 상세 수강 내역 패널 ── */}
+      {detail && (
+        <div className="ov-detail-panel" ref={detailRef}>
+          <div className="ov-detail-head">
+            <div>
+              <div className="ov-detail-title">
+                {detail.student.korName} 학생 수강 상세 내역
+              </div>
+              <div className="ov-detail-sub">
+                {semester?.year}년 {semester?.term}학기 기준 · 온라인 학점 계산 시 '블렌디드'는 제외됩니다.
               </div>
             </div>
+            <div className="ov-detail-actions">
+              {detail.enrollments && (
+                <button
+                  className="ov-btn ov-btn-primary"
+                  onClick={() => printCert(detail.student, detail.enrollments, `${semester?.year}년 ${semester?.term}학기`)}
+                >
+                  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  확인서 출력
+                </button>
+              )}
+              <button className="ov-btn ov-btn-secondary" onClick={() => setDetail(null)}>닫기</button>
+            </div>
+          </div>
 
-            {detailLoading ? (
-              <div style={{ padding: '20px', textAlign: 'center' }}>수강 정보를 조회 중입니다...</div>
-            ) : (
+          {detailLoading ? (
+            <div className="ov-empty">수강 정보를 조회 중입니다...</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
               <table className="ov-enroll-table">
                 <thead>
                   <tr>
@@ -354,24 +447,33 @@ export default function OnlineViolation() {
                 <tbody>
                   {detail.enrollments?.map(e => (
                     <tr key={e.enrollId}>
-                      <td>{e.courseId}</td>
-                      <td style={{ fontWeight: 600 }}>{e.courseName}</td>
-                      <td>{e.credits}학점</td>
                       <td>
-                        {e.isOnline ? 
-                          <span style={{ color: '#ef4444', fontWeight: 700 }}>🌐 온라인</span> : 
-                          <span style={{ color: '#6b7280' }}>오프라인</span>
-                        }
+                        <span style={{ fontFamily:'monospace', background:'#F3F4F6', padding:'2px 7px', borderRadius:5, fontSize:12 }}>
+                          {e.courseId}
+                        </span>
                       </td>
-                      <td>{e.grade || '-'}</td>
+                      <td style={{ fontWeight: 600, color: '#111827' }}>{e.courseName}</td>
+                      <td>
+                        <span className="ov-chip ov-chip-blue">{e.credits}학점</span>
+                      </td>
+                      <td>
+                        {e.onlineType === 'ONLINE' ? (
+                          <span className="ov-badge ov-badge-online">🌐 온라인</span>
+                        ) : e.onlineType === 'BLENDED' ? (
+                          <span className="ov-badge ov-badge-blended">🌓 블렌디드</span>
+                        ) : (
+                          <span className="ov-badge ov-badge-offline">🏛️ 대면</span>
+                        )}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{e.grade || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            )}
-          </div>
-        )}
-      </div>
-    </>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
