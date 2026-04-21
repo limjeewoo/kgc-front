@@ -31,7 +31,10 @@ export default function Login() {
       const { success, data, message } = response.data;
 
       if (success) {
-        // authStore에 저장 (PrivateRoute가 이걸 읽음) ← 추가
+        // ⭐ 핵심 추가: 로그인 성공 직후, 앞으로 보내는 모든 api 요청 헤더에 토큰을 자동으로 붙이도록 설정!
+        api.defaults.headers.common['Authorization'] = `Bearer ${data.accessToken}`;
+
+        // authStore에 저장 (PrivateRoute가 이걸 읽음)
         setAuth({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
@@ -301,19 +304,7 @@ export default function Login() {
 
           <div className="form-panel">
             <div className="form-title">로그인</div>
-            {/* <div className="form-subtitle">계정 유형을 선택하고 로그인하세요.</div> */}
             
-            {/* <div className="role-tabs">
-              {ROLES.map((role) => (
-                <button
-                  key={role.value}
-                  className={`role-tab${activeRole === role.value ? ' active' : ''}`}
-                  onClick={() => setActiveRole(role.value)}
-                  type="button"
-                >{role.label}</button>
-              ))}
-            </div> */}
-
             <form onSubmit={handleSubmit}>
               <div className="field-group">
                 <label className="field-label">아이디 (학번/사번)</label>

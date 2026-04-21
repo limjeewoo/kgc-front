@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+// const BASE_URL = 'https://api.kmgc.world'; // 배포용
+const BASE_URL = 'http://localhost:8080'; // 개발용
 
 export default function BasicTab({ onTabChange }) {
   const { id } = useParams();
@@ -7,44 +11,81 @@ export default function BasicTab({ onTabChange }) {
   const [student, setStudent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Axios 인스턴스 (인증 토큰 포함)
+  const api = axios.create({
+    baseURL: API_BASE_URL,
+    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
+  });
+
   useEffect(() => {
-    // API 연결 전 테스트용 데이터
-    setTimeout(() => {
-      setStudent({
-        studentId: id,
-        deptName: "컴퓨터소프트웨어과",
-        engName: "NGUYEN VAN AN",
-        korName: "응우옌반안",
-        gender: "남",
-        nationality: "베트남",
-        birthDate: "2000-01-15",
-        phone: "010-1234-5678",
-        address: "경기도 의정부시 동일로 123 (KM빌딩 405호)",
-        classSec: "A",
-        grade: 2,
-        admissionDate: "2024-03-01",
-        enrollStatus: "재학",
-        visaType: "D-2-2",
-        topikLevel: "4급",
-        langSchool: "경민어학원",
-        langSchoolLevel: "4급",
-        studyStartDate: "2021. 09",
-        totalStudyPeriod: "3년 6개월",
-        basicTestResult: "합격",
-        maxWorkHours: "주 25시간",
-        photoUrl: null,
-        attendance: 87,
-        absenceCount: 5,
-        gpa: 3.8,
-      });
-      setIsLoading(false);
-    }, 300);
+    const fetchStudentData = async () => {
+      try {
+        setIsLoading(true);
+
+        // 명세서 기반 병렬 API 호출
+        // 1. 학생 기본 정보 (4번)
+        // 2. 근로 가능 시간 정보 (8번)
+        // 3. 학업 요약 정보 (12번)
+        const [studentRes, workHourRes, summaryRes] = await Promise.all([
+          api.get(`/api/v1/students/${id}`),
+          api.get(`/api/v1/topik/work-hours/${id}`).catch(() => ({ data: { data: { maxWorkHoursPerWeek: '-' } } })),
+          api.get(`/api/v1/students/${id}/academic-summary`).catch(() => ({ data: { data: { totalGpa: 0, attendance: 0, absenceCount: 0 } } }))
+        ]);
+
+        if (studentRes.data.success) {
+          const s = studentRes.data.data;
+          const workInfo = workHourRes.data.data;
+          const acaInfo = summaryRes.data.data;
+
+          // 명세서의 응답 데이터를 프론트엔드 UI 변수명에 맞게 매핑
+          setStudent({
+            studentId: s.studentId,
+            deptName: s.deptName,
+            engName: s.engName,
+            korName: s.korName,
+            gender: s.gender,
+            nationality: s.nationality,
+            birthDate: s.birthDate,
+            phone: s.phone,
+            address: s.address,
+            classSec: s.classSec,
+            grade: s.grade,
+            admissionDate: s.admissionDate,
+            enrollStatus: s.enrollStatus,
+            // 비자, TOPIK 등 통합 정보가 별도 API에 있다면 추가 호출 필요 (현재는 통합/단건 조회 객체에 있다고 가정)
+            visaType: s.visaType || '정보없음',
+            topikLevel: s.topikLevel || '미제출',
+            langSchool: s.langSchool || '정보없음',
+            basicTestResult: s.basicTestResult || '미응시',
+            maxWorkHours: workInfo.maxWorkHoursPerWeek ? `주 ${workInfo.maxWorkHoursPerWeek}시간` : '제한됨',
+            attendance: acaInfo.attendance || 0,
+            absenceCount: acaInfo.absenceCount || 0,
+            gpa: acaInfo.totalGpa || 0,
+          });
+        }
+      } catch (error) {
+        console.error("학생 정보 조회 실패:", error);
+        alert("학생 정보를 불러오지 못했습니다.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (id) fetchStudentData();
   }, [id]);
 
   if (isLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem', color: '#9CA3AF', fontSize: '0.875rem' }}>
         데이터 로딩 중...
+      </div>
+    );
+  }
+
+  if (!student) {
+    return (
+      <div style={{ padding: '4rem', textAlign: 'center', color: '#EF4444' }}>
+        학생 데이터를 찾을 수 없습니다.
       </div>
     );
   }
@@ -100,7 +141,6 @@ export default function BasicTab({ onTabChange }) {
         .bt-chip-green { background: #F0FDF4; color: #16A34A; }
         .bt-chip-gray { background: #F3F4F6; color: #6B7280; }
 
-        /* 클릭 가능한 스태츠 아이템 스타일 */
         .bt-profile-stats { display: flex; gap: 1.75rem; margin-left: auto; text-align: center; }
         .bt-pstat-item.clickable {
           cursor: pointer;
@@ -176,7 +216,6 @@ export default function BasicTab({ onTabChange }) {
         </div>
 
         <div className="bt-profile-stats">
-          {/* 출석 영역 클릭 시 AttendTab 이동 */}
           <div 
             className="bt-pstat-item clickable" 
             onClick={() => {
@@ -197,7 +236,6 @@ export default function BasicTab({ onTabChange }) {
             </div>
           </div>
 
-          {/* 평점 영역 클릭 시 EnrollTab 이동 */}
           <div 
             className="bt-pstat-item clickable" 
             onClick={() => {

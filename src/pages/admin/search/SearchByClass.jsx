@@ -2,101 +2,121 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SearchByCourse from './SearchByCourse.jsx';
 
-const DUMMY_DEPTS = [
-  { deptId: 'CS01', deptName: '컴퓨터소프트웨어과' },
-  { deptId: 'DS01', deptName: '데이터사이언스과' },
-  { deptId: 'ME01', deptName: '기계공학과' },
-];
-
-const DUMMY_ADVISORS = [
-  { professorId: 'P001', name: '홍길동', email: 'hong@kmgc.ac.kr', phone: '010-1111-2222', deptId: 'CS01' },
-  { professorId: 'P002', name: '김영희', email: 'kim@kmgc.ac.kr',  phone: '010-3333-4444', deptId: 'CS01' },
-];
-
-const DUMMY_CLASS_DATA = {
-  'CS01-A': [
-    { studentId: '25071001', korName: '응우옌반안',   nationality: '베트남',       grade: 2, weeklyAttend: [1,1,2,1,1,3,1,2,1,1,2,1,1,null,null], totalAbsent: 3, totalLate: 2, totalAttend: 10 },
-    { studentId: '25071002', korName: '천샤오민',     nationality: '중국',         grade: 1, weeklyAttend: [1,1,1,1,1,1,1,1,1,1,1,1,1,null,null], totalAbsent: 0, totalLate: 0, totalAttend: 13 },
-    { studentId: '25071005', korName: '아마라쿠마르', nationality: '인도',         grade: 1, weeklyAttend: [1,1,1,2,1,1,1,3,1,1,1,1,1,null,null], totalAbsent: 1, totalLate: 1, totalAttend: 11 },
-    { studentId: '25071008', korName: '왕레이',       nationality: '중국',         grade: 1, weeklyAttend: [1,1,1,1,1,1,1,1,1,1,1,1,1,null,null], totalAbsent: 0, totalLate: 0, totalAttend: 13 },
-    { studentId: '25071006', korName: '호앙민',       nationality: '베트남',       grade: 3, weeklyAttend: [1,2,1,2,1,2,1,2,1,2,1,2,1,null,null], totalAbsent: 6, totalLate: 0, totalAttend: 7  },
-  ],
-  'CS01-B': [
-    { studentId: '25071003', korName: '이반페트로프', nationality: '러시아',        grade: 3, weeklyAttend: [1,1,1,1,1,1,2,1,3,1,1,1,1,null,null], totalAbsent: 1, totalLate: 1, totalAttend: 11 },
-    { studentId: '25071004', korName: '파티마알리',   nationality: '우즈베키스탄',  grade: 2, weeklyAttend: [2,1,2,1,2,1,2,1,2,1,2,1,2,null,null], totalAbsent: 7, totalLate: 0, totalAttend: 6  },
-    { studentId: '25071010', korName: '카마로프',     nationality: '우즈베키스탄',  grade: 2, weeklyAttend: [1,1,1,1,1,1,1,1,3,1,1,1,1,null,null], totalAbsent: 0, totalLate: 1, totalAttend: 12 },
-  ],
-  'CS01-C': [
-    { studentId: '25071007', korName: '나탈리아소콜', nationality: '러시아',        grade: 2, weeklyAttend: [2,2,2,1,1,2,2,1,2,2,2,2,2,null,null], totalAbsent: 10, totalLate: 0, totalAttend: 3 },
-    { studentId: '25071009', korName: '린다오',       nationality: '중국',          grade: 4, weeklyAttend: [1,1,1,1,1,1,1,3,1,1,1,1,1,null,null], totalAbsent: 0,  totalLate: 1, totalAttend: 12 },
-  ],
-};
-
-const WEEK_LABELS = ['1주','2주','3주','4주','5주','6주','7주','8주','9주','10주','11주','12주','13주','14주','15주'];
-const CURRENT_WEEK = 13;
-
-const getStatusCell = (code) => {
-  if (code === 1) return { label:'출', bg:'#EFF6FF', color:'#3B82F6' };
-  if (code === 2) return { label:'결', bg:'#FEF2F2', color:'#EF4444' };
-  if (code === 3) return { label:'지', bg:'#FFFBEB', color:'#D97706' };
-  if (code === 4) return { label:'공', bg:'#F0FDF4', color:'#16A34A' };
-  return { label:'-', bg:'#F9FAFB', color:'#D1D5DB' };
-};
-
-const getAttendRate = (s) => {
-  const total = s.totalAbsent + s.totalLate + s.totalAttend;
-  return total ? Math.round((s.totalAttend / total) * 100) : 0;
-};
-
-const getRateColor = (rate) => {
-  if (rate < 70) return '#EF4444';
-  if (rate < 80) return '#D97706';
-  return '#16A34A';
-};
-
-const calcWeeklyAbsents = (students) =>
-  WEEK_LABELS.map((_, wi) => students.filter(s => s.weeklyAttend[wi] === 2).length);
+// API 설정
+// const BASE_URL = 'https://api.kmgc.world'; // 배포용
+const BASE_URL = 'http://localhost:8080'; // 개발용
 
 export default function SearchByClass({ onBack }) {
   const navigate = useNavigate();
+  const accessToken = localStorage.getItem('accessToken'); // 로그인 시 저장된 토큰 사용
 
-  const [filters, setFilters]         = useState({ deptId: 'CS01', classSec: 'A' });
-  const [students, setStudents]       = useState([]);
-  const [isLoading, setIsLoading]     = useState(false);
+  // 상태 관리
+  const [depts, setDepts] = useState([]);
+  const [filters, setFilters] = useState({ deptId: '', classSec: 'A' });
+  const [students, setStudents] = useState([]);
+  const [advisors, setAdvisors] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [quickFilter, setQuickFilter] = useState(false);
-
-  // 드릴다운 상태: false = 반별 뷰, true = 과목별 뷰
   const [showCourse, setShowCourse] = useState(false);
 
-  const fetchClass = useCallback(() => {
+  // 공통 헤더
+  const headers = {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  };
+
+  // 1. 전체 학과 목록 조회 (최초 1회)
+  const fetchDepts = useCallback(async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/depts`, { headers });
+      const json = await res.json();
+      if (json.success) {
+        setDepts(json.data);
+        if (json.data.length > 0 && !filters.deptId) {
+          setFilters(prev => ({ ...prev, deptId: json.data[0].deptId }));
+        }
+      }
+    } catch (err) {
+      console.error("학과 목록 로드 실패:", err);
+    }
+  }, []);
+
+  // 2. 학과별 교수(지도교수) 조회
+  const fetchAdvisors = useCallback(async (deptId) => {
+    if (!deptId) return;
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/professors?deptId=${deptId}`, { headers });
+      const json = await res.json();
+      if (json.success) setAdvisors(json.data);
+    } catch (err) {
+      console.error("교수 목록 로드 실패:", err);
+    }
+  }, []);
+
+  // 3. 학과-반별 학생 출결 데이터 조회 (통합 검색 API)
+  const fetchClassData = useCallback(async () => {
+    if (!filters.deptId || !filters.classSec) return;
+    
     setIsLoading(true);
-    setTimeout(() => {
-      const key = `${filters.deptId}-${filters.classSec}`;
-      setStudents(DUMMY_CLASS_DATA[key] || []);
+    try {
+      const res = await fetch(
+        `${BASE_URL}/api/v1/search/class?deptId=${filters.deptId}&classSec=${filters.classSec}`, 
+        { headers }
+      );
+      const json = await res.json();
+      if (json.success) {
+        // API 명세상 '수강과목 + 과목별 결석일수'가 포함된 학생 리스트 반환
+        setStudents(json.data || []);
+      }
+    } catch (err) {
+      console.error("학급 데이터 로드 실패:", err);
+    } finally {
       setIsLoading(false);
-    }, 300);
+    }
   }, [filters]);
 
-  useEffect(() => { fetchClass(); }, [fetchClass]);
-  // 반이 바뀌면 과목별 뷰 초기화
+  // 초기 로드 및 필터 변경 시 호출
+  useEffect(() => { fetchDepts(); }, [fetchDepts]);
+  useEffect(() => { fetchAdvisors(filters.deptId); }, [filters.deptId, fetchAdvisors]);
+  useEffect(() => { fetchClassData(); }, [fetchClassData]);
   useEffect(() => { setShowCourse(false); }, [filters]);
 
-  const displayed     = quickFilter ? students.filter(s => s.totalAbsent >= 3) : students;
-  const weeklyAbsents = calcWeeklyAbsents(students);
-  const maxAbsent     = Math.max(...weeklyAbsents, 1);
-  const advisors      = DUMMY_ADVISORS.filter(a => a.deptId === filters.deptId);
-  const setFilter     = (key, val) => setFilters(prev => ({ ...prev, [key]: val }));
+  // 유틸리티 함수들 (기존 로직 유지)
+  const getStatusCell = (code) => {
+    if (code === 1) return { label:'출', bg:'#EFF6FF', color:'#3B82F6' };
+    if (code === 2) return { label:'결', bg:'#FEF2F2', color:'#EF4444' };
+    if (code === 3) return { label:'지', bg:'#FFFBEB', color:'#D97706' };
+    if (code === 4) return { label:'공', bg:'#F0FDF4', color:'#16A34A' };
+    return { label:'-', bg:'#F9FAFB', color:'#D1D5DB' };
+  };
 
+  const getAttendRate = (s) => {
+    const total = (s.totalAbsent || 0) + (s.totalLate || 0) + (s.totalAttend || 0);
+    return total ? Math.round((s.totalAttend / total) * 100) : 0;
+  };
+
+  const getRateColor = (rate) => {
+    if (rate < 70) return '#EF4444';
+    if (rate < 80) return '#D97706';
+    return '#16A34A';
+  };
+
+  const WEEK_LABELS = ['1주','2주','3주','4주','5주','6주','7주','8주','9주','10주','11주','12주','13주','14주','15주'];
+  const CURRENT_WEEK = 13; // 실제 운영시는 학기 정보 API에서 가져오는 것이 좋습니다
+
+  const displayed = quickFilter ? students.filter(s => (s.totalAbsent || 0) >= 3) : students;
+  
   const stats = {
     total:   students.length,
-    danger:  students.filter(s => s.totalAbsent >= 6).length,
-    warning: students.filter(s => s.totalAbsent >= 3 && s.totalAbsent < 6).length,
+    danger:  students.filter(s => (s.totalAbsent || 0) >= 6).length,
+    warning: students.filter(s => (s.totalAbsent || 0) >= 3 && (s.totalAbsent || 0) < 6).length,
     avgRate: students.length
       ? Math.round(students.reduce((a, s) => a + getAttendRate(s), 0) / students.length)
       : 0,
   };
 
-  // ── 과목별 출결 뷰로 전환
+  const setFilter = (key, val) => setFilters(prev => ({ ...prev, [key]: val }));
+
   if (showCourse) {
     return (
       <SearchByCourse
@@ -216,26 +236,14 @@ export default function SearchByClass({ onBack }) {
           <div className="sc-breadcrumb">학사 › <span>출결 관리 · 반별 출결</span></div>
         </div>
         <div className="sc-topbar-right">
-
-          {/* ── 과목별 출결 드릴다운 버튼 ── */}
           <button className="sc-drilldown-btn" onClick={() => setShowCourse(true)}>
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
             과목별 출결 보기
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-              <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
           </button>
-
           <button
             className={`sc-btn ${quickFilter ? 'sc-btn-danger' : 'sc-btn-secondary'}`}
             onClick={() => setQuickFilter(v => !v)}
           >
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M3 4h18M7 8h10M11 12h4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            {quickFilter ? '▲ 위험군만 보는 중' : '결석 3회+ 필터'}
+            {quickFilter ? '▲ 위험군 필터 해제' : '결석 3회+ 필터'}
           </button>
         </div>
       </div>
@@ -244,28 +252,28 @@ export default function SearchByClass({ onBack }) {
       <div className="sc-stat-row">
         <div className="sc-stat-card">
           <div className="sc-stat-label">반 전체 학생</div>
-          <div className="sc-stat-val" style={{ color:'#3B82F6' }}>{stats.total}<span style={{fontSize:13,color:'#9CA3AF',fontWeight:400}}> 명</span></div>
+          <div className="sc-stat-val" style={{ color:'#3B82F6' }}>{stats.total} 명</div>
         </div>
         <div className="sc-stat-card">
           <div className="sc-stat-label">결석 위험 (6회+)</div>
-          <div className="sc-stat-val" style={{ color:'#EF4444' }}>{stats.danger}<span style={{fontSize:13,color:'#9CA3AF',fontWeight:400}}> 명</span></div>
+          <div className="sc-stat-val" style={{ color:'#EF4444' }}>{stats.danger} 명</div>
         </div>
         <div className="sc-stat-card">
           <div className="sc-stat-label">결석 주의 (3~5회)</div>
-          <div className="sc-stat-val" style={{ color:'#D97706' }}>{stats.warning}<span style={{fontSize:13,color:'#9CA3AF',fontWeight:400}}> 명</span></div>
+          <div className="sc-stat-val" style={{ color:'#D97706' }}>{stats.warning} 명</div>
         </div>
         <div className="sc-stat-card">
           <div className="sc-stat-label">반 평균 출석률</div>
-          <div className="sc-stat-val" style={{ color:getRateColor(stats.avgRate) }}>{stats.avgRate}<span style={{fontSize:13,color:'#9CA3AF',fontWeight:400}}> %</span></div>
+          <div className="sc-stat-val" style={{ color:getRateColor(stats.avgRate) }}>{stats.avgRate} %</div>
         </div>
       </div>
 
-      {/* 필터 + 반 선택기 */}
+      {/* 필터 섹션 */}
       <div className="sc-filter-card">
         <div className="sc-filter-group">
           <span className="sc-filter-label">학과</span>
           <select className="sc-select" value={filters.deptId} onChange={e => setFilter('deptId', e.target.value)}>
-            {DUMMY_DEPTS.map(d => <option key={d.deptId} value={d.deptId}>{d.deptName}</option>)}
+            {depts.map(d => <option key={d.deptId} value={d.deptId}>{d.deptName}</option>)}
           </select>
         </div>
         <div className="sc-filter-group">
@@ -285,192 +293,98 @@ export default function SearchByClass({ onBack }) {
       </div>
 
       {isLoading ? (
-        <div className="sc-empty">데이터 로딩 중...</div>
+        <div className="sc-empty">데이터를 불러오는 중입니다...</div>
       ) : students.length === 0 ? (
-        <div style={{background:'#fff', borderRadius:14, border:'1px solid #F3F4F6', padding:'48px', textAlign:'center', color:'#9CA3AF', fontSize:'13px'}}>
-          해당 반 데이터가 없습니다.
+        <div className="sc-empty" style={{ background:'#fff', borderRadius:14, border:'1px solid #F3F4F6', padding:'48px'}}>
+          조회된 학생 데이터가 없습니다.
         </div>
       ) : (
         <div style={{ display:'grid', gridTemplateColumns:'1fr 280px', gap:16, alignItems:'start' }}>
-
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-
-            {/* 바 차트 */}
-            <div className="sc-card">
-              <div className="sc-card-title">
-                <span>주차별 반 전체 결석 인원 추이</span>
-                <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                  <span style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'#9CA3AF' }}>
-                    <span style={{ width:8, height:8, borderRadius:2, background:'#EF4444', display:'inline-block' }}/>결석 인원
-                  </span>
-                  <span className="sc-chip sc-chip-gray">현재 {CURRENT_WEEK}주차</span>
-                </div>
-              </div>
-              <div className="sc-chart-wrap">
-                {WEEK_LABELS.map((lbl, wi) => {
-                  const cnt    = weeklyAbsents[wi];
-                  const isPast = (wi + 1) <= CURRENT_WEEK;
-                  const barH   = isPast ? Math.round((cnt / maxAbsent) * 52) : 0;
-                  const barColor = cnt >= 3 ? '#EF4444' : cnt >= 1 ? '#F59E0B' : '#BFDBFE';
-                  return (
-                    <div key={lbl} className="sc-bar-col">
-                      <span className="sc-bar-cnt" style={{ color: isPast && cnt > 0 ? barColor : '#D1D5DB' }}>
-                        {isPast ? cnt : ''}
-                      </span>
-                      <div className="sc-bar-track">
-                        {isPast && (
-                          <div className="sc-bar-fill" style={{ height:barH, background:barColor, marginTop:'auto', width:'100%' }}/>
-                        )}
-                      </div>
-                      <span className="sc-bar-lbl" style={{ color:(wi+1)===CURRENT_WEEK ? '#1D4ED8':'#9CA3AF', fontWeight:(wi+1)===CURRENT_WEEK ? 700:400 }}>
-                        {lbl}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* 출결 그리드 */}
             <div className="sc-card">
               <div className="sc-card-title">
-                <span>
-                  학생별 주차 출결 현황
-                  {quickFilter && <span className="sc-chip sc-chip-red" style={{marginLeft:8}}>결석 3회+ 필터 중</span>}
-                </span>
-                <div style={{ display:'flex', gap:8 }}>
-                  {[
-                    { label:'출석', bg:'#EFF6FF', color:'#3B82F6' },
-                    { label:'결석', bg:'#FEF2F2', color:'#EF4444' },
-                    { label:'지각', bg:'#FFFBEB', color:'#D97706' },
-                    { label:'공결', bg:'#F0FDF4', color:'#16A34A' },
-                  ].map(l => (
-                    <span key={l.label} style={{ fontSize:11, color:l.color, display:'flex', alignItems:'center', gap:3 }}>
-                      <span style={{ width:8, height:8, borderRadius:2, background:l.bg, border:`1px solid ${l.color}`, display:'inline-block' }}/>
-                      {l.label}
-                    </span>
-                  ))}
-                </div>
+                <span>학생별 출결 현황 {quickFilter && <span className="sc-chip sc-chip-red">필터 적용 중</span>}</span>
               </div>
-
-              {displayed.length === 0 ? (
-                <div className="sc-empty">결석 3회 이상 학생이 없습니다. 👍</div>
-              ) : (
-                <div className="sc-grid-wrap">
-                  <table className="sc-grid">
-                    <thead>
-                      <tr>
-                        <th className="left" style={{ minWidth:130 }}>학생</th>
-                        {WEEK_LABELS.map((lbl, wi) => (
-                          <th key={lbl} style={{ color:(wi+1)===CURRENT_WEEK ? '#1D4ED8':undefined }}>{lbl}</th>
-                        ))}
-                        <th>출석률</th>
-                        <th>결석</th>
-                        <th>지각</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayed.map(s => {
-                        const rate      = getAttendRate(s);
-                        const isDanger  = s.totalAbsent >= 6;
-                        const isWarning = s.totalAbsent >= 3 && s.totalAbsent < 6;
-                        return (
-                          <tr key={s.studentId} className={isDanger ? 'danger-row' : isWarning ? 'warning-row' : ''}>
-                            <td className="left">
-                              <div style={{ fontWeight:600, color:'#111827', fontSize:13 }}>{s.korName}</div>
-                              <div style={{ fontSize:11, color:'#9CA3AF' }}>{s.studentId}</div>
-                            </td>
-                            {s.weeklyAttend.map((code, wi) => {
-                              const isPast = (wi + 1) <= CURRENT_WEEK;
-                              if (!isPast) return <td key={wi}><span className="sc-week-future"/></td>;
-                              const cell = getStatusCell(code);
-                              return (
-                                <td key={wi}>
-                                  <div className="sc-week-cell" style={{ background:cell.bg, color:cell.color }}>{cell.label}</div>
-                                </td>
-                              );
-                            })}
-                            <td>
-                              <div className="sc-rate-bar">
-                                <div className="sc-rate-track">
-                                  <div className="sc-rate-fill" style={{ width:`${rate}%`, background:getRateColor(rate) }}/>
-                                </div>
-                                <span style={{ fontSize:12, fontWeight:600, color:getRateColor(rate) }}>{rate}%</span>
-                              </div>
-                            </td>
-                            <td><span className={`sc-chip ${isDanger ? 'sc-chip-red' : isWarning ? 'sc-chip-amber' : 'sc-chip-gray'}`}>{s.totalAbsent}회</span></td>
-                            <td><span className={`sc-chip ${s.totalLate > 0 ? 'sc-chip-amber' : 'sc-chip-gray'}`}>{s.totalLate}회</span></td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <div className="sc-grid-wrap">
+                <table className="sc-grid">
+                  <thead>
+                    <tr>
+                      <th className="left">학생 정보</th>
+                      {WEEK_LABELS.map((lbl, wi) => (
+                        <th key={lbl} style={{ color:(wi+1)===CURRENT_WEEK ? '#1D4ED8':undefined }}>{lbl}</th>
+                      ))}
+                      <th>출석률</th>
+                      <th>결석</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayed.map(s => {
+                      const rate = getAttendRate(s);
+                      const isDanger = (s.totalAbsent || 0) >= 6;
+                      const isWarning = (s.totalAbsent || 0) >= 3 && (s.totalAbsent || 0) < 6;
+                      return (
+                        <tr key={s.studentId} className={isDanger ? 'danger-row' : isWarning ? 'warning-row' : ''}>
+                          <td className="left">
+                            <div style={{ fontWeight:600 }}>{s.korName || s.engName}</div>
+                            <div style={{ fontSize:11, color:'#9CA3AF' }}>{s.studentId}</div>
+                          </td>
+                          {/* 주차별 출결: API에서 weeklyAttend 배열을 제공한다고 가정하거나 
+                              Section 13의 상세 출결을 맵핑해야 합니다. */}
+                          {WEEK_LABELS.map((_, wi) => {
+                             const attendance = s.weeklyAttend?.[wi];
+                             const cell = getStatusCell(attendance);
+                             return (
+                               <td key={wi}>
+                                 {wi + 1 <= CURRENT_WEEK ? (
+                                   <div className="sc-week-cell" style={{ background:cell.bg, color:cell.color }}>{cell.label}</div>
+                                 ) : <span className="sc-week-future"/>}
+                               </td>
+                             );
+                          })}
+                          <td>
+                            <div className="sc-rate-bar">
+                              <span style={{ fontWeight:600, color:getRateColor(rate) }}>{rate}%</span>
+                            </div>
+                          </td>
+                          <td><span className={`sc-chip ${isDanger ? 'sc-chip-red' : isWarning ? 'sc-chip-amber' : 'sc-chip-gray'}`}>{s.totalAbsent || 0}회</span></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
-          {/* 우측 사이드 */}
+          {/* 우측 사이드: 지도교수 및 위험군 요약 */}
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-
-            {/* 담당 지도교수 */}
             <div className="sc-card">
-              <div className="sc-card-title">
-                <span>담당 지도교수</span>
-                <span className="sc-chip sc-chip-blue">{advisors.length}명</span>
-              </div>
+              <div className="sc-card-title">학과 교수진</div>
               <div className="sc-prof-list">
                 {advisors.map(p => (
                   <div key={p.professorId} className="sc-prof-row">
                     <div className="sc-prof-avatar">{p.name[0]}</div>
                     <div className="sc-prof-info">
                       <div className="sc-prof-name">{p.name} 교수</div>
-                      <div className="sc-prof-sub">{p.professorId}</div>
-                    </div>
-                    <div className="sc-contact-btns">
-                      <a href={`mailto:${p.email}`} className="sc-contact-btn sc-contact-email">
-                        <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round"/></svg>
-                        메일
-                      </a>
-                      <a href={`tel:${p.phone}`} className="sc-contact-btn sc-contact-phone">
-                        <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" strokeLinecap="round"/></svg>
-                        전화
-                      </a>
+                      <div className="sc-prof-sub">{p.email}</div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* 위험군 요약 */}
             <div className="sc-card">
-              <div className="sc-card-title">위험군 요약</div>
+              <div className="sc-card-title">집중 관리 대상</div>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {students
-                  .filter(s => s.totalAbsent >= 3)
-                  .sort((a, b) => b.totalAbsent - a.totalAbsent)
-                  .map(s => {
-                    const isDanger = s.totalAbsent >= 6;
-                    return (
-                      <div key={s.studentId} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 10px', borderRadius:8, background: isDanger ? '#FFF5F5':'#FFFBEB', border:`1px solid ${isDanger ? '#FECACA':'#FDE68A'}` }}>
-                        <div>
-                          <div style={{ fontSize:13, fontWeight:600, color:'#111827' }}>{s.korName}</div>
-                          <div style={{ fontSize:11, color:'#9CA3AF' }}>{s.nationality}</div>
-                        </div>
-                        <span className={`sc-chip ${isDanger ? 'sc-chip-red':'sc-chip-amber'}`}>
-                          결석 {s.totalAbsent}회 {isDanger ? '⚠':''}
-                        </span>
-                      </div>
-                    );
-                  })}
-                {students.filter(s => s.totalAbsent >= 3).length === 0 && (
-                  <div style={{ textAlign:'center', color:'#16A34A', fontSize:13, padding:'16px 0' }}>
-                    위험군 학생이 없습니다 ✅
+                {students.filter(s => (s.totalAbsent || 0) >= 3).slice(0, 5).map(s => (
+                  <div key={s.studentId} style={{ display:'flex', justifyContent:'space-between', padding:8, background:'#FFF5F5', borderRadius:8 }}>
+                    <span style={{ fontWeight:600 }}>{s.korName}</span>
+                    <span className="sc-chip sc-chip-red">결석 {s.totalAbsent}회</span>
                   </div>
-                )}
+                ))}
               </div>
             </div>
-
           </div>
         </div>
       )}

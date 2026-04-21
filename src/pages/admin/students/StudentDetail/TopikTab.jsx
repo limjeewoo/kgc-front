@@ -1,32 +1,68 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+// const BASE_URL = 'https://api.kmgc.world'; // 배포용
+const BASE_URL = 'http://localhost:8080'; // 개발용
 
 export default function TopikTab() {
   const { id } = useParams();
   const navigate = useNavigate();
+  
+  // 상태 관리
   const [student, setStudent] = useState(null);
   const [topikHistory, setTopikHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Axios 인스턴스 (인증 토큰 포함)
+  const api = axios.create({
+    baseURL: API_BASE_URL,
+    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
+  });
+
   useEffect(() => {
-    // API 연결 전 테스트용 데이터 로드
-    setTimeout(() => {
-      setStudent({
-        studentId: id,
-        korName: "응우옌반안",
-        engName: "NGUYEN VAN AN",
-        deptName: "컴퓨터소프트웨어과",
-      });
-      
-      setTopikHistory([
-        { id: 1, date: '2024-02-15', level: '4급', score: '192점', status: '유효', expiry: '2026-02-14' },
-        { id: 2, date: '2023-08-20', level: '3급', score: '145점', status: '만료', expiry: '2025-08-19' },
-        { id: 3, date: '2022-11-10', level: '2급', score: '120점', status: '만료', expiry: '2024-11-09' },
-      ]);
-      
-      setIsLoading(false);
-    }, 300);
+    const fetchTopikData = async () => {
+      try {
+        setIsLoading(true);
+
+        // 1. 학생 기본 정보 (이름, 학과 등 상단 UI용)
+        // 2. 해당 학생의 TOPIK 성적 이력 목록
+        const [studentRes, topikRes] = await Promise.all([
+          api.get(`/api/v1/students/${id}`).catch(() => ({ data: { data: {} } })),
+          api.get(`/api/v1/students/${id}/topik`).catch(() => ({ data: { data: [] } }))
+        ]);
+
+        if (studentRes.data?.success) {
+          setStudent(studentRes.data.data);
+        }
+
+        if (topikRes.data?.success) {
+          // 최신순으로 정렬 (필요 시)
+          const sortedHistory = (topikRes.data.data || []).sort(
+            (a, b) => new Date(b.testDate) - new Date(a.testDate)
+          );
+          setTopikHistory(sortedHistory);
+        }
+
+      } catch (error) {
+        console.error("TOPIK 이력 데이터 로드 실패:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (id) fetchTopikData();
   }, [id]);
+
+  // 날짜 비교를 통한 유효/만료 상태 계산 함수 (API 응답에 명확한 상태값이 없을 경우 대비)
+  const checkStatus = (expiryDate, apiStatus) => {
+    if (apiStatus) return apiStatus; // API에서 '유효' 또는 '만료'를 직접 주면 그대로 사용
+    if (!expiryDate) return '-';
+    
+    const today = new Date();
+    const expDate = new Date(expiryDate);
+    return expDate >= today ? '유효' : '만료';
+  };
 
   if (isLoading) {
     return (
@@ -65,7 +101,8 @@ export default function TopikTab() {
         .status-valid { background: #F0FDF4; color: #16A34A; }
         .status-expired { background: #FEF2F2; color: #EF4444; }
 
-        .add-btn { background: #1A3A5C; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 500; cursor: pointer; }
+        .add-btn { background: #1A3A5C; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+        .add-btn:hover { background: #112740; }
       `}</style>
 
       {/* 상단 네비게이션 */}
@@ -77,7 +114,9 @@ export default function TopikTab() {
               <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
-          <div className="tt-breadcrumb">학생 관리 › {student?.korName} › <span>TOPIK 이력 조회</span></div>
+          <div className="tt-breadcrumb">
+            학생 관리 › {student?.korName || '학생 이름'} › <span>TOPIK 이력 조회</span>
+          </div>
         </div>
       </div>
 
@@ -85,7 +124,8 @@ export default function TopikTab() {
       <div className="tt-card">
         <div className="tt-card-header">
           <div className="tt-title">한국어 능력 시험(TOPIK) 이력</div>
-          <button className="add-btn">+ 새 성적 등록</button>
+          {/* 성적 등록 페이지나 모달로 연결되도록 onClick 핸들러를 추후 연결할 수 있습니다 */}
+          <button className="add-btn" onClick={() => alert('새 성적 등록 모달 오픈 예정')}>+ 새 성적 등록</button>
         </div>
 
         <table className="tt-table">
@@ -99,27 +139,33 @@ export default function TopikTab() {
             </tr>
           </thead>
           <tbody>
-            {topikHistory.map((item) => (
-              <tr key={item.id}>
-                <td style={{ fontWeight: 500 }}>{item.date}</td>
-                <td><span style={{ color: '#3B82F6', fontWeight: 700 }}>{item.level}</span></td>
-                <td>{item.score}</td>
-                <td style={{ color: '#6B7280' }}>{item.expiry}</td>
-                <td>
-                  <span className={`status-badge ${item.status === '유효' ? 'status-valid' : 'status-expired'}`}>
-                    {item.status}
-                  </span>
+            {topikHistory.length === 0 ? (
+              <tr>
+                <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>
+                  등록된 TOPIK 이력이 없습니다.
                 </td>
               </tr>
-            ))}
+            ) : (
+              topikHistory.map((item) => {
+                const status = checkStatus(item.expiryDate, item.status);
+                
+                return (
+                  <tr key={item.topikId || item.id}>
+                    <td style={{ fontWeight: 500 }}>{item.testDate}</td>
+                    <td><span style={{ color: '#3B82F6', fontWeight: 700 }}>{item.topikLevel}</span></td>
+                    <td>{item.totalScore ? `${item.totalScore}점` : '-'}</td>
+                    <td style={{ color: '#6B7280' }}>{item.expiryDate || '-'}</td>
+                    <td>
+                      <span className={`status-badge ${status === '유효' ? 'status-valid' : 'status-expired'}`}>
+                        {status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
-
-        {topikHistory.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>
-            등록된 TOPIK 이력이 없습니다.
-          </div>
-        )}
       </div>
     </div>
   );

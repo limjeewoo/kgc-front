@@ -18,12 +18,12 @@ export default function TopBar({ title }) {
       .catch(() => setSemester(null));
   }, []);
 
-  // 알림 조회
-  useEffect(() => {
-    api.get('/api/v1/notifications')
-      .then(res => { if (res.data.success) setNotifications(res.data.data); })
-      .catch(() => setNotifications([]));
-  }, []);
+  // // 알림 조회
+  // useEffect(() => {
+  //   api.get('/api/v1/notifications')
+  //     .then(res => { if (res.data.success) setNotifications(res.data.data); })
+  //     .catch(() => setNotifications([]));
+  // }, []);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 

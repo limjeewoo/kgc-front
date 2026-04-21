@@ -8,6 +8,9 @@ import SearchByCourse from '../search/SearchByCourse.jsx';
 import OnlineViolation from '../search/OnlineViolation.jsx';
 import CourseList from '../courses/CourseList.jsx';
 
+// 구현 예정인 메뉴 목록 (fallback 페이지 표시용)
+const NOT_IMPLEMENTED = new Set(['마일리지 승인', '상담 내역', '교수 관리']);
+
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeMenu, setActiveMenu] = useState('대시보드');
@@ -15,28 +18,81 @@ export default function AdminDashboard() {
   const [visaList, setVisaList] = useState([]);
   const [attendanceList, setAttendanceList] = useState([]);
   const [onlineList, setOnlineList] = useState([]);
+  const [totalStudents, setTotalStudents] = useState(0); 
+  const [pendingJobs, setPendingJobs] = useState(0);     
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const targetDeptId = '101';
-        const [semRes, visaRes, attendRes, onlineRes] = await Promise.all([
-          api.get('/api/v1/semesters/current', { params: { deptId: targetDeptId } }),
-          api.get('/api/v1/visas/expiring', { params: { days: 30, deptId: targetDeptId } }),
-          api.get('/api/v1/academic/attendance-warnings', { params: { deptId: targetDeptId } }),
-          api.get('/api/v1/academic/online-violations', { params: { deptId: targetDeptId } }),
+
+        // 1. 학과 ID 가져오기 (독립적인 try-catch로 감싸서, 여기서 404가 나도 앱이 뻗지 않도록 방어)
+        let realDeptId = '';
+        try {
+          const deptRes = await api.get('/api/v1/depts');
+          if (deptRes.data?.success && deptRes.data.data?.length > 0) {
+            realDeptId = deptRes.data.data[0].deptId;
+          }
+        } catch (deptErr) {
+          console.warn('⚠️ 학과 정보를 불러오지 못했습니다. (빈 데이터로 진행합니다)');
+        }
+
+        // 2. 대시보드 데이터를 병렬로 안전하게 불러옵니다.
+        const results = await Promise.allSettled([
+          // 정상 호출: 현재 학기
+          api.get('/api/v1/semesters/current'),
+          
+          // 정상 호출: 전체 학생 (학과 ID 필수)
+          realDeptId 
+            ? api.get(`/api/v1/students?deptId=${realDeptId}`)
+            : Promise.resolve({ data: { success: true, data: [] } }),
+
+          // 명세서상 미구현 기능들은 에러 방지를 위해 임시로 빈 데이터 반환 (비자)
+          Promise.resolve({ data: { success: true, data: [] } }), 
+
+          // 🚨 요청하신 출결 경고 주석 처리
+          Promise.resolve({ data: { success: true, data: [] } }), 
+
+          // 🚨 요청하신 온라인 30% 주석 처리
+          Promise.resolve({ data: { success: true, data: [] } }), 
+
+          // 명세서상 미구현 기능 (근로 대기)
+          Promise.resolve({ data: { success: true, data: [] } })
         ]);
-        if (semRes.data.success) setCurrentSemester(semRes.data.data);
-        if (visaRes.data.success) setVisaList(visaRes.data.data);
-        if (attendRes.data.success) setAttendanceList(attendRes.data.data);
-        if (onlineRes.data.success) setOnlineList(onlineRes.data.data);
+
+        const [semRes, studentsRes, visaRes, attendRes, onlineRes, jobsRes] = results;
+
+        // 3. Optional Chaining(?.)을 사용해 응답 객체가 없을 때의 크래시 방지
+        if (semRes.status === 'fulfilled' && semRes.value?.data?.success) {
+          setCurrentSemester(semRes.value.data.data);
+        }
+        
+        if (studentsRes.status === 'fulfilled' && studentsRes.value?.data?.success) {
+          const students = studentsRes.value.data.data || [];
+          const enrolled = students.filter(s => s.enrollStatus === '등록');
+          setTotalStudents(enrolled.length);
+        }
+
+        if (visaRes.status === 'fulfilled' && visaRes.value?.data?.success) {
+          setVisaList(visaRes.value.data.data || []);
+        }
+        if (attendRes.status === 'fulfilled' && attendRes.value?.data?.success) {
+          setAttendanceList(attendRes.value.data.data || []);
+        }
+        if (onlineRes.status === 'fulfilled' && onlineRes.value?.data?.success) {
+          setOnlineList(onlineRes.value.data.data || []);
+        }
+        if (jobsRes.status === 'fulfilled' && jobsRes.value?.data?.success) {
+          setPendingJobs(jobsRes.value.data.data?.length || 0);
+        }
+
       } catch (error) {
-        console.error('데이터 로드 실패:', error);
+        console.error('데이터 로드 중 치명적 에러:', error);
       } finally {
         setLoading(false);
       }
     };
+
     fetchDashboardData();
   }, []);
 
@@ -105,10 +161,11 @@ export default function AdminDashboard() {
         .online-row { display: flex; align-items: center; padding: 0.75rem 1.25rem; border-bottom: 1px solid #F9FAFB; gap: 1rem; }
         .progress-bar { flex: 1; height: 6px; background: #F3F4F6; border-radius: 3px; overflow: hidden; }
         .progress-fill { height: 100%; background: #EF4444; }
+
+        .empty-state { padding: 2rem 1.25rem; text-align: center; color: #9CA3AF; font-size: 0.8125rem; }
       `}</style>
 
       <div className="admin-wrap">
-        {/* 사이드바 */}
         <div className="sidebar">
           <div className="sidebar-logo" onClick={() => handleMenuClick('대시보드')}>
             <img src="/logo-fff.png" alt="KMGC Logo" className="logo-img" />
@@ -130,7 +187,7 @@ export default function AdminDashboard() {
             <div className="sb-lbl">학사</div>
             <button className={`nav-btn ${activeMenu === '출결 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('출결 관리')}>출결 관리</button>
             <button className={`nav-btn ${activeMenu === '온라인 30% 확인' ? 'active' : ''}`} onClick={() => handleMenuClick('온라인 30% 확인')}>
-              온라인 30% 확인 <span className="nav-badge">{onlineList.length}</span>
+              온라인 30% 확인 {onlineList.length > 0 && <span className="nav-badge">{onlineList.length}</span>}
             </button>
             <button className={`nav-btn ${activeMenu === '과목 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('과목 관리')}>과목 관리</button>
           </div>
@@ -138,7 +195,7 @@ export default function AdminDashboard() {
           <div className="sb-sec">
             <div className="sb-lbl">활동</div>
             <button className={`nav-btn ${activeMenu === '마일리지 승인' ? 'active' : ''}`} onClick={() => handleMenuClick('마일리지 승인')}>
-              마일리지 승인 <span className="nav-badge">0</span>
+              마일리지 승인 {pendingJobs > 0 && <span className="nav-badge">{pendingJobs}</span>}
             </button>
             <button className={`nav-btn ${activeMenu === '상담 내역' ? 'active' : ''}`} onClick={() => handleMenuClick('상담 내역')}>상담 내역</button>
           </div>
@@ -159,108 +216,97 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* 메인 콘텐츠 영역 */}
         <div className="main">
           <TopBar title={activeMenu} />
 
           <div className="content">
-
-            {/* 대시보드 화면 */}
             {activeMenu === '대시보드' && (
               <>
                 <div className="stats-grid">
                   <button className="stat-card" onClick={() => handleMenuClick('학생 목록')}>
                     <div className="stat-label"><div className="stat-dot" style={{background:'#3B82F6'}}/>전체 재학생</div>
-                    <div className="stat-value">0 <span>명</span></div>
+                    <div className="stat-value">{totalStudents} <span>명</span></div>
                   </button>
                   <button className="stat-card" onClick={() => handleMenuClick('학생 목록')}>
                     <div className="stat-label"><div className="stat-dot" style={{background:'#EF4444'}}/>비자 만료 임박</div>
-                    <div className="stat-value" style={{color:'#EF4444'}}>{visaList.length} <span>명</span></div>
+                    <div className="stat-value" style={{color: visaList.length > 0 ? '#EF4444' : 'inherit'}}>{visaList.length} <span>명</span></div>
                   </button>
                   <button className="stat-card" onClick={() => handleMenuClick('출결 관리')}>
                     <div className="stat-label"><div className="stat-dot" style={{background:'#F59E0B'}}/>출결 위험군</div>
-                    <div className="stat-value" style={{color:'#F59E0B'}}>{attendanceList.length} <span>명</span></div>
+                    <div className="stat-value" style={{color: attendanceList.length > 0 ? '#F59E0B' : 'inherit'}}>{attendanceList.length} <span>명</span></div>
                   </button>
                   <button className="stat-card" onClick={() => handleMenuClick('마일리지 승인')}>
                     <div className="stat-label"><div className="stat-dot" style={{background:'#8B5CF6'}}/>마일리지 대기</div>
-                    <div className="stat-value">0 <span>건</span></div>
+                    <div className="stat-value">{pendingJobs} <span>건</span></div>
                   </button>
                 </div>
 
                 <div className="bottom-grid">
                   <div className="card">
                     <div className="card-header">비자 만료 임박 학생 (D-30) <span>{visaList.length}명</span></div>
-                    {visaList.map(v => (
-                      <button key={v.studentId} className="list-btn">
-                        <div className="item-avatar" style={{color:'#EF4444', background:'#FEF2F2'}}>{v.korName[0]}</div>
-                        <div className="item-info">
-                          <div className="item-name">{v.korName} ({v.engName})</div>
-                          <div className="item-sub">{v.nationality} · {v.visaType}</div>
-                        </div>
-                        <div className="badge-red">D-{v.dDay}</div>
-                      </button>
-                    ))}
+                    {visaList.length === 0 ? (
+                      <div className="empty-state">만료 임박 비자가 없습니다.</div>
+                    ) : (
+                      visaList.map(v => (
+                        <button key={v.studentId} className="list-btn">
+                          <div className="item-avatar" style={{color:'#EF4444', background:'#FEF2F2'}}>{v.korName?.[0] ?? '?'}</div>
+                          <div className="item-info">
+                            <div className="item-name">{v.korName} ({v.engName})</div>
+                            <div className="item-sub">{v.nationality} · {v.visaType}</div>
+                          </div>
+                          <div className="badge-red">D-{v.dDay}</div>
+                        </button>
+                      ))
+                    )}
                   </div>
 
                   <div className="card">
                     <div className="card-header">출결 위험군 학생 <span>{attendanceList.length}명</span></div>
-                    {attendanceList.map(a => (
-                      <button key={a.enrollId} className="list-btn">
-                        <div className="item-avatar" style={{color:'#D97706', background:'#FFFBEB'}}>{a.studentName[0]}</div>
-                        <div className="item-info">
-                          <div className="item-name">{a.studentName}</div>
-                          <div className="item-sub">{a.courseName}</div>
-                        </div>
-                        <div className="badge-red" style={{background:'#FEE2E2'}}>결석 {a.totalAbsent}회</div>
-                      </button>
-                    ))}
+                    {attendanceList.length === 0 ? (
+                      <div className="empty-state">출결 위험군 학생이 없습니다.</div>
+                    ) : (
+                      attendanceList.map(a => (
+                        <button key={a.enrollId} className="list-btn">
+                          <div className="item-avatar" style={{color:'#D97706', background:'#FFFBEB'}}>{a.studentName?.[0] ?? '?'}</div>
+                          <div className="item-info">
+                            <div className="item-name">{a.studentName}</div>
+                            <div className="item-sub">{a.courseName}</div>
+                          </div>
+                          <div className="badge-red" style={{background:'#FEE2E2'}}>결석 {a.totalAbsent}회</div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
 
                 <div className="card">
                   <div className="card-header">순수 온라인 수업 비율 30% 초과</div>
-                  {onlineList.map(o => (
-                    <div key={o.studentId} className="online-row">
-                      <div style={{width:'80px', fontSize:'0.81rem', fontWeight:'600'}}>{o.korName}</div>
-                      <div className="progress-bar">
-                        <div className="progress-fill" style={{width:`${o.onlineRatio * 100}%`}} />
+                  {onlineList.length === 0 ? (
+                    <div className="empty-state">초과 학생이 없습니다.</div>
+                  ) : (
+                    onlineList.map(o => (
+                      <div key={o.studentId} className="online-row">
+                        <div style={{width:'80px', fontSize:'0.81rem', fontWeight:'600'}}>{o.korName}</div>
+                        <div className="progress-bar">
+                          <div className="progress-fill" style={{width:`${Math.min(o.onlineRatio * 100, 100)}%`}} />
+                        </div>
+                        <div style={{width:'50px', fontSize:'0.75rem', fontWeight:'bold', color:'#EF4444', textAlign:'right'}}>
+                          {(o.onlineRatio * 100).toFixed(1)}%
+                        </div>
                       </div>
-                      <div style={{width:'50px', fontSize:'0.75rem', fontWeight:'bold', color:'#EF4444', textAlign:'right'}}>
-                        {(o.onlineRatio * 100).toFixed(1)}%
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </>
             )}
 
-            {/* 학생 목록 화면 */}
-            {activeMenu === '학생 목록' && (
-              <StudentList />
-            )}
-
-            {/* 통합 검색 화면 */}
-            {activeMenu === '통합 검색' && (
-              <SearchByDept onBack={() => setActiveMenu('대시보드')} />
-            )}
-
-            {/* 출결 관리 화면 (SearchByClass 렌더링) */}
-            {activeMenu === '출결 관리' && (
-              <SearchByClass onBack={() => setActiveMenu('대시보드')} />
-            )}
-
-            {/* 과목 관리 화면 렌더링 (CourseList 연결) */}
-            {activeMenu === '과목 관리' && (
-              <CourseList onBack={() => setActiveMenu('대시보드')} />
-            )}
-
-            {/* 2. 온라인 30% 확인 화면 렌더링 추가 */}
-            {activeMenu === '온라인 30% 확인' && (
-              <OnlineViolation onBack={() => setActiveMenu('대시보드')} />
-            )}
+            {activeMenu === '학생 목록' && <StudentList />}
+            {activeMenu === '통합 검색' && <SearchByDept onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '출결 관리' && <SearchByClass onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '과목 관리' && <CourseList onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '온라인 30% 확인' && <OnlineViolation onBack={() => setActiveMenu('대시보드')} />}
             
-            {/* 아직 구현되지 않은 나머지 메뉴들 */}
-            {activeMenu !== '대시보드' && activeMenu !== '학생 목록' && activeMenu !== '통합 검색' && activeMenu !== '출결 관리' && (
+            {NOT_IMPLEMENTED.has(activeMenu) && (
               <div style={{padding:'4rem', textAlign:'center', background:'#fff', borderRadius:'1rem'}}>
                 <h2 style={{fontSize:'1.5rem', marginBottom:'1rem'}}>{activeMenu} 페이지</h2>
                 <p style={{color:'#6B7280'}}>이곳에 {activeMenu} 관련 기능을 구현해 주세요.</p>
