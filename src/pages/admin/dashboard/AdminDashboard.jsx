@@ -43,18 +43,16 @@ export default function AdminDashboard() {
           api.get('/api/v1/semesters/current'),
           
           // 정상 호출: 전체 학생 (학과 ID 필수)
-          realDeptId 
-            ? api.get(`/api/v1/students?deptId=${realDeptId}`)
-            : Promise.resolve({ data: { success: true, data: [] } }),
+          api.get('/api/v1/students'),
 
           // 명세서상 미구현 기능들은 에러 방지를 위해 임시로 빈 데이터 반환 (비자)
-          Promise.resolve({ data: { success: true, data: [] } }), 
+          api.get('/api/v1/visas/expiring', { params: { days: 30 } }),
 
           // 🚨 요청하신 출결 경고 주석 처리
           Promise.resolve({ data: { success: true, data: [] } }), 
 
           // 🚨 요청하신 온라인 30% 주석 처리
-          Promise.resolve({ data: { success: true, data: [] } }), 
+          api.get('/api/v1/search/online-violations'),
 
           // 명세서상 미구현 기능 (근로 대기)
           Promise.resolve({ data: { success: true, data: [] } })
@@ -249,10 +247,10 @@ export default function AdminDashboard() {
                     ) : (
                       visaList.map(v => (
                         <button key={v.studentId} className="list-btn">
-                          <div className="item-avatar" style={{color:'#EF4444', background:'#FEF2F2'}}>{v.korName?.[0] ?? '?'}</div>
+                          <div className="item-avatar" style={{color:'#EF4444', background:'#FEF2F2'}}>{v.studentName?.[0] ?? '?'}</div>
                           <div className="item-info">
-                            <div className="item-name">{v.korName} ({v.engName})</div>
-                            <div className="item-sub">{v.nationality} · {v.visaType}</div>
+                            <div className="item-name">{v.studentName}</div>
+                            <div className="item-sub">비자종류: {v.visaType} · 만료까지 {v.dDay}일</div>
                           </div>
                           <div className="badge-red">D-{v.dDay}</div>
                         </button>
