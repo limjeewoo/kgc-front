@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
 // ─── API 설정 ────────────────────────────────────────────────────────
+const BASE_URL = 'http://localhost:8080'; // 개발용
+
 const api = axios.create({
-  baseURL: 'http://localhost:8080',
+  baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -25,11 +27,11 @@ const getRiskLevel = (ratio) => {
 
 const fmtPct = (ratio) => ((ratio || 0) * 100).toFixed(1) + '%';
 
-/* 확인서 프린트 유틸 (명세서의 isOnline 속성 반영) */
+/* 확인서 프린트 유틸 (명세서의 onlineType 속성 완벽 반영) */
 const printCert = (student, enrollments, semesterName) => {
-  // 명세서 11번: 온라인 여부는 isOnline(boolean)으로 내려옴
+  // 변경점: isOnline 대신 onlineType === 'ONLINE' 만 순수 온라인 학점으로 계산
   const onlineCredits = (enrollments || [])
-    .filter(e => e.isOnline === true || e.onlineType === 'ONLINE')
+    .filter(e => e.onlineType === 'ONLINE')
     .reduce((sum, e) => sum + (e.credits || 0), 0);
     
   const totalCredits = (enrollments || []).reduce((s, e) => s + (e.credits || 0), 0);
@@ -67,18 +69,22 @@ const printCert = (student, enrollments, semesterName) => {
       <thead><tr style="background:#eee;"><th>과목코드</th><th>과목명</th><th>학점</th><th>이수형태</th></tr></thead>
       <tbody>
         ${(enrollments || []).map(e => {
-          const isOnline = e.isOnline === true || e.onlineType === 'ONLINE';
+          // onlineType 에 따른 텍스트 출력
+          let typeText = '오프라인(Face-to-face)';
+          if (e.onlineType === 'ONLINE') typeText = '<b>온라인(Online)</b>';
+          if (e.onlineType === 'BLENDED') typeText = '블렌디드(Blended)';
+
           return `
           <tr>
             <td>${e.courseId}</td>
             <td>${e.courseName}</td>
             <td>${e.credits}</td>
-            <td>${isOnline ? '<b>온라인(Online)</b>' : '오프라인(Face-to-face)'}</td>
+            <td>${typeText}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
-    <div class="notice">※ 본 확인서는 법무부 유학생 관리 지침(온라인 수업 30% 이내 제한)에 따른 수강 현황을 증명함.</div>
+    <div class="notice">※ 본 확인서는 법무부 유학생 관리 지침(온라인 수업 30% 이내 제한)에 따른 수강 현황을 증명함. (※블렌디드 수업은 오프라인 비율에 따라 제외될 수 있음)</div>
     <div class="footer">
       <div class="date">${new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric' })}</div>
       <div class="seal-text">경민대학교 국제교육원장</div>
@@ -127,8 +133,8 @@ export default function OnlineViolation() {
   const loadList = async (deptId = '') => {
     setLoading(true);
     try {
+      // 변경점: GET /api/v1/search/online-violations 사용 및 파라미터 전달
       const res = await api.get('/api/v1/search/online-violations', {
-        // deptId가 없으면 undefined로 넘겨 파라미터에서 제외시킴
         params: { deptId: deptId || undefined },
       });
       if (res.data.success) {
@@ -274,8 +280,9 @@ export default function OnlineViolation() {
         .ov-enroll-table tr:hover td { background:#F8FAFC; }
 
         .ov-badge { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:600; padding:3px 8px; border-radius:6px; }
-        .ov-badge-online  { background:#FEF2F2; color:#DC2626; }
-        .ov-badge-offline { background:#F3F4F6; color:#6B7280; }
+        .ov-badge-online  { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA; }
+        .ov-badge-blended { background:#F3E8FF; color:#7E22CE; border:1px solid #E9D5FF; }
+        .ov-badge-offline { background:#F3F4F6; color:#4B5563; border:1px solid #E5E7EB; }
         .ov-empty { padding:48px; text-align:center; color:#9CA3AF; font-size:13px; }
 
         @media (max-width:900px) {
@@ -468,8 +475,8 @@ export default function OnlineViolation() {
                 </thead>
                 <tbody>
                   {detail.enrollments.map(e => {
-                    // 백엔드의 isOnline boolean 값을 최우선으로 판단
-                    const isOnline = e.isOnline === true || e.onlineType === 'ONLINE';
+                    // 변경점: onlineType (ONLINE, OFFLINE, BLENDED) 대응
+                    const type = e.onlineType;
                     return (
                       <tr key={e.enrollId}>
                         <td>
@@ -482,10 +489,12 @@ export default function OnlineViolation() {
                           <span className="ov-chip ov-chip-blue">{e.credits}학점</span>
                         </td>
                         <td>
-                          {isOnline ? (
-                            <span className="ov-badge ov-badge-online">🌐 온라인</span>
+                          {type === 'ONLINE' ? (
+                            <span className="ov-badge ov-badge-online">🌐 100% 온라인</span>
+                          ) : type === 'BLENDED' ? (
+                            <span className="ov-badge ov-badge-blended">🌓 블렌디드</span>
                           ) : (
-                            <span className="ov-badge ov-badge-offline">🏛️ 오프라인(대면)</span>
+                            <span className="ov-badge ov-badge-offline">🏛️ 오프라인 대면</span>
                           )}
                         </td>
                         <td style={{ fontWeight: 600 }}>{e.grade || '—'}</td>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
-// 1. API 설정 및 인터셉터 (명세서 공통 규칙 반영)
+// 1. API 설정 및 인터셉터
 const api = axios.create({
   baseURL: 'http://localhost:8080',
   headers: { 'Content-Type': 'application/json' },
@@ -16,7 +16,7 @@ api.interceptors.request.use((config) => {
 const WEEK_LABELS = Array.from({ length: 15 }, (_, i) => `${i + 1}`);
 
 /**
- * 출결 상태 코드 매핑 (명세서 13.2 기준)
+ * 출결 상태 코드 매핑
  * 1=출석(1), 2=결석(X), 3=지각(▲), 4=공결(공)
  */
 const getStatusDisplay = (code) => {
@@ -34,15 +34,13 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [courseData, setCourseData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  // 출결 정책 (명세서 20.1 연동용)
   const [policy, setPolicy] = useState({ warningThreshold: 3, dangerThreshold: 6 });
 
-  // A. 초기 로드: 학과/반 기준 과목 목록(18.3) 및 정책(20.1) 가져오기
+  // A. 초기 로드
   useEffect(() => {
     const initData = async () => {
       if (!deptId || !classSec) return;
       try {
-        // 과목 목록 조회
         const courseRes = await api.get('/api/v1/search/class', { 
           params: { deptId, classSec } 
         });
@@ -52,7 +50,6 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
           if (courses.length > 0) setSelectedCourseId(courses[0].courseId);
         }
 
-        // 출결 경고 정책 조회
         const policyRes = await api.get('/api/v1/policies/attend');
         if (policyRes.data.success) {
           setPolicy(policyRes.data.data);
@@ -64,7 +61,7 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
     initData();
   }, [deptId, classSec]);
 
-  // B. 과목 상세 정보 및 학생 명단 조회 (명세서 18.4)
+  // B. 과목 상세 정보 조회
   const fetchCourseDetail = useCallback(async () => {
     if (!selectedCourseId) return;
     setIsLoading(true);
@@ -95,23 +92,17 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
         .excel-table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
         .excel-table th { background: #E5E7EB; border: 1px solid #D1D5DB; padding: 8px 2px; color: #374151; font-weight: 600; position: sticky; top: 0; z-index: 10; }
         .excel-table td { border: 1px solid #D1D5DB; padding: 6px 4px; text-align: center; white-space: nowrap; }
-        
-        /* 특정 열 고정 스타일 */
         .sticky-name { position: sticky; left: 0; background: #fff; z-index: 5; border-right: 2px solid #D1D5DB !important; }
         .bg-gray { background: #F9FAFB; }
-        
-        /* 경고 뱃지 */
         .badge { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; }
         .badge-danger { background: #EF4444; color: #fff; }
         .badge-warning { background: #F59E0B; color: #fff; }
         .badge-caution { background: #FBBF24; color: #1F2937; }
-
         .tab-menu { display: flex; gap: 2px; margin-bottom: 15px; }
         .tab-item { padding: 10px 20px; border: 1px solid #D1D5DB; background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; }
         .tab-item.active { background: #1E3A8A; color: #fff; border-color: #1E3A8A; }
       `}</style>
 
-      {/* 상단 헤더 및 과목 선택 탭 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <button onClick={onBack} style={{ padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: '4px', background: '#fff', cursor: 'pointer' }}>←</button>
@@ -136,18 +127,11 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
       ) : (
         <div className="excel-container">
           <table className="excel-table">
+            {/* 수정 포인트: col 태그 사이의 공백을 제거하여 Hydration 에러 방지 */}
             <colgroup>
-              <col width="40px" />   {/* 번호 */}
-              <col width="110px" />  {/* 학과 */}
-              <col width="50px" />   {/* 분반 */}
-              <col width="90px" />   {/* 학번 */}
-              <col width="140px" />  {/* 성명(영문) */}
-              <col width="80px" />   {/* 국적 */}
-              {WEEK_LABELS.map((_, i) => <col key={i} width="32px" />)} {/* 1-15주 */}
-              <col width="50px" />   {/* 결석일 */}
-              <col width="70px" />   {/* 출석평가 */}
-              <col width="60px" />   {/* 평점 */}
-              <col width="70px" />   {/* 총이수학점 */}
+              <col width="40px" /><col width="110px" /><col width="50px" /><col width="90px" /><col width="140px" /><col width="80px" />
+              {WEEK_LABELS.map((_, i) => <col key={i} width="32px" />)}
+              <col width="50px" /><col width="70px" /><col width="60px" /><col width="70px" />
             </colgroup>
             <thead>
               <tr>
@@ -168,7 +152,6 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
               {students.length > 0 ? students.map((student, idx) => {
                 const totalAbsent = student.totalAbsent || 0;
                 
-                // 평가 로직 (정책 기준)
                 let evalLabel = '';
                 let badgeClass = '';
                 if (totalAbsent >= policy.dangerThreshold) {
@@ -193,7 +176,6 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
                     </td>
                     <td>{student.nationality || '-'}</td>
                     
-                    {/* 1~15주차 실시간 출결 데이터 매핑 */}
                     {Array.from({ length: 15 }).map((_, i) => {
                       const weekNo = i + 1;
                       const attendance = student.attendances?.find(a => a.weekNo === weekNo);
@@ -205,7 +187,6 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
                       );
                     })}
 
-                    {/* 요약 및 평가 데이터 */}
                     <td style={{ color: totalAbsent > 0 ? '#EF4444' : 'inherit', fontWeight: 'bold' }}>
                       {totalAbsent}
                     </td>
@@ -218,7 +199,7 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
                 );
               }) : (
                 <tr>
-                  <td colSpan={25} style={{ padding: '40px', color: '#9CA3AF' }}>수강생 데이터가 존재하지 않습니다.</td>
+                  <td colSpan={WEEK_LABELS.length + 10} style={{ padding: '40px', color: '#9CA3AF' }}>수강생 데이터가 존재하지 않습니다.</td>
                 </tr>
               )}
             </tbody>

@@ -2,62 +2,74 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-// const BASE_URL = 'https://api.kmgc.world'; // 배포용
 const BASE_URL = 'http://localhost:8080'; // 개발용
 
-export default function SearchByDept() {
+export default function SearchByDept({ onBack }) {
   const navigate = useNavigate();
   const accessToken = localStorage.getItem('accessToken');
 
   // 1. 상태 관리
   const [depts, setDepts] = useState([]); // 학과 목록
+  const [nationalities, setNationalities] = useState([]); // 국적 목록
   const [students, setStudents] = useState([]); // 조회된 학생 목록
   const [isLoading, setIsLoading] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const [showNotifyModal, setShowNotifyModal] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState('');
 
-  // 필터 상태 (명세서 18.2 쿼리 파라미터 기준)
+  // 2. 확장된 필터 상태
   const [filters, setFilters] = useState({
-    deptId: '', // 필수
-    nationality: '',
+    deptId: '',       // 선택 (optional)
+    studentId: '',    
+    name: '',         
     gender: '',
+    nationality: '',
     grade: '',
     classSec: '',
   });
 
-// 2. Axios 인스턴스 (인증 헤더 포함)
+  // Axios 인스턴스
   const api = axios.create({
     baseURL: BASE_URL,
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
-  // 3. 학과 목록 조회 (GET /api/v1/depts)
+  // 3. 초기 데이터 로드 (학과 및 국적 목록)
   useEffect(() => {
-    const fetchDepts = async () => {
+    const fetchInitialData = async () => {
       try {
-        const res = await api.get('/api/v1/depts');
-        if (res.data.success) {
-          setDepts(res.data.data);
-          if (res.data.data.length > 0) {
-            setFilter('deptId', res.data.data[0].deptId);
-          }
+        const [deptRes, natRes] = await Promise.allSettled([
+          api.get('/api/v1/depts'),
+          api.get('/api/v1/nationalities') 
+        ]);
+
+        if (deptRes.status === 'fulfilled' && deptRes.value.data.success) {
+          setDepts(deptRes.value.data.data);
         }
+        if (natRes.status === 'fulfilled' && natRes.value.data.success) {
+          setNationalities(natRes.value.data.data);
+        }
+        
+        // 초기 로딩 시 전체 검색 1회 실행
+        fetchStudents(filters);
       } catch (err) {
-        console.error("학과 목록 로드 실패", err);
+        console.error("초기 데이터 로드 실패", err);
       }
     };
-    fetchDepts();
+    fetchInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 4. 학과별 학생 검색 (GET /api/v1/search/dept)
-  const fetchStudents = useCallback(async () => {
-    if (!filters.deptId) return;
-
+  // 4. 다중 필터 적용 검색
+  const fetchStudents = async (currentFilters) => {
     setIsLoading(true);
     setSelected(new Set());
     try {
-      const res = await api.get('/api/v1/search/dept', { params: filters });
+      const params = Object.fromEntries(
+        Object.entries(currentFilters).filter(([_, v]) => v !== '')
+      );
+
+      const res = await api.get('/api/v1/search/dept', { params });
       if (res.data.success) {
         setStudents(res.data.data);
       }
@@ -66,13 +78,16 @@ export default function SearchByDept() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters]);
+  };
 
-  useEffect(() => {
-    fetchStudents();
-  }, [fetchStudents]);
+  const handleSearch = () => {
+    fetchStudents(filters);
+  };
 
-  // 5. 통계 계산
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') handleSearch();
+  };
+
   const stats = {
     total: students.length,
     visaAlert: students.filter(s => {
@@ -82,7 +97,6 @@ export default function SearchByDept() {
     }).length,
   };
 
-  // 6. 알림 전송 처리
   const handleNotify = async () => {
     if (!notifyMsg.trim()) return alert("메시지를 입력해주세요.");
     try {
@@ -100,7 +114,6 @@ export default function SearchByDept() {
     }
   };
 
-  // 핸들러 함수
   const setFilter = (key, val) => setFilters(prev => ({ ...prev, [key]: val }));
 
   const toggleAll = () => {
@@ -125,6 +138,7 @@ export default function SearchByDept() {
         .sd-back-btn { width:30px; height:30px; border-radius:7px; background:#F3F4F6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; }
         .sd-btn { padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:500; cursor:pointer; font-family:inherit; border:none; transition:0.15s; }
         .sd-btn-primary { background:#1A3A5C; color:#fff; }
+        .sd-btn-search { background:#3B82F6; color:#fff; padding:8px 20px; font-weight:600; }
         .sd-btn-secondary { background:#fff; border:1px solid #E5E7EB; color:#374151; }
         .sd-stat-banner { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; padding:0 28px; margin-bottom:18px; }
         .sd-stat-card { background:#fff; border-radius:12px; border:1px solid #E5E7EB; padding:16px 18px; }
@@ -133,92 +147,167 @@ export default function SearchByDept() {
         .sd-stat-val.blue { color:#3B82F6; }
         .sd-stat-val.amber { color:#D97706; }
         .sd-filter-card { background:#fff; border-radius:14px; border:1px solid #E5E7EB; padding:18px 22px; margin:0 28px 18px 28px; }
-        .sd-filter-row { display:flex; gap:16px; flex-wrap:wrap; }
-        .sd-filter-group { display:flex; flex-direction:column; gap:4px; }
-        .sd-filter-label { font-size:11px; font-weight:600; color:#9CA3AF; }
-        .sd-select { padding:7px 10px; border-radius:8px; border:1px solid #E5E7EB; font-size:12.5px; min-width:140px; outline:none; }
+        .sd-filter-row { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; }
+        .sd-filter-group { display:flex; flex-direction:column; gap:6px; }
+        .sd-filter-label { font-size:11px; font-weight:600; color:#6B7280; }
+        .sd-select, .sd-input { padding:8px 12px; border-radius:8px; border:1px solid #E5E7EB; font-size:13px; outline:none; font-family:inherit; }
+        .sd-select:focus, .sd-input:focus { border-color: #3B82F6; }
+        .sd-input { width: 140px; }
+        .sd-select { min-width: 110px; }
         .sd-table-card { background:#fff; border-radius:14px; border:1px solid #E5E7EB; margin:0 28px; overflow:hidden; }
         .sd-table { width:100%; border-collapse:collapse; }
-        .sd-table th { padding:12px 14px; font-size:11.5px; font-weight:600; color:#9CA3AF; text-align:left; background:#FAFAFA; border-bottom:1px solid #E5E7EB; }
-        .sd-table td { padding:12px 14px; font-size:12.5px; border-bottom:1px solid #F9FAFB; }
-        .sd-student-name { font-weight:600; color:#111827; }
-        .sd-student-id { font-size:11px; color:#9CA3AF; }
-        .sd-chip { font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:#F0FDF4; color:#16A34A; }
-        .sd-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:1000; }
+        .sd-table th { padding:12px 14px; font-size:12px; font-weight:600; color:#6B7280; text-align:left; background:#F8FAFC; border-bottom:1px solid #E2E8F0; }
+        .sd-table td { padding:12px 14px; font-size:13px; border-bottom:1px solid #F1F5F9; }
+        .sd-student-name { font-weight:700; color:#111827; }
+        .sd-student-id { font-size:11.5px; color:#9CA3AF; margin-top:2px; }
+        .sd-chip { font-size:11px; font-weight:700; padding:4px 8px; border-radius:6px; background:#F0FDF4; color:#16A34A; }
+        .sd-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:1000; }
         .sd-modal { background:#fff; border-radius:16px; padding:24px; width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.1); }
         .sd-textarea { width:100%; height:120px; border:1px solid #E5E7EB; border-radius:8px; padding:12px; margin:12px 0; resize:none; font-family:inherit; }
+        .sd-textarea:focus { border-color: #3B82F6; outline: none; }
       `}</style>
 
+      {/* 상단바 */}
       <div className="sd-topbar">
         <div className="sd-topbar-left">
-          <button className="sd-back-btn" onClick={() => navigate(-1)}>🔙</button>
-          <div className="sd-breadcrumb">학생 관리 › <span>학과별 현황 검색</span></div>
+          <button className="sd-back-btn" onClick={onBack || (() => navigate(-1))}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+          <div className="sd-breadcrumb">통합 검색 › <span>다중 필터 검색</span></div>
         </div>
         <button className="sd-btn sd-btn-primary" onClick={() => setShowNotifyModal(true)}>
           일괄 알림 전송 {selected.size > 0 && `(${selected.size}명)`}
         </button>
       </div>
 
+      {/* 통계 배너 */}
       <div className="sd-stat-banner">
         <div className="sd-stat-card">
           <div className="sd-stat-label">조회된 학생</div>
           <div className="sd-stat-val blue">{stats.total}명</div>
         </div>
         <div className="sd-stat-card">
-          <div className="sd-stat-label">비자 만료 임박(D-30)</div>
+          <div className="sd-stat-label">비자 만료 임박 (D-30)</div>
           <div className="sd-stat-val amber">{stats.visaAlert}명</div>
         </div>
       </div>
 
+      {/* 확장된 검색 필터 */}
       <div className="sd-filter-card">
         <div className="sd-filter-row">
           <div className="sd-filter-group">
-            <span className="sd-filter-label">학과 선택</span>
-            <select className="sd-select" value={filters.deptId} onChange={e => setFilter('deptId', e.target.value)}>
+            <span className="sd-filter-label">학과</span>
+            <select className="sd-select" style={{width:'160px'}} value={filters.deptId} onChange={e => setFilter('deptId', e.target.value)}>
+              <option value="">전체 학과</option>
               {depts.map(d => <option key={d.deptId} value={d.deptId}>{d.deptName}</option>)}
             </select>
           </div>
           <div className="sd-filter-group">
-            <span className="sd-filter-label">학년</span>
-            <select className="sd-select" value={filters.grade} onChange={e => setFilter('grade', e.target.value)}>
-              <option value="">전체</option>
-              {[1, 2, 3, 4].map(g => <option key={g} value={g}>{g}학년</option>)}
-            </select>
+            <span className="sd-filter-label">학년/반</span>
+            <div style={{display:'flex', gap:'6px'}}>
+              <select className="sd-select" style={{width:'80px'}} value={filters.grade} onChange={e => setFilter('grade', e.target.value)}>
+                <option value="">학년</option>
+                {[1, 2, 3, 4].map(g => <option key={g} value={g}>{g}학년</option>)}
+              </select>
+              <select className="sd-select" style={{width:'70px'}} value={filters.classSec} onChange={e => setFilter('classSec', e.target.value)}>
+                <option value="">반</option>
+                {['A', 'B', 'C', 'D'].map(c => <option key={c} value={c}>{c}반</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="sd-filter-group">
+            <span className="sd-filter-label">국적 및 성별</span>
+            <div style={{display:'flex', gap:'6px'}}>
+              {/* 수정된 부분: nationalities 목록을 map으로 렌더링 */}
+              <select className="sd-select" style={{width:'120px'}} value={filters.nationality} onChange={e => setFilter('nationality', e.target.value)}>
+                <option value="">전체 국적</option>
+                {nationalities.map((nat) => (
+                  <option key={nat.nationalityId} value={nat.nationalityId}>
+                    {nat.nationalityName}
+                  </option>
+                ))}
+              </select>
+              <select className="sd-select" style={{width:'80px'}} value={filters.gender} onChange={e => setFilter('gender', e.target.value)}>
+                <option value="">성별</option>
+                <option value="남">남</option>
+                <option value="여">여</option>
+              </select>
+            </div>
+          </div>
+          <div className="sd-filter-group">
+            <span className="sd-filter-label">학번</span>
+            <input 
+              type="text" 
+              className="sd-input" 
+              placeholder="학번 입력" 
+              value={filters.studentId} 
+              onChange={e => setFilter('studentId', e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
+          <div className="sd-filter-group">
+            <span className="sd-filter-label">이름</span>
+            <input 
+              type="text" 
+              className="sd-input" 
+              placeholder="이름 입력" 
+              value={filters.name} 
+              onChange={e => setFilter('name', e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
+          <div className="sd-filter-group" style={{marginLeft: 'auto'}}>
+            <button className="sd-btn sd-btn-search" onClick={handleSearch}>조회하기</button>
           </div>
         </div>
       </div>
 
+      {/* 학생 목록 테이블 */}
       <div className="sd-table-card">
         {isLoading ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF' }}>데이터를 불러오는 중...</div>
+          <div style={{ padding: '60px', textAlign: 'center', color: '#9CA3AF' }}>데이터를 불러오는 중입니다...</div>
         ) : (
           <table className="sd-table">
             <thead>
               <tr>
-                <th><input type="checkbox" onChange={toggleAll} checked={selected.size === students.length && students.length > 0} /></th>
-                <th>이름(학번)</th>
-                <th>국적</th>
+                <th style={{width:'40px', textAlign:'center'}}>
+                  <input type="checkbox" onChange={toggleAll} checked={selected.size === students.length && students.length > 0} />
+                </th>
+                <th>이름 및 학번</th>
+                <th>학과 정보</th>
+                <th>국적 / 성별</th>
                 <th>상태</th>
-                <th>학점(GPA)</th>
-                <th>작업</th>
+                <th>평점(GPA)</th>
+                <th style={{textAlign:'right'}}>작업</th>
               </tr>
             </thead>
             <tbody>
               {students.length === 0 ? (
-                <tr><td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>조회된 학생이 없습니다.</td></tr>
+                <tr><td colSpan="7" style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF' }}>조건에 맞는 학생이 없습니다.</td></tr>
               ) : (
                 students.map(s => (
                   <tr key={s.studentId}>
-                    <td><input type="checkbox" checked={selected.has(s.studentId)} onChange={() => toggleOne(s.studentId)} /></td>
+                    <td style={{textAlign:'center'}}>
+                      <input type="checkbox" checked={selected.has(s.studentId)} onChange={() => toggleOne(s.studentId)} />
+                    </td>
                     <td>
-                      <div className="sd-student-name">{s.korName}</div>
+                      <div className="sd-student-name">{s.korName} <span style={{fontWeight:400, color:'#6B7280', fontSize:'12px'}}>{s.engName}</span></div>
                       <div className="sd-student-id">{s.studentId}</div>
                     </td>
-                    <td>{s.nationality}</td>
-                    <td><span className="sd-chip">{s.enrollStatus}</span></td>
-                    <td style={{ fontWeight: 600 }}>{s.gpa || '-'}</td>
                     <td>
-                      <button className="sd-btn sd-btn-secondary" onClick={() => navigate(`/students/${s.studentId}`)}>상세보기</button>
+                      <div style={{fontWeight:600}}>{s.deptName || s.deptId}</div>
+                      <div style={{fontSize:'12px', color:'#6B7280'}}>{s.grade}학년 {s.classSec}반</div>
+                    </td>
+                    <td>{s.nationality} / {s.gender}</td>
+                    <td><span className="sd-chip">{s.enrollStatus}</span></td>
+                    <td style={{ fontWeight: 600 }}>{s.gpa || s.totalGpa || '-'}</td>
+                    <td style={{textAlign:'right'}}>
+                      <button 
+                        className="sd-btn sd-btn-secondary" 
+                        onClick={() => navigate(`/admin/students/${s.studentId}`)}
+                      >
+                        상보기
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -228,22 +317,23 @@ export default function SearchByDept() {
         )}
       </div>
 
+      {/* 알림 전송 모달 */}
       {showNotifyModal && (
         <div className="sd-modal-overlay">
           <div className="sd-modal">
-            <div style={{ fontWeight: 700, fontSize: '16px' }}>알림 전송</div>
-            <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>
-              {selected.size > 0 ? `${selected.size}명의 선택된 학생에게` : "학과 전체 학생에게"} 메시지를 보냅니다.
+            <div style={{ fontWeight: 700, fontSize: '18px', color: '#111827' }}>알림 전송</div>
+            <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '6px' }}>
+              {selected.size > 0 ? `${selected.size}명의 선택된 학생에게` : "조회된 모든 학생에게"} 메시지를 보냅니다.
             </div>
             <textarea 
               className="sd-textarea" 
-              placeholder="내용을 입력하세요..." 
+              placeholder="학생들에게 전달할 내용을 입력하세요..." 
               value={notifyMsg} 
               onChange={e => setNotifyMsg(e.target.value)}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
               <button className="sd-btn sd-btn-secondary" onClick={() => setShowNotifyModal(false)}>취소</button>
-              <button className="sd-btn sd-btn-primary" onClick={handleNotify}>보내기</button>
+              <button className="sd-btn sd-btn-primary" onClick={handleNotify}>전송하기</button>
             </div>
           </div>
         </div>

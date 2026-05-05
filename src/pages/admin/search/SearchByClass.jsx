@@ -172,8 +172,7 @@ export default function SearchByClass({ onBack }) {
         .sc-class-tab.active { background:#1A3A5C; border-color:#1A3A5C; color:#fff; font-weight:600; }
 
         /* ── 메인 레이아웃: 테이블 | 사이드 ── */
-        .sc-main-layout { display:grid; grid-template-columns:1fr 260px; gap:14px; align-items:start; }
-
+        .sc-main-layout { display: flex; flex-direction: column; gap: 20px; align-items: stretch; }
         /* ── 출결 테이블 ── */
         .sc-grid-wrap { overflow-x:auto; }
         .sc-grid { width:100%; border-collapse:collapse; min-width:600px; }
