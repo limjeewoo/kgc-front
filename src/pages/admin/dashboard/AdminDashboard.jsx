@@ -7,12 +7,12 @@ import SearchByClass from '../search/SearchByClass.jsx';
 import SearchByCourse from '../search/SearchByCourse.jsx';
 import OnlineViolation from '../search/OnlineViolation.jsx';
 import CourseList from '../courses/CourseList.jsx';
+import CourseExcelUpload from '../courses/CourseExcelUpload.jsx';
 import SearchByStudent from '../search/SearchByStudent.jsx';
 import ProfessorList from '../professors/ProfessorList.jsx';
 import ProfessorRegister from '../professors/ProfessorRegister.jsx';
 import AdvisorAssign from '../professors/AdvisorAssign.jsx';
 
-// 교양필수 및 시스템 설정 등 미구현 페이지 핸들링용
 const NOT_IMPLEMENTED = new Set(['마일리지 승인', '상담 내역', '교양필수 관리', '학과/학기 관리']);
 
 const SEARCH_SUB_MENUS = ['개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색'];
@@ -21,10 +21,10 @@ const PROF_SUB_MENUS = ['전체 교수 목록', '학생-지도교수 배정 관�
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeMenu, setActiveMenu] = useState('대시보드');
-  
+
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [profDropdownOpen, setProfDropdownOpen] = useState(false);
-  
+
   const [currentSemester, setCurrentSemester] = useState(null);
   const [visaList, setVisaList] = useState([]);
   const [attendanceList, setAttendanceList] = useState([]);
@@ -32,50 +32,42 @@ export default function AdminDashboard() {
   const [totalStudents, setTotalStudents] = useState(0);
   const [pendingJobs, setPendingJobs] = useState(0);
 
+  // ✅ 엑셀 업로드 모달 state
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [courseListRefreshKey, setCourseListRefreshKey] = useState(0);
+
+  const handleExcelSuccess = () => {
+    setIsExcelModalOpen(false);
+    setActiveMenu('과목 관리');
+    setCourseListRefreshKey(prev => prev + 1);
+  };
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-
-        // 병렬 API 호출 (수정된 경로 반영)
         const results = await Promise.allSettled([
           api.get('/api/v1/semesters/current'),
-          api.get('/api/v1/students'), // 전교생 조회 (deptId 없이 가능)
+          api.get('/api/v1/students'),
           api.get('/api/v1/visas/expiring', { params: { days: 30 } }),
-          api.get('/api/v1/attend/warnings'), // 수정된 출결 위험군 API
-          api.get('/api/v1/search/online-violations'), // 수정된 온라인 위반 API
-          // api.get('/api/v1/mileage/pending').catch(() => ({ data: { data: [] } })) // 마일리지 대기(예시)
+          api.get('/api/v1/attend/warnings'),
+          api.get('/api/v1/search/online-violations'),
         ]);
 
         const [semRes, studentsRes, visaRes, attendRes, onlineRes, jobsRes] = results;
 
-        // 옵셔널 체이닝(?.)을 추가하여 변수가 undefined일 때 발생하는 에러를 원천 차단합니다.
-        if (semRes?.status === 'fulfilled' && semRes.value?.data?.success) {
+        if (semRes?.status === 'fulfilled' && semRes.value?.data?.success)
           setCurrentSemester(semRes.value.data.data);
-        }
-        
-        if (studentsRes?.status === 'fulfilled' && studentsRes.value?.data?.success) {
-          const students = studentsRes.value.data.data || [];
-          setTotalStudents(students.length);
-        }
-
-        if (visaRes?.status === 'fulfilled' && visaRes.value?.data?.success) {
+        if (studentsRes?.status === 'fulfilled' && studentsRes.value?.data?.success)
+          setTotalStudents((studentsRes.value.data.data || []).length);
+        if (visaRes?.status === 'fulfilled' && visaRes.value?.data?.success)
           setVisaList(visaRes.value.data.data || []);
-        }
-
-        if (attendRes?.status === 'fulfilled' && attendRes.value?.data?.success) {
-          // attendRes가 배열을 바로 주거나 data.data에 담겨오는 경우 대응
+        if (attendRes?.status === 'fulfilled' && attendRes.value?.data?.success)
           setAttendanceList(attendRes.value.data.data || []);
-        }
-
-        if (onlineRes?.status === 'fulfilled' && onlineRes.value?.data?.success) {
+        if (onlineRes?.status === 'fulfilled' && onlineRes.value?.data?.success)
           setOnlineList(onlineRes.value.data.data || []);
-        }
-
-        if (jobsRes?.status === 'fulfilled' && jobsRes.value?.data?.success) {
+        if (jobsRes?.status === 'fulfilled' && jobsRes.value?.data?.success)
           setPendingJobs(jobsRes.value.data.data?.length || 0);
-        }
-
       } catch (error) {
         console.error('대시보드 데이터 로드 중 에러:', error);
       } finally {
@@ -83,11 +75,8 @@ export default function AdminDashboard() {
       }
     };
 
-    if (activeMenu === '대시보드') {
-      fetchDashboardData();
-    } else {
-      setLoading(false);
-    }
+    if (activeMenu === '대시보드') fetchDashboardData();
+    else setLoading(false);
   }, [activeMenu]);
 
   const isSearchMenuActive = SEARCH_SUB_MENUS.includes(activeMenu);
@@ -99,27 +88,38 @@ export default function AdminDashboard() {
       setProfDropdownOpen(false);
       return;
     }
-    
     if (menuName === '교수 관리') {
       setProfDropdownOpen(prev => !prev);
       setSearchDropdownOpen(false);
       return;
     }
-
     setActiveMenu(menuName);
     if (!SEARCH_SUB_MENUS.includes(menuName)) setSearchDropdownOpen(false);
     if (!PROF_SUB_MENUS.includes(menuName) && menuName !== '교수 등록') setProfDropdownOpen(false);
   };
 
-  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: '#1A3A5C' }}>데이터 동기화 중...</div>;
+  if (loading) return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#F0F2F7' }}>
+      <div style={{ textAlign:'center' }}>
+        <div style={{ width:40, height:40, border:'3px solid #E5E7EB', borderTopColor:'#1A3A5C', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 12px' }} />
+        <div style={{ color:'#6B7280', fontSize:'0.875rem' }}>데이터 동기화 중...</div>
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
         :root { font-size: 16px; --primary: #3B82F6; --sidebar-bg: #1A3A5C; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'DM Sans', 'Noto Sans KR', sans-serif; background: #F0F2F7; color: #111827; }
+
+        /* ─── 사이드바 (원본 완전 유지) ─── */
         .admin-wrap { display: flex; min-height: 100vh; }
         .sidebar { width: 14.375rem; background: var(--sidebar-bg); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; flex-shrink: 0; overflow-y: auto; }
         .sidebar-logo { display: flex; align-items: center; gap: 0.625rem; padding: 1.5rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); cursor: pointer; }
@@ -145,35 +145,92 @@ export default function AdminDashboard() {
         .user-avatar { width: 2rem; height: 2rem; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #fff; flex-shrink: 0; }
         .user-name { font-size: 0.8125rem; font-weight: 600; color: #fff; }
         .user-role { font-size: 0.6875rem; color: rgba(255,255,255,0.4); margin-top: 0.125rem; }
+
+        /* ─── 메인 ─── */
         .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .content { flex: 1; padding: 1.5rem 1.75rem; overflow-y: auto; }
-        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
-        .stat-card { background: #fff; border-radius: 0.875rem; padding: 1.25rem; border: none; cursor: pointer; transition: 0.2s; text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
-        .stat-label { font-size: 0.75rem; color: #6B7280; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; }
-        .stat-dot { width: 6px; height: 6px; border-radius: 50%; }
-        .stat-value { font-size: 1.75rem; font-weight: 700; }
-        .stat-value span { font-size: 0.875rem; font-weight: 400; color: #9CA3AF; }
+        .content { flex: 1; padding: 1.75rem 2rem; overflow-y: auto; animation: fadeUp 0.28s ease; }
+
+        /* ─── 대시보드 헤더 ─── */
+        .dash-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1.75rem; gap: 1rem; }
+        .dash-title-block {}
+        .dash-title { font-size: 1.375rem; font-weight: 700; color: #0F172A; }
+        .dash-subtitle { font-size: 0.8125rem; color: #94A3B8; margin-top: 0.25rem; }
+        .dash-actions { display: flex; gap: 0.5rem; align-items: center; flex-shrink: 0; }
+
+        /* ─── 버튼 ─── */
+        .btn { display: inline-flex; align-items: center; gap: 0.375rem; border: none; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: all 0.18s; padding: 0.5625rem 1rem; white-space: nowrap; font-family: inherit; }
+        .btn-dark { background: #1A3A5C; color: #fff; }
+        .btn-dark:hover { background: #15304e; box-shadow: 0 4px 14px rgba(26,58,92,0.3); transform: translateY(-1px); }
+        .btn-excel { background: #ECFDF5; color: #059669; border: 1.5px solid #6EE7B7; }
+        .btn-excel:hover { background: #D1FAE5; border-color: #34D399; box-shadow: 0 4px 12px rgba(5,150,105,0.18); transform: translateY(-1px); }
+
+        /* ─── 섹션 레이블 ─── */
+        .section-label { font-size: 0.6875rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.75rem; }
+
+        /* ─── 통계 카드 ─── */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
+        .stat-card { background: #fff; border-radius: 1rem; padding: 1.375rem 1.25rem 1.125rem; border: 1px solid #F1F5F9; cursor: pointer; transition: all 0.2s; text-align: left; position: relative; overflow: hidden; }
+        .stat-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+        .stat-card.c-blue::after { background: #3B82F6; }
+        .stat-card.c-red::after { background: #EF4444; }
+        .stat-card.c-amber::after { background: #F59E0B; }
+        .stat-card.c-purple::after { background: #8B5CF6; }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 28px -6px rgba(0,0,0,0.09); border-color: #E2E8F0; }
+        .stat-icon-wrap { width: 2.25rem; height: 2.25rem; border-radius: 0.625rem; display: flex; align-items: center; justify-content: center; font-size: 1rem; margin-bottom: 0.875rem; }
+        .stat-icon-wrap.c-blue { background: #EFF6FF; }
+        .stat-icon-wrap.c-red { background: #FEF2F2; }
+        .stat-icon-wrap.c-amber { background: #FFFBEB; }
+        .stat-icon-wrap.c-purple { background: #F5F3FF; }
+        .stat-lbl { font-size: 0.75rem; color: #64748B; margin-bottom: 0.3rem; font-weight: 500; }
+        .stat-val { font-size: 1.875rem; font-weight: 700; color: #0F172A; line-height: 1; }
+        .stat-val .unit { font-size: 0.875rem; font-weight: 400; color: #94A3B8; margin-left: 3px; }
+        .stat-hint { font-size: 0.6875rem; color: #CBD5E1; margin-top: 0.375rem; }
+
+        /* ─── 퀵 액션 ─── */
+        .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.75rem; }
+        .qa-card { background: #fff; border: 1px solid #F1F5F9; border-radius: 0.875rem; padding: 1rem; cursor: pointer; transition: all 0.18s; display: flex; align-items: center; gap: 0.75rem; text-align: left; }
+        .qa-card:hover { border-color: #BFDBFE; background: #F8FBFF; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(59,130,246,0.08); }
+        .qa-icon { width: 2rem; height: 2rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; font-size: 0.9375rem; flex-shrink: 0; }
+        .qa-text { font-size: 0.8125rem; font-weight: 600; color: #1E293B; }
+        .qa-sub { font-size: 0.6875rem; color: #94A3B8; margin-top: 2px; }
+
+        /* ─── 카드 (목록) ─── */
         .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-        .card { background: #fff; border-radius: 0.875rem; border: 1px solid #F3F4F6; overflow: hidden; }
-        .card-header { padding: 1rem 1.25rem; border-bottom: 1px solid #F3F4F6; font-weight: 700; font-size: 0.875rem; display: flex; justify-content: space-between; }
-        .list-btn { width: 100%; border: none; background: transparent; display: flex; align-items: center; padding: 0.875rem 1.25rem; border-bottom: 1px solid #F9FAFB; gap: 0.75rem; cursor: pointer; text-align: left; }
-        .list-btn:hover { background: #F9FAFB; }
-        .item-avatar { width: 2.25rem; height: 2.25rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
-        .item-info { flex: 1; }
-        .item-name { font-size: 0.8125rem; font-weight: 600; }
-        .item-sub { font-size: 0.75rem; color: #9CA3AF; }
-        .badge-red { background: #FEF2F2; color: #EF4444; font-size: 0.68rem; padding: 2px 8px; border-radius: 4px; font-weight: 700; }
-        .online-row { display: flex; align-items: center; padding: 0.75rem 1.25rem; border-bottom: 1px solid #F9FAFB; gap: 1rem; }
-        .progress-bar { flex: 1; height: 6px; background: #F3F4F6; border-radius: 3px; overflow: hidden; }
-        .progress-fill { height: 100%; background: #EF4444; }
-        .empty-state { padding: 2rem 1.25rem; text-align: center; color: #9CA3AF; font-size: 0.8125rem; }
+        .data-card { background: #fff; border-radius: 1rem; border: 1px solid #F1F5F9; overflow: hidden; }
+        .card-hd { padding: 0.9375rem 1.25rem; border-bottom: 1px solid #F8FAFC; display: flex; justify-content: space-between; align-items: center; }
+        .card-hd-title { font-size: 0.875rem; font-weight: 700; color: #0F172A; }
+        .count-pill { font-size: 0.6875rem; font-weight: 600; color: #64748B; background: #F1F5F9; padding: 2px 9px; border-radius: 20px; }
+        .list-row { width: 100%; border: none; background: transparent; display: flex; align-items: center; padding: 0.8125rem 1.25rem; border-bottom: 1px solid #F8FAFC; gap: 0.75rem; cursor: pointer; text-align: left; transition: background 0.13s; }
+        .list-row:last-child { border-bottom: none; }
+        .list-row:hover { background: #FAFBFD; }
+        .avatar { width: 2.125rem; height: 2.125rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+        .row-info { flex: 1; min-width: 0; }
+        .row-name { font-size: 0.8125rem; font-weight: 600; color: #111827; }
+        .row-sub { font-size: 0.6875rem; color: #9CA3AF; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pill { font-size: 0.6875rem; padding: 3px 9px; border-radius: 6px; font-weight: 700; white-space: nowrap; }
+        .pill-red { background: #FEF2F2; color: #EF4444; }
+        .pill-amber { background: #FFFBEB; color: #B45309; }
+        .empty-box { padding: 2.5rem 1.25rem; text-align: center; color: #CBD5E1; font-size: 0.8125rem; }
+        .empty-box-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+
+        /* ─── 온라인 초과 ─── */
+        .online-card { margin-bottom: 1rem; }
+        .online-row { display: flex; align-items: center; padding: 0.75rem 1.25rem; border-bottom: 1px solid #F8FAFC; gap: 1rem; }
+        .online-row:last-child { border-bottom: none; }
+        .online-name { width: 88px; font-size: 0.8125rem; font-weight: 600; color: #374151; flex-shrink: 0; }
+        .prog-bar { flex: 1; height: 5px; background: #F1F5F9; border-radius: 3px; overflow: hidden; }
+        .prog-fill { height: 100%; background: linear-gradient(90deg, #FCA5A5, #EF4444); border-radius: 3px; }
+        .prog-pct { width: 50px; text-align: right; font-size: 0.75rem; color: #EF4444; font-weight: 700; flex-shrink: 0; }
+
+        /* ─── not-impl ─── */
         .not-impl { padding: 4rem; text-align: center; background: #fff; border-radius: 1rem; }
         .not-impl h2 { font-size: 1.25rem; margin-bottom: 0.75rem; color: #374151; }
-        .not-impl p  { color: #9CA3AF; font-size: 0.875rem; }
+        .not-impl p { color: #9CA3AF; font-size: 0.875rem; }
       `}</style>
 
       <div className="admin-wrap">
+
+        {/* ══════════ 사이드바 (원본 완전 유지) ══════════ */}
         <div className="sidebar">
           <div className="sidebar-logo" onClick={() => setActiveMenu('대시보드')}>
             <img src="/logo-fff.png" alt="Logo" className="logo-img" />
@@ -222,72 +279,141 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* ══════════ 메인 영역 ══════════ */}
         <div className="main">
           <TopBar title={activeMenu} />
           <div className="content">
+
+            {/* ── 대시보드 화면 ── */}
             {activeMenu === '대시보드' && (
               <>
+                {/* 헤더 + 버튼 영역 */}
+                <div className="dash-header">
+                  <div className="dash-title-block">
+                    <div className="dash-title">대시보드</div>
+                    <div className="dash-subtitle">
+                      {currentSemester
+                        ? `${currentSemester.year}년 ${currentSemester.term}학기 · 실시간 현황`
+                        : '실시간 현황'}
+                    </div>
+                  </div>
+                  {/* ✅ 버튼 두 개를 대시보드 화면 우상단에 배치 */}
+                  <div className="dash-actions">
+                    <button className="btn btn-excel" onClick={() => setIsExcelModalOpen(true)}>
+                      📥 과목 엑셀 일괄 등록
+                    </button>
+                  </div>
+                </div>
+
+                {/* 통계 카드 */}
+                <div className="section-label">주요 지표</div>
                 <div className="stats-grid">
-                  <button className="stat-card" onClick={() => setActiveMenu('학생 목록')}>
-                    <div className="stat-label"><div className="stat-dot" style={{background:'#3B82F6'}}/>전체 재학생</div>
-                    <div className="stat-value">{totalStudents} 명</div>
+                  <button className="stat-card c-blue" onClick={() => setActiveMenu('학생 목록')}>
+                    <div className="stat-icon-wrap c-blue">👥</div>
+                    <div className="stat-lbl">전체 재학생</div>
+                    <div className="stat-val">{totalStudents}<span className="unit">명</span></div>
+                    <div className="stat-hint">전체 등록 학생 수</div>
                   </button>
-                  <button className="stat-card" onClick={() => setActiveMenu('개인별 검색')}>
-                    <div className="stat-label"><div className="stat-dot" style={{background:'#EF4444'}}/>비자 만료 임박</div>
-                    <div className="stat-value" style={{color:'#EF4444'}}>{visaList.length} 명</div>
+                  <button className="stat-card c-red" onClick={() => setActiveMenu('개인별 검색')}>
+                    <div className="stat-icon-wrap c-red">🛂</div>
+                    <div className="stat-lbl">비자 만료 임박</div>
+                    <div className="stat-val" style={{color:'#EF4444'}}>{visaList.length}<span className="unit">명</span></div>
+                    <div className="stat-hint">D-30 이내</div>
                   </button>
-                  <button className="stat-card" onClick={() => setActiveMenu('출결 관리')}>
-                    <div className="stat-label"><div className="stat-dot" style={{background:'#F59E0B'}}/>출결 위험군</div>
-                    <div className="stat-value" style={{color:'#F59E0B'}}>{attendanceList.length} 명</div>
+                  <button className="stat-card c-amber" onClick={() => setActiveMenu('출결 관리')}>
+                    <div className="stat-icon-wrap c-amber">⚠️</div>
+                    <div className="stat-lbl">출결 위험군</div>
+                    <div className="stat-val" style={{color:'#F59E0B'}}>{attendanceList.length}<span className="unit">명</span></div>
+                    <div className="stat-hint">결석 기준 초과</div>
                   </button>
-                  <button className="stat-card" onClick={() => setActiveMenu('마일리지 승인')}>
-                    <div className="stat-label"><div className="stat-dot" style={{background:'#8B5CF6'}}/>마일리지 대기</div>
-                    <div className="stat-value">{pendingJobs} 건</div>
+                  <button className="stat-card c-purple" onClick={() => setActiveMenu('마일리지 승인')}>
+                    <div className="stat-icon-wrap c-purple">📋</div>
+                    <div className="stat-lbl">마일리지 대기</div>
+                    <div className="stat-val">{pendingJobs}<span className="unit">건</span></div>
+                    <div className="stat-hint">승인 처리 필요</div>
                   </button>
                 </div>
 
+                {/* 퀵 액션 */}
+                <div className="section-label">빠른 이동</div>
+                <div className="quick-grid">
+                  <button className="qa-card" onClick={() => setActiveMenu('학생 목록')}>
+                    <div className="qa-icon" style={{background:'#EFF6FF'}}>🎓</div>
+                    <div><div className="qa-text">학생 목록</div><div className="qa-sub">전체 학생 조회</div></div>
+                  </button>
+                  <button className="qa-card" onClick={() => setActiveMenu('과목 관리')}>
+                    <div className="qa-icon" style={{background:'#F0FDF4'}}>📚</div>
+                    <div><div className="qa-text">과목 관리</div><div className="qa-sub">과목 등록 및 수정</div></div>
+                  </button>
+                  <button className="qa-card" onClick={() => setActiveMenu('출결 관리')}>
+                    <div className="qa-icon" style={{background:'#FFFBEB'}}>📅</div>
+                    <div><div className="qa-text">출결 관리</div><div className="qa-sub">출결 현황 조회</div></div>
+                  </button>
+                  <button className="qa-card" onClick={() => setActiveMenu('전체 교수 목록')}>
+                    <div className="qa-icon" style={{background:'#FDF4FF'}}>👨‍🏫</div>
+                    <div><div className="qa-text">교수 관리</div><div className="qa-sub">교수 목록 및 배정</div></div>
+                  </button>
+                </div>
+
+                {/* 알림 목록 */}
+                <div className="section-label">알림 현황</div>
                 <div className="bottom-grid">
-                  <div className="card">
-                    <div className="card-header">비자 만료 임박 학생 (D-30) <span>{visaList.length}명</span></div>
-                    {visaList.length === 0 ? <div style={{padding:'2rem', textAlign:'center', color:'#9CA3AF'}}>만료 임박 학생이 없습니다.</div> : 
-                      visaList.map(v => (
-                        <button key={v.studentId} className="list-btn">
-                          <div className="item-avatar" style={{background:'#FEF2F2', color:'#EF4444'}}>{v.studentName?.[0]}</div>
-                          <div className="item-info">
-                            <div className="item-name">{v.studentName}</div>
-                            <div className="item-sub">비자: {v.visaType} · {v.expiryDate}</div>
+                  <div className="data-card">
+                    <div className="card-hd">
+                      <span className="card-hd-title">비자 만료 임박 (D-30)</span>
+                      <span className="count-pill">{visaList.length}명</span>
+                    </div>
+                    {visaList.length === 0
+                      ? <div className="empty-box"><div className="empty-box-icon"></div>만료 임박 학생이 없습니다.</div>
+                      : visaList.map(v => (
+                        <button key={v.studentId} className="list-row">
+                          <div className="avatar" style={{background:'#FEF2F2', color:'#EF4444'}}>{v.studentName?.[0]}</div>
+                          <div className="row-info">
+                            <div className="row-name">{v.studentName}</div>
+                            <div className="row-sub">비자: {v.visaType} · {v.expiryDate}</div>
                           </div>
-                          <div className="badge-red">D-{v.dDay}</div>
+                          <span className="pill pill-red">D-{v.dDay}</span>
                         </button>
                       ))
                     }
                   </div>
 
-                  <div className="card">
-                    <div className="card-header">출결 위험군 학생 <span>{attendanceList.length}명</span></div>
-                    {attendanceList.length === 0 ? <div style={{padding:'2rem', textAlign:'center', color:'#9CA3AF'}}>출결 위험군이 없습니다.</div> : 
-                      attendanceList.map(a => (
-                        <button key={a.enrollId || a.studentId} className="list-btn">
-                          <div className="item-avatar" style={{background:'#FFFBEB', color:'#D97706'}}>{a.studentName?.[0]}</div>
-                          <div className="item-info">
-                            <div className="item-name">{a.studentName}</div>
-                            <div className="item-sub">{a.courseName || a.deptName}</div>
+                  <div className="data-card">
+                    <div className="card-hd">
+                      <span className="card-hd-title"> 출결 위험군</span>
+                      <span className="count-pill">{attendanceList.length}명</span>
+                    </div>
+                    {attendanceList.length === 0
+                      ? <div className="empty-box"><div className="empty-box-icon"></div>출결 위험군이 없습니다.</div>
+                      : attendanceList.map(a => (
+                        <button key={a.enrollId || a.studentId} className="list-row">
+                          <div className="avatar" style={{background:'#FFFBEB', color:'#D97706'}}>{a.studentName?.[0]}</div>
+                          <div className="row-info">
+                            <div className="row-name">{a.studentName}</div>
+                            <div className="row-sub">{a.courseName || a.deptName}</div>
                           </div>
-                          <div className="badge-red" style={{background:'#FEE2E2'}}>결석 {a.totalAbsent || a.absenceCount}회</div>
+                          <span className="pill pill-amber">결석 {a.totalAbsent || a.absenceCount}회</span>
                         </button>
                       ))
                     }
                   </div>
                 </div>
 
-                <div className="card">
-                  <div className="card-header">순수 온라인 수업 비율 30% 초과</div>
-                  {onlineList.length === 0 ? <div style={{padding:'2rem', textAlign:'center', color:'#9CA3AF'}}>초과 학생이 없습니다.</div> : 
-                    onlineList.map(o => (
-                      <div key={o.studentId} style={{display:'flex', alignItems:'center', padding:'0.75rem 1.25rem', borderBottom:'1px solid #F9FAFB'}}>
-                        <div style={{width:'100px', fontSize:'0.81rem', fontWeight:600}}>{o.korName}</div>
-                        <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min((o.onlineRatio || 0)*100, 100)}%`}} /></div>
-                        <div style={{width:'60px', textAlign:'right', fontSize:'0.75rem', color:'#EF4444', fontWeight:'bold'}}>{((o.onlineRatio || 0)*100).toFixed(1)}%</div>
+                {/* 온라인 초과 */}
+                <div className="data-card online-card">
+                  <div className="card-hd">
+                    <span className="card-hd-title"> 순수 온라인 수업 비율 30% 초과</span>
+                    <span className="count-pill">{onlineList.length}명</span>
+                  </div>
+                  {onlineList.length === 0
+                    ? <div className="empty-box"><div className="empty-box-icon">✅</div>초과 학생이 없습니다.</div>
+                    : onlineList.map(o => (
+                      <div key={o.studentId} className="online-row">
+                        <div className="online-name">{o.korName}</div>
+                        <div className="prog-bar">
+                          <div className="prog-fill" style={{width:`${Math.min((o.onlineRatio||0)*100,100)}%`}} />
+                        </div>
+                        <div className="prog-pct">{((o.onlineRatio||0)*100).toFixed(1)}%</div>
                       </div>
                     ))
                   }
@@ -295,7 +421,7 @@ export default function AdminDashboard() {
               </>
             )}
 
-            {/* 라우팅 컴포넌트들 */}
+            {/* 라우팅 컴포넌트 */}
             {activeMenu === '학생 목록' && <StudentList />}
             {activeMenu === '개인별 검색' && <SearchByStudent onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '학과별 검색' && <SearchByDept onBack={() => setActiveMenu('대시보드')} />}
@@ -303,7 +429,7 @@ export default function AdminDashboard() {
             {activeMenu === '과목별 검색' && <SearchByCourse onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '온라인 30% 초과 검색' && <OnlineViolation onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '출결 관리' && <SearchByClass onBack={() => setActiveMenu('대시보드')} />}
-            {activeMenu === '과목 관리' && <CourseList onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '과목 관리' && <CourseList key={courseListRefreshKey} onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '전체 교수 목록' && <ProfessorList onRegisterClick={() => setActiveMenu('교수 등록')} />}
             {activeMenu === '학생-지도교수 배정 관리' && <AdvisorAssign />}
             {activeMenu === '교수 등록' && <ProfessorRegister onComplete={() => setActiveMenu('전체 교수 목록')} onCancel={() => setActiveMenu('전체 교수 목록')} />}
@@ -317,6 +443,13 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ✅ 엑셀 업로드 모달 — 최상위 렌더링, 백엔드 연결은 CourseExcelUpload 내부 로직 그대로 사용 */}
+      <CourseExcelUpload
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+        onSuccess={handleExcelSuccess}
+      />
     </>
   );
 }
