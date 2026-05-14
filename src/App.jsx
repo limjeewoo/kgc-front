@@ -1,121 +1,128 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import PrivateRoute from './router/PrivateRoute.jsx';
+
+// 페이지 컴포넌트 임포트
+import Login from './pages/auth/Login.jsx';
+import AdminDashboard from './pages/admin/dashboard/AdminDashboard.jsx';
+import ProfDashboard from './pages/professor/dashboard/ProfDashboard.jsx';
+import MyDashboard from './pages/student/dashboard/MyDashboard.jsx';
+
+import StudentList from "./pages/admin/students/StudentList.jsx";
+import BasicTab from "./pages/admin/students/StudentDetail/BasicTab.jsx";
+import VisaTab from "./pages/admin/students/StudentDetail/VisaTab.jsx";
+import TopikTab from "./pages/admin/students/StudentDetail/TopikTab.jsx";
+import EnrollTab from "./pages/admin/students/StudentDetail/EnrollTab.jsx";
+import AttendTab from "./pages/admin/students/StudentDetail/AttendTab.jsx";
+
+// 통합 검색 관련 페이지 임포트 추가
+import SearchByDept from './pages/admin/search/SearchByDept.jsx';
+import SearchByClass from './pages/admin/search/SearchByClass.jsx';
+import CourseList from './pages/admin/courses/CourseList.jsx';
+import OnlineViolation from './pages/admin/search/OnlineViolation.jsx';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <Router>
+      <Routes>
+        {/* 공통 라우트 */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<Login />} />
 
-      <div className="ticks"></div>
+        {/* --- ADMIN 전용 라우트 --- */}
+        <Route path="/admin/dashboard" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <AdminDashboard />
+          </PrivateRoute>
+        } />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        <Route path="/admin/students" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <StudentList />
+          </PrivateRoute>
+        } />
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        {/* 통합 검색 (학과별) 라우트 추가 */}
+        <Route path="/admin/search/dept" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <SearchByDept />
+          </PrivateRoute>
+        } />
+
+        {/* 출결 관리 (반별 결석 파악) 라우트 추가 */}
+        <Route path="/admin/search/class" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <SearchByClass />
+          </PrivateRoute>
+        } />
+
+        {/* --- 학생 상세 페이지 모음 --- */}
+        {/* /admin/students/:id 로 들어오면 기본적으로 basic 탭으로 이동 */}
+        <Route path="/admin/students/:id" element={<Navigate replace to="basic" />} />
+
+        <Route path="/admin/students/:id/basic" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <BasicTab />
+          </PrivateRoute>
+        } />
+
+        {/* 과목 관리 라우트 추가 */}
+        <Route path="/admin/courses" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <CourseList />
+          </PrivateRoute>
+        } />
+        
+        {/* 온라인 30% 위반 확인 라우트 추가 */}
+        <Route path="/admin/search/online-violation" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <OnlineViolation />
+          </PrivateRoute>
+        } />
+
+        <Route path="/admin/students/:id/visa" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <VisaTab />
+          </PrivateRoute>
+        } />
+
+        <Route path="/admin/students/:id/topik" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <TopikTab />
+          </PrivateRoute>
+        } />
+
+        <Route path="/admin/students/:id/enroll" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <EnrollTab />
+          </PrivateRoute>
+        } />
+
+        <Route path="/admin/students/:id/attendance" element={
+          <PrivateRoute allowedRoles={['ADMIN']}>
+            <AttendTab />
+          </PrivateRoute>
+        } />
+
+        {/* --- PROFESSOR 전용 라우트 --- */}
+        <Route path="/professor/dashboard" element={
+          <PrivateRoute allowedRoles={['PROFESSOR']}>
+            <ProfDashboard />
+          </PrivateRoute>
+        } />
+
+        {/* --- STUDENT 전용 라우트 --- */}
+        <Route path="/student/dashboard" element={
+          <PrivateRoute allowedRoles={['STUDENT']}>
+            <MyDashboard />
+          </PrivateRoute>
+        } />
+
+        {/* 예외 처리 */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Router>
+  );
 }
 
-export default App
+export default App;
