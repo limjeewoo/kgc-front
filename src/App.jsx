@@ -7,6 +7,7 @@ import Login from './pages/auth/Login.jsx';
 import AdminDashboard from './pages/admin/dashboard/AdminDashboard.jsx';
 import ProfDashboard from './pages/professor/dashboard/ProfDashboard.jsx';
 import MyDashboard from './pages/student/dashboard/MyDashboard.jsx';
+import MyStudentList from './pages/professor/students/MyStudentList.jsx';
 
 import StudentList from "./pages/admin/students/StudentList.jsx";
 import BasicTab from "./pages/admin/students/StudentDetail/BasicTab.jsx";
@@ -108,6 +109,13 @@ function App() {
         <Route path="/professor/dashboard" element={
           <PrivateRoute allowedRoles={['PROFESSOR']}>
             <ProfDashboard />
+          </PrivateRoute>
+        } />
+
+        {/* 담당 학생 목록 조회 페이지 라우트 단독 연결 */}
+        <Route path="/professor/students" element={
+          <PrivateRoute allowedRoles={['PROFESSOR']}>
+            <MyStudentList />
           </PrivateRoute>
         } />
 
