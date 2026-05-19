@@ -12,10 +12,13 @@ import SearchByStudent from '../search/SearchByStudent.jsx';
 import ProfessorList from '../professors/ProfessorList.jsx';
 import ProfessorRegister from '../professors/ProfessorRegister.jsx';
 import AdvisorAssign from '../professors/AdvisorAssign.jsx';
+import JobTab from '../students/StudentDetail/JobTab.jsx';
+import MileageTab from '../students/StudentDetail/MileageTab.jsx'; // ✅ 마일리지 탭 임포트 추가
 
-const NOT_IMPLEMENTED = new Set(['마일리지 승인', '상담 내역', '교양필수 관리', '학과/학기 관리']);
+// ✅ '마일리지 승인'을 준비 중 목록(Set)에서 제거
+const NOT_IMPLEMENTED = new Set(['상담 내역', '교양필수 관리', '학과/학기 관리']);
 
-const SEARCH_SUB_MENUS = ['개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색'];
+const SEARCH_SUB_MENUS = ['개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색', '학생 아르바이트 현황'];
 const PROF_SUB_MENUS = ['전체 교수 목록', '학생-지도교수 배정 관리'];
 
 export default function AdminDashboard() {
@@ -32,7 +35,6 @@ export default function AdminDashboard() {
   const [totalStudents, setTotalStudents] = useState(0);
   const [pendingJobs, setPendingJobs] = useState(0);
 
-  // ✅ 엑셀 업로드 모달 state
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [courseListRefreshKey, setCourseListRefreshKey] = useState(0);
 
@@ -111,7 +113,7 @@ export default function AdminDashboard() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght=300;400;500;700&family=DM+Sans:wght=300;400;500;600;700&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 
@@ -119,7 +121,6 @@ export default function AdminDashboard() {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'DM Sans', 'Noto Sans KR', sans-serif; background: #F0F2F7; color: #111827; }
 
-        /* ─── 사이드바 (원본 완전 유지) ─── */
         .admin-wrap { display: flex; min-height: 100vh; }
         .sidebar { width: 14.375rem; background: var(--sidebar-bg); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; flex-shrink: 0; overflow-y: auto; }
         .sidebar-logo { display: flex; align-items: center; gap: 0.625rem; padding: 1.5rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); cursor: pointer; }
@@ -146,28 +147,22 @@ export default function AdminDashboard() {
         .user-name { font-size: 0.8125rem; font-weight: 600; color: #fff; }
         .user-role { font-size: 0.6875rem; color: rgba(255,255,255,0.4); margin-top: 0.125rem; }
 
-        /* ─── 메인 ─── */
         .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
         .content { flex: 1; padding: 1.75rem 2rem; overflow-y: auto; animation: fadeUp 0.28s ease; }
 
-        /* ─── 대시보드 헤더 ─── */
         .dash-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1.75rem; gap: 1rem; }
-        .dash-title-block {}
         .dash-title { font-size: 1.375rem; font-weight: 700; color: #0F172A; }
         .dash-subtitle { font-size: 0.8125rem; color: #94A3B8; margin-top: 0.25rem; }
         .dash-actions { display: flex; gap: 0.5rem; align-items: center; flex-shrink: 0; }
 
-        /* ─── 버튼 ─── */
         .btn { display: inline-flex; align-items: center; gap: 0.375rem; border: none; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: all 0.18s; padding: 0.5625rem 1rem; white-space: nowrap; font-family: inherit; }
         .btn-dark { background: #1A3A5C; color: #fff; }
         .btn-dark:hover { background: #15304e; box-shadow: 0 4px 14px rgba(26,58,92,0.3); transform: translateY(-1px); }
         .btn-excel { background: #ECFDF5; color: #059669; border: 1.5px solid #6EE7B7; }
         .btn-excel:hover { background: #D1FAE5; border-color: #34D399; box-shadow: 0 4px 12px rgba(5,150,105,0.18); transform: translateY(-1px); }
 
-        /* ─── 섹션 레이블 ─── */
         .section-label { font-size: 0.6875rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.75rem; }
 
-        /* ─── 통계 카드 ─── */
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
         .stat-card { background: #fff; border-radius: 1rem; padding: 1.375rem 1.25rem 1.125rem; border: 1px solid #F1F5F9; cursor: pointer; transition: all 0.2s; text-align: left; position: relative; overflow: hidden; }
         .stat-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
@@ -186,7 +181,6 @@ export default function AdminDashboard() {
         .stat-val .unit { font-size: 0.875rem; font-weight: 400; color: #94A3B8; margin-left: 3px; }
         .stat-hint { font-size: 0.6875rem; color: #CBD5E1; margin-top: 0.375rem; }
 
-        /* ─── 퀵 액션 ─── */
         .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.75rem; }
         .qa-card { background: #fff; border: 1px solid #F1F5F9; border-radius: 0.875rem; padding: 1rem; cursor: pointer; transition: all 0.18s; display: flex; align-items: center; gap: 0.75rem; text-align: left; }
         .qa-card:hover { border-color: #BFDBFE; background: #F8FBFF; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(59,130,246,0.08); }
@@ -194,7 +188,6 @@ export default function AdminDashboard() {
         .qa-text { font-size: 0.8125rem; font-weight: 600; color: #1E293B; }
         .qa-sub { font-size: 0.6875rem; color: #94A3B8; margin-top: 2px; }
 
-        /* ─── 카드 (목록) ─── */
         .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
         .data-card { background: #fff; border-radius: 1rem; border: 1px solid #F1F5F9; overflow: hidden; }
         .card-hd { padding: 0.9375rem 1.25rem; border-bottom: 1px solid #F8FAFC; display: flex; justify-content: space-between; align-items: center; }
@@ -211,9 +204,7 @@ export default function AdminDashboard() {
         .pill-red { background: #FEF2F2; color: #EF4444; }
         .pill-amber { background: #FFFBEB; color: #B45309; }
         .empty-box { padding: 2.5rem 1.25rem; text-align: center; color: #CBD5E1; font-size: 0.8125rem; }
-        .empty-box-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
 
-        /* ─── 온라인 초과 ─── */
         .online-card { margin-bottom: 1rem; }
         .online-row { display: flex; align-items: center; padding: 0.75rem 1.25rem; border-bottom: 1px solid #F8FAFC; gap: 1rem; }
         .online-row:last-child { border-bottom: none; }
@@ -222,7 +213,6 @@ export default function AdminDashboard() {
         .prog-fill { height: 100%; background: linear-gradient(90deg, #FCA5A5, #EF4444); border-radius: 3px; }
         .prog-pct { width: 50px; text-align: right; font-size: 0.75rem; color: #EF4444; font-weight: 700; flex-shrink: 0; }
 
-        /* ─── not-impl ─── */
         .not-impl { padding: 4rem; text-align: center; background: #fff; border-radius: 1rem; }
         .not-impl h2 { font-size: 1.25rem; margin-bottom: 0.75rem; color: #374151; }
         .not-impl p { color: #9CA3AF; font-size: 0.875rem; }
@@ -230,7 +220,7 @@ export default function AdminDashboard() {
 
       <div className="admin-wrap">
 
-        {/* ══════════ 사이드바 (원본 완전 유지) ══════════ */}
+        {/* ══════════ 사이드바 ══════════ */}
         <div className="sidebar">
           <div className="sidebar-logo" onClick={() => setActiveMenu('대시보드')}>
             <img src="/logo-fff.png" alt="Logo" className="logo-img" />
@@ -287,7 +277,6 @@ export default function AdminDashboard() {
             {/* ── 대시보드 화면 ── */}
             {activeMenu === '대시보드' && (
               <>
-                {/* 헤더 + 버튼 영역 */}
                 <div className="dash-header">
                   <div className="dash-title-block">
                     <div className="dash-title">대시보드</div>
@@ -297,7 +286,6 @@ export default function AdminDashboard() {
                         : '실시간 현황'}
                     </div>
                   </div>
-                  {/* ✅ 버튼 두 개를 대시보드 화면 우상단에 배치 */}
                   <div className="dash-actions">
                     <button className="btn btn-excel" onClick={() => setIsExcelModalOpen(true)}>
                       📥 과목 엑셀 일괄 등록
@@ -364,7 +352,7 @@ export default function AdminDashboard() {
                       <span className="count-pill">{visaList.length}명</span>
                     </div>
                     {visaList.length === 0
-                      ? <div className="empty-box"><div className="empty-box-icon"></div>만료 임박 학생이 없습니다.</div>
+                      ? <div className="empty-box">만료 임박 학생이 없습니다.</div>
                       : visaList.map(v => (
                         <button key={v.studentId} className="list-row">
                           <div className="avatar" style={{background:'#FEF2F2', color:'#EF4444'}}>{v.studentName?.[0]}</div>
@@ -384,7 +372,7 @@ export default function AdminDashboard() {
                       <span className="count-pill">{attendanceList.length}명</span>
                     </div>
                     {attendanceList.length === 0
-                      ? <div className="empty-box"><div className="empty-box-icon"></div>출결 위험군이 없습니다.</div>
+                      ? <div className="empty-box">출결 위험군이 없습니다.</div>
                       : attendanceList.map(a => (
                         <button key={a.enrollId || a.studentId} className="list-row">
                           <div className="avatar" style={{background:'#FFFBEB', color:'#D97706'}}>{a.studentName?.[0]}</div>
@@ -428,11 +416,15 @@ export default function AdminDashboard() {
             {activeMenu === '학과-반별 검색' && <SearchByClass onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '과목별 검색' && <SearchByCourse onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '온라인 30% 초과 검색' && <OnlineViolation onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '학생 아르바이트 현황' && <JobTab onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '출결 관리' && <SearchByClass onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '과목 관리' && <CourseList key={courseListRefreshKey} onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '전체 교수 목록' && <ProfessorList onRegisterClick={() => setActiveMenu('교수 등록')} />}
             {activeMenu === '학생-지도교수 배정 관리' && <AdvisorAssign />}
             {activeMenu === '교수 등록' && <ProfessorRegister onComplete={() => setActiveMenu('전체 교수 목록')} onCancel={() => setActiveMenu('전체 교수 목록')} />}
+            
+            {/* ✅ 마일리지 승인 라우팅 조건식 매핑 추가 */}
+            {activeMenu === '마일리지 승인' && <MileageTab onBack={() => setActiveMenu('대시보드')} />}
 
             {NOT_IMPLEMENTED.has(activeMenu) && (
               <div className="not-impl">
@@ -444,7 +436,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* ✅ 엑셀 업로드 모달 — 최상위 렌더링, 백엔드 연결은 CourseExcelUpload 내부 로직 그대로 사용 */}
       <CourseExcelUpload
         isOpen={isExcelModalOpen}
         onClose={() => setIsExcelModalOpen(false)}
