@@ -4,17 +4,14 @@ import { Outlet, useNavigate } from 'react-router-dom';
 export default function ProfessorLayout() {
   const navigate = useNavigate();
   
-  // 사이드바 서브메뉴 토글 상태 관리
   const [isStudentMenuOpen, setIsStudentMenuOpen] = useState(false);
   const [isAttendConsultOpen, setIsAttendConsultOpen] = useState(false);
   const [isJobMenuOpen, setIsJobMenuOpen] = useState(false);
 
-  // 근로 승인 대기 건수 상태 (사이드바 배지 표시용)
   const [pendingCount, setPendingCount] = useState(0);
   const token = localStorage.getItem('accessToken');
   const professorId = localStorage.getItem('userId') || 'PROF001';
 
-  // 사이드바 전용 실시간 알림 데이터 패칭
   useEffect(() => {
     const fetchPendingCount = async () => {
       try {
@@ -67,7 +64,6 @@ export default function ProfessorLayout() {
       `}</style>
 
       <div className="prof-wrap">
-        {/* 고정 사이드바 */}
         <div className="sidebar">
           <div className="sb-logo" onClick={() => navigate('/professor/dashboard')}>
             <div className="logo-icon">
@@ -100,7 +96,6 @@ export default function ProfessorLayout() {
             {isStudentMenuOpen && (
               <div className="sub-menu">
                 <div className="sub-ni" onClick={() => navigate('/professor/students')}>담당 학생 목록</div>
-                <div className="sub-ni" onClick={() => navigate('/professor/students/detail')}>학생 상세 조회</div>
               </div>
             )}
 
@@ -135,7 +130,6 @@ export default function ProfessorLayout() {
           </div>
         </div>
 
-        {/* 중첩 라우팅 콘텐츠가 렌더링되는 우측 본문 영역 */}
         <div className="main">
           <Outlet />
         </div>

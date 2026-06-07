@@ -6,16 +6,17 @@ import axios from 'axios';
 const BASE_URL = 'http://localhost:8080'; // 개발용
 
 export default function VisaTab() {
-  const { id } = useParams();
+  const { studentId } = useParams();
+  const id = studentId;
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   
   const [visaData, setVisaData] = useState({ currentVisa: null, history: [] });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Axios 인스턴스 (인증 토큰 포함)
+  // 🎯 [수정] 정의되지 않았던 API_BASE_URL을 상단에 선언한 BASE_URL로 변경했습니다.
   const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: BASE_URL,
     headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
   });
 
@@ -31,7 +32,6 @@ export default function VisaTab() {
           
           if (visas.length > 0) {
             // 최신(현재) 비자와 과거 이력 분리
-            // API에 isCurrent 플래그가 있다면 그것을 사용하고, 없다면 발급일/만료일 기준으로 최신 항목을 찾습니다.
             const current = visas.find(v => v.isCurrent) || visas[0];
             const history = visas.filter(v => v.visaId !== current.visaId);
 
@@ -83,7 +83,11 @@ export default function VisaTab() {
     return { chipClass: 'vt-chip-green', barColor: '#22C55E', label: '체류 기간 넉넉함', textColor: '#16A34A' };
   };
 
-  const status = currentVisa ? getStatus(currentVisa.dDay) : null;
+  // 🎯 [방어 코드] currentVisa가 없을 때의 기본 fallback 상태를 명시적으로 선언합니다.
+  const status = currentVisa 
+    ? getStatus(currentVisa.dDay) 
+    : { chipClass: 'vt-chip-blue', barColor: '#E5E7EB', label: '정보 없음', textColor: '#6B7280' };
+    
   const progress = currentVisa ? Math.max(0, Math.min(100, (currentVisa.dDay / 365) * 100)) : 0;
 
   return (

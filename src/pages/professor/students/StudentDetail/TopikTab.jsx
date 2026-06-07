@@ -6,7 +6,8 @@ import axios from 'axios';
 const BASE_URL = 'http://localhost:8080'; // 개발용
 
 export default function TopikTab() {
-  const { id } = useParams();
+  const { studentId } = useParams();
+  const id = studentId;
   const navigate = useNavigate();
   
   // 상태 관리
@@ -14,9 +15,8 @@ export default function TopikTab() {
   const [topikHistory, setTopikHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Axios 인스턴스 (인증 토큰 포함)
   const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: BASE_URL,
     headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
   });
 
@@ -37,9 +37,8 @@ export default function TopikTab() {
         }
 
         if (topikRes.data?.success) {
-          // 최신순으로 정렬 (필요 시)
           const sortedHistory = (topikRes.data.data || []).sort(
-            (a, b) => new Date(b.testDate) - new Date(a.testDate)
+            (a, b) => new Date(b.testDate || '') - new Date(a.testDate || '')
           );
           setTopikHistory(sortedHistory);
         }
@@ -54,7 +53,7 @@ export default function TopikTab() {
     if (id) fetchTopikData();
   }, [id]);
 
-  // 날짜 비교를 통한 유효/만료 상태 계산 함수 (API 응답에 명확한 상태값이 없을 경우 대비)
+  // 날짜 비교를 통한 유효/만료 상태 계산 함수
   const checkStatus = (expiryDate, apiStatus) => {
     if (apiStatus) return apiStatus; // API에서 '유효' 또는 '만료'를 직접 주면 그대로 사용
     if (!expiryDate) return '-';
@@ -108,7 +107,6 @@ export default function TopikTab() {
       {/* 상단 네비게이션 */}
       <div className="tt-topbar">
         <div className="tt-topbar-left">
-          {/* 🚀 뒤로가기 버튼: 클릭 시 이전 페이지(BasicTab)로 이동 */}
           <button className="tt-back-btn" onClick={() => navigate(-1)} title="뒤로가기">
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
               <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
@@ -124,7 +122,6 @@ export default function TopikTab() {
       <div className="tt-card">
         <div className="tt-card-header">
           <div className="tt-title">한국어 능력 시험(TOPIK) 이력</div>
-          {/* 성적 등록 페이지나 모달로 연결되도록 onClick 핸들러를 추후 연결할 수 있습니다 */}
           <button className="add-btn" onClick={() => alert('새 성적 등록 모달 오픈 예정')}>+ 새 성적 등록</button>
         </div>
 
@@ -151,8 +148,8 @@ export default function TopikTab() {
                 
                 return (
                   <tr key={item.topikId || item.id}>
-                    <td style={{ fontWeight: 500 }}>{item.testDate}</td>
-                    <td><span style={{ color: '#3B82F6', fontWeight: 700 }}>{item.topikLevel}</span></td>
+                    <td style={{ fontWeight: 500 }}>{item.testDate || '-'}</td>
+                    <td><span style={{ color: '#3B82F6', fontWeight: 700 }}>{item.topikLevel || '-'}</span></td>
                     <td>{item.totalScore ? `${item.totalScore}점` : '-'}</td>
                     <td style={{ color: '#6B7280' }}>{item.expiryDate || '-'}</td>
                     <td>

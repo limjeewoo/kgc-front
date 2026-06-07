@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import axios from 'axios';
 
+// ─── 환경 설정 ─────────────────────────────────────────
 // const BASE_URL = 'https://api.kmgc.world'; // 배포용
 const BASE_URL = 'http://localhost:8080'; // 개발용
 
@@ -15,15 +16,16 @@ const getStatusKey = (code) => {
   return 'none';
 };
 
-export default function AttendTab() {
-  const { id } = useParams(); // URL 파라미터에서 studentId 추출
-  const navigate = useNavigate();
+export default function AttendTab({ studentId: propsStudentId }) {
+  const { id: urlStudentId } = useParams();
+  const studentId = propsStudentId || urlStudentId;
+
+  // 상태 관리
   const [attendData, setAttendData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Axios 인스턴스 생성 (인증 토큰 포함)
   const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: BASE_URL,
     headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
   });
 
@@ -33,11 +35,10 @@ export default function AttendTab() {
         setIsLoading(true);
 
         // 1. 학생의 수강 목록 조회 (명세서 11번)
-        const enrollRes = await api.get(`/api/v1/students/${id}/enrollments`);
+        const enrollRes = await api.get(`/api/v1/students/${studentId}/enrollments`);
         const enrollments = enrollRes.data.success ? enrollRes.data.data : [];
 
         // 2. 각 수강 과목의 상세 출결 조회 (명세서 13번)
-        // (미구현 상태일 수 있으므로 에러 발생 시 빈 데이터로 fallback 처리)
         const courseAttendances = await Promise.all(
           enrollments.map(async (enroll) => {
             try {
@@ -93,7 +94,7 @@ export default function AttendTab() {
           currentRate,
           totalRequiredHours: totalHours,
           currentAttendedHours: sumAttend,
-          visaThreshold: 70, // 비자 연장 기준 (하드코딩 유지 또는 정책 API 연동)
+          visaThreshold: 70, // 비자 연장 기준
           courses: courseAttendances
         });
 
@@ -104,11 +105,12 @@ export default function AttendTab() {
       }
     };
 
-    fetchAttendanceData();
-  }, [id]);
+    if (studentId) fetchAttendanceData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentId]);
 
-  if (isLoading) return <div style={{ padding: '4rem', textAlign: 'center', color: '#9CA3AF' }}>데이터 로딩 중...</div>;
-  if (!attendData) return <div style={{ padding: '4rem', textAlign: 'center', color: '#EF4444' }}>데이터를 불러올 수 없습니다.</div>;
+  if (isLoading) return <div style={{ padding: '4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.875rem' }}>데이터 로딩 중...</div>;
+  if (!attendData) return <div style={{ padding: '4rem', textAlign: 'center', color: '#EF4444', fontSize: '0.875rem' }}>데이터를 불러올 수 없습니다.</div>;
 
   const renderAbsBadge = (count) => {
     if (count >= 4) return <><div className="abs-count" style={{color:'#DC2626'}}>{count}회</div><div className="abs-badge ab-danger">위험</div></>;
@@ -119,19 +121,22 @@ export default function AttendTab() {
   const isVisaSafe = attendData.currentRate >= attendData.visaThreshold;
 
   return (
-    <div style={{ fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", fontSize: '0.875rem', color: '#111827', padding: '1.25rem', backgroundColor: '#F0F2F7', minHeight: '100vh' }}>
+    <div style={{ 
+      fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", 
+      fontSize: '0.875rem', 
+      color: '#111827',
+      animation: 'fadeUp 0.28s ease' // 깔끔한 페이드 트랜지션 추가
+    }}>
       <style>{`
-        .at-topbar { background: #fff; padding: 0 1.75rem; height: 3.625rem; display: flex; align-items: center; border-radius: 0.875rem; margin-bottom: 1.25rem; border: 1px solid #E5E7EB; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-        .at-back-btn { width: 1.875rem; height: 1.875rem; border-radius: 0.4375rem; background: #F3F4F6; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-right: 0.625rem; transition: 0.2s; }
-        .at-back-btn:hover { background: #E5E7EB; }
-        .at-breadcrumb { font-size: 0.8125rem; color: #9CA3AF; }
-        .at-breadcrumb span { color: #111827; font-weight: 600; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 
+        /* 요약 컨테이너 */
         .at-summary-container { display: flex; gap: 1rem; margin-bottom: 1.25rem; }
-        .at-rate-card { flex: 1; background: #fff; border-radius: 0.875rem; border: 1px solid #E5E7EB; padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .at-rate-card { flex: 1; background: #fff; border-radius: 0.875rem; border: 1px solid #E5E7EB; padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.01); }
         .at-visa-banner { flex: 2; display: flex; align-items: center; gap: 1rem; padding: 1.5rem; border-radius: 0.875rem; background: ${isVisaSafe ? '#F0FDF4' : '#FEF2F2'}; border: 1px solid ${isVisaSafe ? '#DCFCE7' : '#FEE2E2'}; color: ${isVisaSafe ? '#16A34A' : '#DC2626'}; }
 
-        .legend-bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.875rem; flex-wrap: wrap; padding: 0 0.5rem; }
+        /* 범례 */
+        .legend-bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; padding: 0 0.25rem; }
         .legend-item { display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: #6B7280; white-space: nowrap; }
         .legend-cell { width: 1.375rem; height: 1.375rem; border-radius: 0.3125rem; display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 700; }
         
@@ -141,23 +146,25 @@ export default function AttendTab() {
         .lc-pub { background: #F0FDF4; color: #16A34A; }
         .lc-none { background: #F3F4F6; color: #9CA3AF; }
 
-        .attend-table-wrap { background: #fff; border-radius: 0.875rem; border: 1px solid #E5E7EB; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-        .attend-table-header { padding: 1rem 1.25rem; border-bottom: 1px solid #F3F4F6; display: flex; justify-content: space-between; align-items: center; }
+        /* 테이블 구조 */
+        .attend-table-wrap { background: #fff; border-radius: 0.875rem; border: 1px solid #E5E7EB; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.01); }
+        .attend-table-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid #F3F4F6; display: flex; justify-content: space-between; align-items: center; }
         .att-title { font-size: 0.9375rem; font-weight: 700; color: #111827; }
         .att-sub { font-size: 0.75rem; color: #9CA3AF; margin-top: 0.125rem; }
 
         .att-table { width: 100%; border-collapse: collapse; min-width: 56.25rem; }
-        .att-table th { background: #F9FAFB; padding: 0.625rem 0.5rem; font-size: 0.6875rem; font-weight: 600; color: #6B7280; text-align: center; border-bottom: 1px solid #F3F4F6; white-space: nowrap; word-break: keep-all; }
-        .att-table td { padding: 0.625rem 0.5rem; border-bottom: 1px solid #F9FAFB; text-align: center; vertical-align: middle; white-space: nowrap; word-break: keep-all; }
-        .att-table th.th-left, .att-table td.td-left { text-align: left; padding-left: 1.25rem; min-width: 11rem; }
+        .att-table th { background: #F9FAFB; padding: 0.75rem 0.5rem; font-size: 0.75rem; font-weight: 600; color: #6B7280; text-align: center; border-bottom: 1px solid #F3F4F6; white-space: nowrap; }
+        .att-table td { padding: 0.75rem 0.5rem; border-bottom: 1px solid #F9FAFB; text-align: center; vertical-align: middle; white-space: nowrap; }
+        .att-table th.th-left, .att-table td.td-left { text-align: left; padding-left: 1.5rem; min-width: 12rem; }
         .att-table tr:last-child td { border-bottom: none; }
         .att-table tr:hover td { background: #FAFAFA; }
 
-        .course-name { font-size: 0.8125rem; font-weight: 600; color: #111827; margin-bottom: 0.25rem; }
-        .course-code { font-size: 0.6875rem; color: #9CA3AF; }
+        .course-name { font-size: 0.8125rem; font-weight: 600; color: #0F172A; margin-bottom: 0.25rem; }
+        .course-code { font-size: 0.6875rem; color: #9CA3AF; fontFamily: 'monospace'; }
 
-        .week-cell { width: 2rem; height: 1.75rem; border-radius: 0.375rem; display: flex; align-items: center; justify-content: center; font-size: 0.6875rem; font-weight: 700; margin: 0 auto; border: 1px solid transparent; cursor: pointer; transition: 0.15s; }
-        .week-cell:hover { transform: scale(1.1); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        /* 주차별 셀 스타일 */
+        .week-cell { width: 2rem; height: 1.75rem; border-radius: 0.375rem; display: flex; align-items: center; justify-content: center; font-size: 0.6875rem; font-weight: 700; margin: 0 auto; border: 1px solid transparent; transition: 0.15s; }
+        .week-cell:hover { transform: scale(1.08); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         
         .wc-ok { background: #EFF6FF; color: #3B82F6; border-color: #BFDBFE; }
         .wc-abs { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
@@ -165,23 +172,15 @@ export default function AttendTab() {
         .wc-pub { background: #F0FDF4; color: #16A34A; border-color: #A7F3D0; }
         .wc-none { background: #F3F4F6; color: #D1D5DB; border-color: #E5E7EB; }
 
-        .summary-wrap { display: flex; flex-direction: column; gap: 0.1875rem; align-items: center; justify-content: center; }
+        .summary-wrap { display: flex; flex-direction: column; gap: 0.25rem; align-items: center; justify-content: center; }
         .abs-count { font-size: 0.75rem; font-weight: 700; line-height: 1; }
-        .abs-badge { font-size: 0.625rem; padding: 0.1875rem 0.375rem; border-radius: 0.625rem; font-weight: 600; line-height: 1; }
+        .abs-badge { font-size: 0.625rem; padding: 0.1875rem 0.5rem; border-radius: 0.625rem; font-weight: 600; line-height: 1; }
         .ab-danger { background: #FEF2F2; color: #DC2626; }
         .ab-warn { background: #FFFBEB; color: #D97706; }
         .ab-ok { background: #F0FDF4; color: #16A34A; }
       `}</style>
 
-      {/* 상단 네비게이션 */}
-      <div className="at-topbar">
-        <button className="at-back-btn" onClick={() => navigate(-1)} title="뒤로가기">
-          <svg width="1rem" height="1rem" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </button>
-        <div className="at-breadcrumb">관리자 대시보드 › 학생 목록 › <span>학생 상세 출결</span></div>
-      </div>
-
-      {/* 요약 컨테이너 */}
+      {/* ── 요약 정보 카드 ── */}
       <div className="at-summary-container">
         <div className="at-rate-card">
           <div style={{ fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '0.5rem', fontWeight: 500 }}>현재 통합 출석률</div>
@@ -189,17 +188,17 @@ export default function AttendTab() {
         </div>
         
         <div className="at-visa-banner">
-          <span style={{ fontSize: '2rem' }}>{isVisaSafe ? '✅' : '⚠️'}</span>
+          <span style={{ fontSize: '1.75rem' }}>{isVisaSafe ? '✅' : '⚠️'}</span>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '0.25rem' }}>비자 유지 상태 판독</div>
-            <div style={{ fontSize: '0.8125rem', opacity: 0.9 }}>
+            <div style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.25rem' }}>비자 유지 상태 판독</div>
+            <div style={{ fontSize: '0.8125rem', opacity: 0.9, lineHeight: 1.4 }}>
               {isVisaSafe ? "현재 출석률이 비자 연장 가능 기준(70%)을 충족하고 있습니다." : "현재 출석률이 70% 미만으로 강제 출국 및 비자 취소 대상에 해당될 수 있습니다."}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 범례 */}
+      {/* ── 출결 범례(Legend) ── */}
       <div className="legend-bar">
         <div className="legend-item"><div className="legend-cell lc-ok">출</div>출석</div>
         <div className="legend-item"><div className="legend-cell lc-abs">결</div>결석</div>
@@ -208,12 +207,12 @@ export default function AttendTab() {
         <div className="legend-item"><div className="legend-cell lc-none">-</div>미입력</div>
       </div>
 
-      {/* 주차별 출결 테이블 */}
+      {/* ── 주차별 출결 매트릭스 ── */}
       <div className="attend-table-wrap">
         <div className="attend-table-header">
           <div>
             <div className="att-title">출결 매트릭스 (1~15주차)</div>
-            <div className="att-sub">수강 중인 과목별 상세 출결 이력</div>
+            <div className="att-sub">수강 중인 과목별 상세 주차 출결 현황</div>
           </div>
         </div>
 
@@ -223,15 +222,15 @@ export default function AttendTab() {
               <tr>
                 <th className="th-left">수강 과목</th>
                 {[...Array(15)].map((_, i) => (
-                  <th key={i} style={{ color: i >= 13 ? '#D1D5DB' : '#6B7280' }}>{i + 1}주</th>
+                  <th key={i} style={{ color: i >= 13 ? '#9CA3AF' : '#6B7280' }}>{i + 1}주</th>
                 ))}
-                <th>결석수</th>
+                <th>결석 관리</th>
               </tr>
             </thead>
             <tbody>
               {attendData.courses.length === 0 ? (
                  <tr>
-                   <td colSpan="17" style={{ padding: '3rem', color: '#9CA3AF' }}>수강 내역이 없습니다.</td>
+                   <td colSpan="17" style={{ padding: '4rem', color: '#9CA3AF', textAlign: 'center' }}>수강 및 출결 기록이 존재하지 않습니다.</td>
                  </tr>
               ) : (
                 attendData.courses.map((course) => (
@@ -242,12 +241,12 @@ export default function AttendTab() {
                     </td>
                     {course.attend.map((statusCode, weekIdx) => {
                       const statusKey = getStatusKey(statusCode);
-                      const isLocked = weekIdx >= 13; // 13주차 이후 하드코딩 (서버 현재 주차 데이터로 변경 권장)
+                      const isFutureWeek = weekIdx >= 13; // 미래 주차 흐림 처리 기준
                       return (
                         <td key={weekIdx}>
                           <div 
                             className={`week-cell wc-${statusKey}`} 
-                            style={isLocked ? { opacity: 0.4, cursor: 'default' } : {}}
+                            style={isFutureWeek ? { opacity: 0.4 } : {}}
                             title={`${weekIdx + 1}주차 - ${LABELS[statusKey]}`}
                           >
                             {LABELS[statusKey]}
@@ -257,7 +256,6 @@ export default function AttendTab() {
                     })}
                     <td>
                       <div className="summary-wrap">
-                        {/* API에서 내려준 totalAbsent 값을 그대로 사용합니다. */}
                         {renderAbsBadge(course.totalAbsent)}
                       </div>
                     </td>

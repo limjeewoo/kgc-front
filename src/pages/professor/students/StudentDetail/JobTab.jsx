@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import api from "../../../../api/axios";
 
 /**
  * JobTab.jsx — 시간제 취업(알바) 이력 관리
  *
  * 사용 API:
- *   GET  /api/v1/students/{studentId}/jobs          — 근로 이력 목록
- *   GET  /api/v1/topik/work-hours/{studentId}       — TOPIK 기반 합법 최대 근로시간
- *   PATCH /api/v1/jobs/{jobId}/approval             — 승인 / 반려
- *   PATCH /api/v1/jobs/{jobId}/contract             — 근로계약서 PDF 업로드
+ * GET  /api/v1/students/{studentId}/jobs          — 근로 이력 목록
+ * GET  /api/v1/topik/work-hours/{studentId}       — TOPIK 기반 합법 최대 근로시간
+ * PATCH /api/v1/jobs/{jobId}/approval             — 승인 / 반려
+ * PATCH /api/v1/jobs/{jobId}/contract             — 근로계약서 PDF 업로드
  */
 
 // ─── 상수 ───────────────────────────────────────────────
@@ -24,7 +25,7 @@ const fmt = (d) => d ? new Date(d).toLocaleDateString('ko-KR', { year:'numeric',
 
 // 두 날짜 사이 주당 근무시간 계산 (총 시간 / 주 수)
 const calcWeeklyHours = (startDate, endDate, dailyHours, daysPerWeek) => {
-  if (!startDate || !dailyHours || !daysPerWeek) return null;
+  if (!startDate || !dailyHours || !daysPerWeek) return 0;
   return dailyHours * daysPerWeek;
 };
 
@@ -34,7 +35,6 @@ function HoursBar({ weekly, max }) {
   const over  = weekly > max;
   const warn  = weekly >= max * 0.8 && !over;
   const color = over ? '#EF4444' : warn ? '#F59E0B' : '#3B82F6';
-  const bg    = over ? '#FEF2F2' : warn ? '#FFFBEB' : '#EFF6FF';
 
   return (
     <div style={{ minWidth: 140 }}>
@@ -99,13 +99,15 @@ function RejectModal({ onConfirm, onCancel }) {
 }
 
 // ─── 메인 컴포넌트 ─────────────────────────────────────
-export default function JobTab({ studentId, studentName }) {
+export default function JobTab({ studentId: propsStudentId, studentName }) {
+  const { studentId: urlStudentId } = useParams();
+  const studentId = propsStudentId || urlStudentId;
+
   const [jobs, setJobs]         = useState([]);
   const [maxHours, setMaxHours] = useState(DEFAULT_MAX_HOURS);
   const [loading, setLoading]   = useState(true);
   const [actionLoading, setActionLoading] = useState(null); // jobId
   const [rejectTarget, setRejectTarget]   = useState(null); // jobId
-  const [uploadTarget, setUploadTarget]   = useState(null); // jobId
   const [toast, setToast]       = useState(null);
   const [filterStatus, setFilterStatus] = useState('ALL');
 
@@ -191,7 +193,6 @@ export default function JobTab({ studentId, studentName }) {
       showToast(e.response?.data?.message || '업로드 실패', 'error');
     } finally {
       setActionLoading(null);
-      setUploadTarget(null);
     }
   };
 
@@ -199,8 +200,8 @@ export default function JobTab({ studentId, studentName }) {
   const filtered = filterStatus === 'ALL' ? jobs : jobs.filter(j => j.status === filterStatus);
 
   // ── 통계 ─────────────────────────────────────────────
-  const approved  = jobs.filter(j => j.status === 'APPROVED');
-  const pending   = jobs.filter(j => j.status === 'PENDING');
+  const approved   = jobs.filter(j => j.status === 'APPROVED');
+  const pending    = jobs.filter(j => j.status === 'PENDING');
   const totalWeekly = approved.reduce((sum, j) => sum + (calcWeeklyHours(j.startDate, j.endDate, j.dailyHours, j.daysPerWeek) || 0), 0);
   const isOverall   = totalWeekly > maxHours;
 
@@ -259,8 +260,12 @@ export default function JobTab({ studentId, studentName }) {
         .jt-btn-approve:hover:not(:disabled) { background:#D1FAE5; }
         .jt-btn-reject  { background:#FEF2F2; color:#DC2626; border:1.5px solid #FECACA; }
         .jt-btn-reject:hover:not(:disabled)  { background:#FEE2E2; }
-        .jt-btn-upload  { background:#EFF6FF; color:#2563EB; border:1.5px solid #BFDBFE; }
-        .jt-btn-upload:hover:not(:disabled)  { background:#DBEAFE; }
+        
+        /* 🎯 라벨형 업로드 버튼 스타일 명확화 */
+        .jt-label-upload { display:inline-flex; align-items:center; gap:5px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; padding:7px 14px; transition:all 0.15s; font-family:inherit; white-space:nowrap; background:#EFF6FF; color:#2563EB; border:1.5px solid #BFDBFE; }
+        .jt-label-upload.disabled { opacity:0.5; cursor:not-allowed; }
+        .jt-label-upload:hover:not(.disabled) { background:#DBEAFE; }
+
         .jt-btn-view    { background:#F8FAFC; color:#475569; border:1.5px solid #E2E8F0; }
         .jt-btn-view:hover:not(:disabled)    { background:#F1F5F9; }
 
@@ -347,7 +352,7 @@ export default function JobTab({ studentId, studentName }) {
         {loading ? (
           <div style={{ padding:'4rem', textAlign:'center', color:'#94A3B8', fontSize:13, display:'flex', alignItems:'center', justifyContent:'center', gap:10 }}>
             <span className="spin" style={{ display:'inline-block', width:20, height:20, border:'2px solid #E5E7EB', borderTopColor:'#1A3A5C', borderRadius:'50%' }} />
-            데이터를 불러오는 중...
+            데이터 불러오는 중...
           </div>
         ) : filtered.length === 0 ? (
           <div className="jt-empty">
@@ -421,18 +426,17 @@ export default function JobTab({ studentId, studentName }) {
                         <>
                           <input
                             id={`contract-${job.jobId}`}
-                            type="file" accept="application/pdf"
+                            type="file" 
+                            accept="application/pdf"
                             style={{ display:'none' }}
+                            disabled={isAct}
                             onChange={e => handleContractUpload(job.jobId, e.target.files[0])}
                           />
-                          <label htmlFor={`contract-${job.jobId}`}>
-                            <button
-                              className="jt-btn jt-btn-upload"
-                              disabled={isAct}
-                              onClick={() => document.getElementById(`contract-${job.jobId}`).click()}
-                            >
-                              {isAct ? <span className="spin">⏳</span> : '📎'} 계약서 업로드
-                            </button>
+                          <label 
+                            htmlFor={`contract-${job.jobId}`} 
+                            className={`jt-label-upload ${isAct ? 'disabled' : ''}`}
+                          >
+                            {isAct ? <span className="spin">⏳</span> : '📎'} 계약서 업로드
                           </label>
                         </>
                       )}

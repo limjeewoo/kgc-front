@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom'; // 🎯 useParams 추가
 import api from "../../../../api/axios";
 
 /**
  * MileageTab.jsx — KM 마일리지 상세 히스토리
  *
  * 사용 API:
- *   GET /api/v1/students/{studentId}/mileage — 마일리지 총점 + 이력 조회
+ * GET /api/v1/students/{studentId}/mileage — 마일리지 총점 + 이력 조회
  */
 
 const fmt = (d) =>
   d ? new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '–';
 
 const CATEGORY_META = {
-  ATTEND:    { label: '출결',     icon: '📅', color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
+  ATTEND:    { label: '출결',    icon: '📅', color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
   TOPIK:     { label: 'TOPIK',   icon: '📝', color: '#8B5CF6', bg: '#F5F3FF', border: '#DDD6FE' },
   ACTIVITY:  { label: '활동',    icon: '🏆', color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
   VOLUNTEER: { label: '봉사',    icon: '🤝', color: '#10B981', bg: '#ECFDF5', border: '#6EE7B7' },
@@ -63,13 +64,16 @@ function DonutChart({ segments, total }) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────
-export default function MileageTab({ studentId }) {
+export default function MileageTab({ studentId: propsStudentId }) {
+  // 🎯 [수정] props로 오지 않더라도 라우터 URL(:studentId)에서 안전하게 id를 획득하도록 보완합니다.
+  const { studentId: urlStudentId } = useParams();
+  const studentId = propsStudentId || urlStudentId;
+
   const [data,    setData]    = useState(null);   // { totalScore, history: [] }
   const [loading, setLoading] = useState(true);
   const [filter,  setFilter]  = useState('ALL');
   const [sort,    setSort]    = useState('DATE_DESC'); // DATE_DESC | DATE_ASC | SCORE_DESC
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!studentId) return;
     setLoading(true);
@@ -86,8 +90,8 @@ export default function MileageTab({ studentId }) {
   const filtered = (filter === 'ALL' ? history : history.filter(h => h.category?.toUpperCase() === filter))
     .slice()
     .sort((a, b) => {
-      if (sort === 'DATE_DESC') return new Date(b.earnedAt) - new Date(a.earnedAt);
-      if (sort === 'DATE_ASC')  return new Date(a.earnedAt) - new Date(b.earnedAt);
+      if (sort === 'DATE_DESC') return new Date(b.earnedAt || '') - new Date(a.earnedAt || '');
+      if (sort === 'DATE_ASC')  return new Date(a.earnedAt || '') - new Date(b.earnedAt || '');
       if (sort === 'SCORE_DESC') return (b.score ?? 0) - (a.score ?? 0);
       return 0;
     });
@@ -98,8 +102,8 @@ export default function MileageTab({ studentId }) {
     return { key, value: items.reduce((s, h) => s + (h.score ?? 0), 0), ...CATEGORY_META[key] };
   }).filter(c => c.value > 0);
 
-  const earned  = history.filter(h => (h.score ?? 0) > 0).reduce((s, h) => s + h.score, 0);
-  const deducted = Math.abs(history.filter(h => (h.score ?? 0) < 0).reduce((s, h) => s + h.score, 0));
+  const earned   = history.filter(h => (h.score ?? 0) > 0).reduce((s, h) => s + (h.score ?? 0), 0);
+  const deducted = Math.abs(history.filter(h => (h.score ?? 0) < 0).reduce((s, h) => s + (h.score ?? 0), 0));
 
   const categories = Object.keys(CATEGORY_META);
 
@@ -302,8 +306,7 @@ export default function MileageTab({ studentId }) {
               </thead>
               <tbody>
                 {(() => {
-                  // 누적 점수 계산용 — 날짜 오름차순 기준으로 누적 후 현재 정렬 순서에 맵핑
-                  const sorted_asc = [...history].sort((a, b) => new Date(a.earnedAt) - new Date(b.earnedAt));
+                  const sorted_asc = [...history].sort((a, b) => new Date(a.earnedAt || '') - new Date(b.earnedAt || ''));
                   const runningMap = {};
                   let acc = 0;
                   sorted_asc.forEach(h => {
@@ -348,7 +351,7 @@ export default function MileageTab({ studentId }) {
                     {filtered.length}건 표시 중
                   </td>
                   <td className="right" style={{ color: '#059669' }}>
-                    +{filtered.filter(h => (h.score ?? 0) > 0).reduce((s, h) => s + h.score, 0).toLocaleString()}
+                    +{filtered.filter(h => (h.score ?? 0) > 0).reduce((s, h) => s + (h.score ?? 0), 0).toLocaleString()}
                   </td>
                   <td className="right" style={{ color: '#0F172A' }}>
                     총 {total.toLocaleString()} pt
