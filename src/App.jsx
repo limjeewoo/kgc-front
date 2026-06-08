@@ -4,14 +4,14 @@ import PrivateRoute from './router/PrivateRoute.jsx';
 
 // 레이아웃
 import ProfessorLayout from './pages/professor/layout/ProfessorLayout.jsx';
-import StudentLayout from './pages/student/layout/StudentLayout.jsx'; // 👈 학생 레이아웃 임포트 확인
+import StudentLayout from './pages/student/layout/StudentLayout.jsx'; 
 
 // 공통 및 인증
 import Login from './pages/auth/Login.jsx';
 
 // 어드민 컴포넌트
 import AdminDashboard from './pages/admin/dashboard/AdminDashboard.jsx';
-import StudentList from "./pages/admin/students/StudentList.jsx";
+import SemesterManagement from "./pages/admin/semesters/SemestersManagement.jsx"; 
 import BasicTab from "./pages/admin/students/StudentDetail/BasicTab.jsx";
 import VisaTab from "./pages/admin/students/StudentDetail/VisaTab.jsx";
 import TopikTab from "./pages/admin/students/StudentDetail/TopikTab.jsx";
@@ -20,6 +20,7 @@ import AttendTab from "./pages/admin/students/StudentDetail/AttendTab.jsx";
 import SearchByDept from './pages/admin/search/SearchByDept.jsx';
 import SearchByClass from './pages/admin/search/SearchByClass.jsx';
 import CourseList from './pages/admin/courses/CourseList.jsx';
+import StudentList from "./pages/admin/students/StudentList.jsx";
 import OnlineViolation from './pages/admin/search/OnlineViolation.jsx';
 
 // 교수 컴포넌트
@@ -27,9 +28,6 @@ import ProfDashboard from './pages/professor/dashboard/ProfDashboard.jsx';
 import MyStudentList from './pages/professor/students/MyStudentList.jsx';
 import ProfStudentDetail from './pages/professor/students/StudentDetail/index.jsx';
 import AttendanceInput from './pages/professor/attendance/AttendanceInput.jsx';
-
-// 💡 학생 컴포넌트 알맹이들은 StudentLayout 내부에서 다이렉트로 호출하므로 
-// 💡 App.jsx 단의 이전 MyDashboard 단독 임포트는 깔끔하게 정리했습니다.
 
 function App() {
   return (
@@ -40,6 +38,7 @@ function App() {
 
         {/* --- ADMIN 권한 그룹 --- */}
         <Route path="/admin/dashboard" element={<PrivateRoute allowedRoles={['ADMIN']}><AdminDashboard /></PrivateRoute>} />
+        <Route path="/admin/semesters" element={<PrivateRoute allowedRoles={['ADMIN']}><SemesterManagement /></PrivateRoute>} /> 
         <Route path="/admin/students" element={<PrivateRoute allowedRoles={['ADMIN']}><StudentList /></PrivateRoute>} />
         <Route path="/admin/search/dept" element={<PrivateRoute allowedRoles={['ADMIN']}><SearchByDept /></PrivateRoute>} />
         <Route path="/admin/search/class" element={<PrivateRoute allowedRoles={['ADMIN']}><SearchByClass /></PrivateRoute>} />
@@ -63,16 +62,13 @@ function App() {
             </PrivateRoute>
           }
         >
-          {/* 기본 리다이렉트 */}
           <Route index element={<Navigate to="dashboard" replace />} />
           
-          {/* 우측 <Outlet /> 자리에 주입될 실제 화면 알맹이들 */}
           <Route path="dashboard" element={<ProfDashboard />} />
           <Route path="students" element={<MyStudentList />} />
           <Route path="students/:studentId" element={<ProfStudentDetail />} />
           <Route path="attendance" element={<AttendanceInput />} />
           
-          {/* 기타 임시 페이지 */}
           <Route path="consult" element={<div style={{ padding: '2rem' }}>상담 목록 준비 중</div>} />
           <Route path="consult/write" element={<div style={{ padding: '2rem' }}>상담 일지 작성 준비 중</div>} />
           <Route path="jobs" element={<div style={{ padding: '2rem' }}>교수 1차 승인 준비 중</div>} />
@@ -87,7 +83,7 @@ function App() {
             <PrivateRoute allowedRoles={['STUDENT']}>
               <StudentLayout />
             </PrivateRoute>
-          } 
+          }
         />
 
         <Route path="*" element={<Navigate to="/login" replace />} />

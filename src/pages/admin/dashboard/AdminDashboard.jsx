@@ -13,11 +13,10 @@ import ProfessorList from '../professors/ProfessorList.jsx';
 import ProfessorRegister from '../professors/ProfessorRegister.jsx';
 import AdvisorAssign from '../professors/AdvisorAssign.jsx';
 import JobTab from '../students/StudentDetail/JobTab.jsx';
-import MileageTab from '../students/StudentDetail/MileageTab.jsx'; // ✅ 마일리지 탭 임포트 추가
+import MileageTab from '../students/StudentDetail/MileageTab.jsx';
+import SemesterManagement from "../semesters/SemestersManagement.jsx";
 
-// ✅ '마일리지 승인'을 준비 중 목록(Set)에서 제거
-const NOT_IMPLEMENTED = new Set(['상담 내역', '교양필수 관리', '학과/학기 관리']);
-
+const NOT_IMPLEMENTED = new Set(['상담 내역', '교양필수 관리']);
 const SEARCH_SUB_MENUS = ['개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색', '학생 아르바이트 현황'];
 const PROF_SUB_MENUS = ['전체 교수 목록', '학생-지도교수 배정 관리'];
 
@@ -220,7 +219,6 @@ export default function AdminDashboard() {
 
       <div className="admin-wrap">
 
-        {/* ══════════ 사이드바 ══════════ */}
         <div className="sidebar">
           <div className="sidebar-logo" onClick={() => setActiveMenu('대시보드')}>
             <img src="/logo-fff.png" alt="Logo" className="logo-img" />
@@ -269,12 +267,10 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ══════════ 메인 영역 ══════════ */}
         <div className="main">
           <TopBar title={activeMenu} />
           <div className="content">
 
-            {/* ── 대시보드 화면 ── */}
             {activeMenu === '대시보드' && (
               <>
                 <div className="dash-header">
@@ -293,7 +289,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* 통계 카드 */}
                 <div className="section-label">주요 지표</div>
                 <div className="stats-grid">
                   <button className="stat-card c-blue" onClick={() => setActiveMenu('학생 목록')}>
@@ -322,7 +317,6 @@ export default function AdminDashboard() {
                   </button>
                 </div>
 
-                {/* 퀵 액션 */}
                 <div className="section-label">빠른 이동</div>
                 <div className="quick-grid">
                   <button className="qa-card" onClick={() => setActiveMenu('학생 목록')}>
@@ -343,7 +337,6 @@ export default function AdminDashboard() {
                   </button>
                 </div>
 
-                {/* 알림 목록 */}
                 <div className="section-label">알림 현황</div>
                 <div className="bottom-grid">
                   <div className="data-card">
@@ -387,7 +380,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* 온라인 초과 */}
                 <div className="data-card online-card">
                   <div className="card-hd">
                     <span className="card-hd-title"> 순수 온라인 수업 비율 30% 초과</span>
@@ -409,7 +401,6 @@ export default function AdminDashboard() {
               </>
             )}
 
-            {/* 라우팅 컴포넌트 */}
             {activeMenu === '학생 목록' && <StudentList />}
             {activeMenu === '개인별 검색' && <SearchByStudent onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '학과별 검색' && <SearchByDept onBack={() => setActiveMenu('대시보드')} />}
@@ -422,9 +413,8 @@ export default function AdminDashboard() {
             {activeMenu === '전체 교수 목록' && <ProfessorList onRegisterClick={() => setActiveMenu('교수 등록')} />}
             {activeMenu === '학생-지도교수 배정 관리' && <AdvisorAssign />}
             {activeMenu === '교수 등록' && <ProfessorRegister onComplete={() => setActiveMenu('전체 교수 목록')} onCancel={() => setActiveMenu('전체 교수 목록')} />}
-            
-            {/* ✅ 마일리지 승인 라우팅 조건식 매핑 추가 */}
             {activeMenu === '마일리지 승인' && <MileageTab onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '학과/학기 관리' && <SemesterManagement />}
 
             {NOT_IMPLEMENTED.has(activeMenu) && (
               <div className="not-impl">
