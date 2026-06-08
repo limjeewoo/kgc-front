@@ -1,257 +1,411 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
+const API_BASE = '/api/v1';
+
+async function apiFetch(path) {
+  const token = localStorage.getItem('accessToken');
+  const res = await axios.get(`${API_BASE}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data; 
+}
+
+function toArray(val) {
+  if (Array.isArray(val)) return val;
+  if (val?.content && Array.isArray(val.content)) return val.content;
+  if (val?.list    && Array.isArray(val.list))    return val.list;
+  return [];
+}
+
+function Skeleton({ w = '100%', h = '1rem', radius = '6px' }) {
+  return (
+    <div style={{
+      width: w, height: h, borderRadius: radius,
+      background: 'linear-gradient(90deg,#E2E8F0 25%,#F1F5F9 50%,#E2E8F0 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.4s infinite',
+    }} />
+  );
+}
+
+function GaugeRing({ pct, size = 120, stroke = 14, color = '#3B82F6', trackColor = '#E2E8F0', label }) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const filled = circ * Math.min(pct / 100, 1);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.5rem' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={trackColor} strokeWidth={stroke} />
+        <circle
+          cx={size/2} cy={size/2} r={r} fill="none"
+          stroke={pct > 100 ? '#EF4444' : color} strokeWidth={stroke}
+          strokeDasharray={`${Math.min(filled, circ)} ${circ}`} strokeLinecap="round"
+          style={{ transition: 'stroke-dasharray .8s cubic-bezier(.4,0,.2,1)' }}
+        />
+      </svg>
+      <div style={{ textAlign: 'center', marginTop: '-.25rem' }}>{label}</div>
+    </div>
+  );
+}
+
+function AttendBar({ total, absent, late }) {
+  const present = total - absent - late;
+  const pPct = total ? (present / total) * 100 : 0;
+  const aPct = total ? (absent  / total) * 100 : 0;
+  const lPct = total ? (late    / total) * 100 : 0;
+  return (
+    <div style={{ display: 'flex', height: '6px', borderRadius: '3px', overflow: 'hidden', background: '#F1F5F9', width: '100%' }}>
+      <div style={{ width: `${pPct}%`, background: '#22C55E', transition: 'width .7s' }} />
+      <div style={{ width: `${lPct}%`, background: '#F59E0B', transition: 'width .7s' }} />
+      <div style={{ width: `${aPct}%`, background: '#EF4444', transition: 'width .7s' }} />
+    </div>
+  );
+}
+
+function VisaCountdown({ dDay, expireDate, visaType }) {
+  const pct   = Math.max(0, Math.min(100, (dDay / 365) * 100));
+  const color = dDay <= 30 ? '#EF4444' : dDay <= 90 ? '#F59E0B' : '#3B82F6';
+  const bg    = dDay <= 30 ? '#FEF2F2' : dDay <= 90 ? '#FFFBEB' : '#EFF6FF';
+  const label = dDay <= 30 ? '⚠ 만료 임박' : dDay <= 90 ? '갱신 권고' : '정상';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+      <GaugeRing pct={pct} size={96} stroke={10} color={color} trackColor="#EFF6FF"
+        label={
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0F172A', lineHeight: 1 }}>D-{dDay}</div>
+            <div style={{ fontSize: '.625rem', color: '#94A3B8', marginTop: '2px' }}>{visaType}</div>
+          </div>
+        }
+      />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '.75rem', color: '#64748B', marginBottom: '.375rem' }}>만료 예정일</div>
+        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0F172A' }}>{expireDate}</div>
+        <div style={{
+          marginTop: '.5rem', display: 'inline-flex', alignItems: 'center', gap: '4px',
+          padding: '3px 8px', borderRadius: '6px', background: bg, color,
+          fontSize: '.6875rem', fontWeight: 700,
+        }}>{label}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function MyDashboard() {
-  // 임시 더미 데이터 (추후 API 연동 시 상태로 관리)
-  const visaInfo = { type: 'D-2', expireDate: '2026-08-31', dDay: 151 };
-  const attendanceSummary = [
-    { course: '컴퓨터개론 (CS101)', total: 13, absent: 1, late: 0, status: '정상' },
-    { course: '자료구조 (CS201)', total: 13, absent: 3, late: 1, status: '주의' },
-    { course: '실용영어 (GE201)', total: 13, absent: 0, late: 0, status: '정상' },
-  ];
-  const mileage = { total: 250, semester: 100 };
-  const onlineCredit = { used: 3, limit: 6, ratio: 50 };
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [visas,       setVisas]       = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
+  const [mileage,     setMileage]     = useState(null);
+  const [onlineLimit, setOnlineLimit] = useState(30);
+
+  async function loadAll() {
+    setLoading(true);
+    setError(null);
+    try {
+      const meRes = await apiFetch('/auth/me');
+      
+      if (!meRes || meRes.success === false) {
+        throw new Error(meRes?.message || '인증 정보를 불러오지 못했습니다.');
+      }
+
+      const meData = meRes.data ?? meRes;
+      const sid = meData?.userId ?? meData?.studentId ?? (typeof meData === 'string' || typeof meData === 'number' ? String(meData) : null);
+      
+      // ★ 백엔드 권한 필드 추출 (role, authority 등 상황에 맞게 매핑)
+      const userRole = meData?.role ?? meData?.authority; 
+
+      if (!sid) {
+        throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
+      }
+
+      // 1. 학생 권한에서 접근 가능한 기본 데이터 병렬 호출
+      const [visaRes, enrollRes, mileRes] = await Promise.allSettled([
+        apiFetch(`/students/${sid}/visas`),
+        apiFetch(`/students/${sid}/enrollments`),
+        apiFetch(`/students/${sid}/mileage`),
+      ]);
+
+      if (visaRes.status === 'fulfilled' && visaRes.value?.success) {
+        setVisas(toArray(visaRes.value.data));
+      }
+      if (enrollRes.status === 'fulfilled' && enrollRes.value?.success) {
+        setEnrollments(toArray(enrollRes.value.data));
+      }
+      if (mileRes.status === 'fulfilled' && mileRes.value?.success) {
+        setMileage(mileRes.value.data);
+      }
+      
+      // 2. 권한(Role) 확인 후 관리자일 경우에만 스케줄러 API 호출
+      const isAdmin = userRole === 'ADMIN' || userRole === 'ROLE_ADMIN';
+      
+      if (isAdmin) {
+        try {
+          const schedRes = await apiFetch('/admin/scheduler');
+          if (schedRes?.success) {
+            const cfg = schedRes.data;
+            const val = Array.isArray(cfg)
+              ? cfg.find(c => c.configKey === 'ONLINE_LIMIT_RATIO')?.value
+              : cfg?.ONLINE_LIMIT_RATIO;
+            if (val) setOnlineLimit(Number(val));
+          } else {
+            setOnlineLimit(30);
+          }
+        } catch (err) {
+          console.warn("스케줄러 데이터를 불러오지 못해 기본값(30%)으로 대체합니다.");
+          setOnlineLimit(30);
+        }
+      } else {
+        // 학생 계정인 경우 API를 찌르지 않고 바로 기본값 설정 (403 에러 방지)
+        setOnlineLimit(30);
+      }
+
+    } catch (err) {
+      console.error("Dashboard Load Error:", err);
+      setError(err.message || '데이터를 불러오지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadAll(); }, []);
+
+  const currentVisa = visas.find(v => v.isCurrent) ?? visas[0] ?? null;
+  const dDay = currentVisa
+    ? Math.max(0, Math.ceil((new Date(currentVisa.expireDate) - Date.now()) / 86400000))
+    : null;
+
+  const totalCredits  = enrollments.reduce((s, e) => s + (e.credits ?? 0), 0);
+  const onlineCredits = enrollments.filter(e => e.onlineType === 'ONLINE').reduce((s, e) => s + (e.credits ?? 0), 0);
+  const onlinePct     = totalCredits > 0 ? Math.round((onlineCredits / totalCredits) * 100) : 0;
+  const onlineColor   = onlinePct > onlineLimit ? '#EF4444' : onlinePct > onlineLimit * 0.8 ? '#F59E0B' : '#3B82F6';
+
+  const totalMileage    = mileage?.totalMileage    ?? mileage?.total    ?? 0;
+  const semesterMileage = mileage?.semesterMileage ?? mileage?.semester ?? 0;
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap');
+        @keyframes fadeUp  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes shimmer { from{background-position:200% 0} to{background-position:-200% 0} }
 
-        /* 글로벌 변수 */
-        :root {
-          --bg-main: #F8FAFC;
-          --bg-card: #FFFFFF;
-          --sidebar-bg: #0F172A;
-          --primary: #3B82F6;
-          --text-dark: #0F172A;
-          --text-gray: #64748B;
-          --text-light: #94A3B8;
-          --border: #E2E8F0;
-        }
+        .db-wrap{animation:fadeUp .28s ease;width:100%;font-family:'DM Sans','Noto Sans KR',sans-serif;color:#111827;padding:4px 4px 24px}
+        .sec-lbl{font-size:.6875rem;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem}
 
-        .student-wrap { 
-          display: flex; min-height: 100vh; background: var(--bg-main); 
-          font-family: 'Pretendard', sans-serif; font-size: 14px; color: var(--text-dark); 
-        }
+        .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-bottom:1.75rem}
+        .stat-card{background:#fff;border-radius:1rem;padding:1.375rem 1.25rem 1.125rem;border:1px solid #F1F5F9;transition:all .2s;position:relative;overflow:hidden}
+        .stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+        .stat-card.c-blue::after{background:#3B82F6}
+        .stat-card.c-violet::after{background:#8B5CF6}
+        .stat-card:hover{transform:translateY(-3px);box-shadow:0 10px 28px -6px rgba(0,0,0,.09)}
+        .stat-lbl{font-size:.75rem;color:#64748B;margin-bottom:.6rem;font-weight:500}
 
-        /* ---------------- 사이드바 ---------------- */
-        .sidebar { 
-          width: 250px; background: var(--sidebar-bg); display: flex; flex-direction: column; 
-          flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; 
-          border-right: 1px solid rgba(255,255,255,0.05);
-        }
-        .sb-logo { display: flex; align-items: center; gap: 12px; padding: 28px 24px 24px; }
-        .logo-icon { 
-          width: 36px; height: 36px; background: linear-gradient(135deg, var(--primary), #60A5FA); 
-          border-radius: 10px; display: flex; align-items: center; justify-content: center; 
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-        }
-        .logo-text { font-size: 15px; font-weight: 700; color: #fff; line-height: 1.2; letter-spacing: -0.3px; }
-        .logo-text span { display: block; font-size: 11px; font-weight: 400; color: #94A3B8; margin-top: 2px;}
-        
-        .sb-sec { padding: 8px 16px 4px; margin-bottom: 8px; }
-        .sb-lbl { font-size: 11px; font-weight: 600; color: #64748B; letter-spacing: 0.5px; padding: 0 12px; margin-bottom: 6px; }
-        
-        .ni { 
-          display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; 
-          color: #94A3B8; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; margin-bottom: 2px;
-        }
-        .ni:hover { background: rgba(255,255,255,0.05); color: #F8FAFC; }
-        .ni.active { background: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); }
-        .ni-icon { width: 18px; height: 18px; flex-shrink: 0; }
+        .data-card{background:#fff;border-radius:1rem;border:1px solid #F1F5F9;overflow:hidden;margin-bottom:1.5rem}
+        .card-hd{padding:.9375rem 1.25rem;border-bottom:1px solid #F8FAFC;display:flex;justify-content:space-between;align-items:center}
+        .card-hd-title{font-size:.875rem;font-weight:700;color:#0F172A}
+        .card-badge{font-size:.6875rem;font-weight:600;color:#64748B;background:#F1F5F9;padding:2px 9px;border-radius:20px}
 
-        .sb-bot { margin-top: auto; padding: 20px 16px; background: rgba(0,0,0,0.15); border-top: 1px solid rgba(255,255,255,0.05); }
-        .urow { display: flex; align-items: center; gap: 12px; }
-        .uav { 
-          width: 40px; height: 40px; border-radius: 12px; background: #1E293B; 
-          display: flex; align-items: center; justify-content: center; font-size: 15px; 
-          font-weight: 700; color: #fff; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.1);
-        }
-        .un { font-size: 14px; font-weight: 600; color: #F8FAFC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ur { font-size: 12px; color: #94A3B8; margin-top: 2px; }
+        .att-th{display:flex;padding:.625rem 1.25rem;background:#FAFBFD;border-bottom:1px solid #F1F5F9;font-size:.75rem;color:#64748B;font-weight:600}
+        .att-row{display:flex;align-items:center;padding:.9375rem 1.25rem;border-bottom:1px solid #F8FAFC;gap:.75rem}
+        .att-row:last-child{border-bottom:none}
+        .att-row:hover{background:#FAFBFD}
+        .att-col-name{flex:1;min-width:0}
+        .att-col-bar{width:9rem}
+        .att-col-nums{width:8rem;font-size:.8rem;color:#4B5563;text-align:center;font-variant-numeric:tabular-nums}
+        .att-col-status{width:4.5rem;text-align:right}
+        .course-name{font-size:.8125rem;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .course-code{font-size:.6875rem;color:#94A3B8;margin-top:1px}
 
-        /* ---------------- 메인 콘텐츠 ---------------- */
-        .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .content { flex: 1; padding: 32px; overflow-y: auto; max-width: 1200px; margin: 0 auto; width: 100%; }
-        
-        .card { 
-          background: var(--bg-card); border-radius: 20px; border: 1px solid rgba(226, 232, 240, 0.8); 
-          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04); margin-bottom: 24px; overflow: hidden;
-        }
-        .card-header { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
-        .card-title { font-size: 16px; font-weight: 700; color: var(--text-dark); letter-spacing: -0.3px; }
-        
-        .badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
-        .b-blue { background: #EFF6FF; color: #1D4ED8; }
-        .b-green { background: #F0FDF4; color: #15803D; }
-        .b-amber { background: #FFFBEB; color: #B45309; }
-        .b-red { background: #FEF2F2; color: #B91C1C; }
+        .gauge-section{padding:1.5rem;display:flex;align-items:flex-start;gap:2rem;flex-wrap:wrap}
+        .gauge-detail{flex:1;min-width:200px}
+        .gauge-row{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem}
+        .gauge-lbl{font-size:.8125rem;color:#374151;width:6rem;flex-shrink:0}
+        .prog-track{flex:1;height:8px;background:#F1F5F9;border-radius:4px;overflow:hidden}
+        .prog-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+        .prog-val{font-size:.8125rem;font-weight:700;width:3rem;text-align:right;flex-shrink:0}
 
-        .top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+        .mile-history{display:flex;flex-direction:column;gap:.5rem}
+        .mile-item{display:flex;align-items:center;justify-content:space-between;padding:.625rem .875rem;background:#FAFBFD;border-radius:.625rem;gap:1rem}
+        .mile-item-name{font-size:.8125rem;color:#374151;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+        .mile-item-pts{font-size:.8125rem;font-weight:700;color:#3B82F6}
+        .mile-item-date{font-size:.6875rem;color:#94A3B8}
 
-        .visa-card { 
-          background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%); 
-          border-radius: 20px; padding: 32px 28px; color: #fff; position: relative; overflow: hidden;
-          box-shadow: 0 12px 30px rgba(37, 99, 235, 0.25); border: none;
-        }
-        .visa-bg-icon { position: absolute; right: -20px; bottom: -20px; opacity: 0.1; width: 150px; height: 150px; }
-        .visa-label { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.8); margin-bottom: 12px; }
-        .visa-dday { font-size: 56px; font-weight: 800; letter-spacing: -2px; line-height: 1; margin-bottom: 12px; text-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .visa-dday span { font-size: 24px; font-weight: 500; opacity: 0.9;}
-        .visa-info { font-size: 14px; color: rgba(255,255,255,0.8); display: flex; align-items: center; gap: 10px; }
-        .visa-type { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; backdrop-filter: blur(4px); }
+        .pill{font-size:.6875rem;padding:3px 9px;border-radius:6px;font-weight:700;display:inline-block;white-space:nowrap}
+        .pill-green{background:#ECFDF5;color:#059669}
+        .pill-amber{background:#FFFBEB;color:#B45309}
+        .pill-red{background:#FEF2F2;color:#DC2626}
 
-        .mileage-card { background: var(--bg-card); border-radius: 20px; border: 1px solid var(--border); padding: 32px 28px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04); display: flex; flex-direction: column; justify-content: center; }
-        .mileage-label { font-size: 14px; color: var(--text-gray); margin-bottom: 12px; font-weight: 600; }
-        .mileage-value { font-size: 56px; font-weight: 800; color: var(--text-dark); letter-spacing: -2px; line-height: 1; margin-bottom: 12px; }
-        .mileage-value span { font-size: 20px; font-weight: 500; color: var(--text-light); }
-        .mileage-sub { font-size: 14px; color: var(--text-gray); background: #F8FAFC; display: inline-block; padding: 6px 14px; border-radius: 12px; font-weight: 500; }
-        .mileage-sub b { color: #8B5CF6; font-weight: 700; }
-
-        .attend-row { display: flex; align-items: center; padding: 16px 24px; border-bottom: 1px solid #F1F5F9; gap: 16px; transition: background 0.2s; }
-        .attend-row:hover { background: #F8FAFC; }
-        .attend-row:last-child { border-bottom: none; }
-        .attend-course { flex: 1; font-size: 15px; font-weight: 600; color: var(--text-dark); }
-        .attend-counts { font-size: 14px; color: var(--text-gray); width: 140px; text-align: center; font-weight: 500; }
-        .attend-status { width: 60px; text-align: right; }
-
-        .online-body { padding: 24px; }
-        .online-numbers { display: flex; align-items: baseline; gap: 8px; margin-bottom: 16px; }
-        .online-used { font-size: 36px; font-weight: 800; color: var(--text-dark); letter-spacing: -1px; }
-        .online-limit { font-size: 18px; font-weight: 500; color: var(--text-light); }
-        .online-bar-bg { width: 100%; height: 12px; background: #F1F5F9; border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
-        .online-bar-fill { height: 100%; border-radius: 10px; transition: width 0.5s ease-out; }
-        .online-desc { font-size: 14px; color: var(--text-gray); }
-        .online-desc b { color: var(--primary); font-weight: 600;}
+        .err-banner{margin-bottom:1.5rem;background:#FEF2F2;border:1px solid #FECACA;border-radius:.75rem;padding:1rem 1.25rem;display:flex;align-items:center;gap:.75rem;color:#DC2626;font-size:.875rem}
       `}</style>
 
-      <div className="student-wrap">
-        {/* 사이드바 */}
-        <div className="sidebar">
-          <div className="sb-logo">
-            <div className="logo-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" width="18" height="18">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-              </svg>
-            </div>
-            <div className="logo-text">KMGC <span>경민대학교 국제교육원</span></div>
-          </div>
+      <TopBar title="종합 대시보드" />
 
-          <div className="sb-sec">
-            <div className="sb-lbl">MAIN</div>
-            <div className="ni active">
-              <svg className="ni-icon" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-              내 현황 홈
-            </div>
+      <div className="db-wrap">
+        {error && (
+          <div className="err-banner">
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01" strokeLinecap="round"/>
+            </svg>
+            {error}
+            <button onClick={loadAll} style={{ marginLeft:'auto', padding:'4px 12px', borderRadius:'6px', border:'1px solid #FECACA', background:'#fff', color:'#DC2626', cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>
+              재시도
+            </button>
           </div>
+        )}
 
-          <div className="sb-sec">
-            <div className="sb-lbl">ACADEMIC</div>
-            <div className="ni">
-              <svg className="ni-icon" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-              수강 내역
-            </div>
-            <div className="ni">
-              <svg className="ni-icon" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
-              출결 현황
-            </div>
-          </div>
-
-          <div className="sb-sec">
-            <div className="sb-lbl">ACTIVITY</div>
-            <div className="ni">
-              <svg className="ni-icon" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-              알바 등록
-            </div>
-            <div className="ni">
-              <svg className="ni-icon" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              KM 마일리지
-            </div>
-          </div>
-
-          {/* 사이드바 하단 (로그아웃 버튼 제거됨) */}
-          <div className="sb-bot">
-            <div className="urow">
-              <div className="uav">S</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="un">Student</div>
-                <div className="ur">STUDENT · 학부생</div>
+        <div className="sec-lbl">Overview</div>
+        <div className="stat-grid">
+          <div className="stat-card c-blue">
+            <div className="stat-lbl">체류 비자 만료</div>
+            {loading ? (
+              <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+                <Skeleton h="1.5rem" w="60%"/><Skeleton h="1rem" w="80%"/>
               </div>
-            </div>
+            ) : currentVisa ? (
+              <VisaCountdown dDay={dDay} expireDate={currentVisa.expireDate} visaType={currentVisa.visaType ?? 'D-2'} />
+            ) : (
+              <div style={{ fontSize:'.875rem', color:'#94A3B8' }}>비자 정보 없음</div>
+            )}
+          </div>
+
+          <div className="stat-card c-violet">
+            <div className="stat-lbl">보유 KM 마일리지</div>
+            {loading ? (
+              <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+                <Skeleton h="2.5rem" w="50%"/><Skeleton h="1rem" w="70%"/>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize:'2.25rem', fontWeight:700, color:'#0F172A', lineHeight:1 }}>
+                  {totalMileage.toLocaleString()}
+                  <span style={{ fontSize:'.875rem', fontWeight:400, color:'#94A3B8', marginLeft:'3px' }}>점</span>
+                </div>
+                <div style={{ fontSize:'.6875rem', color:'#94A3B8', marginTop:'.5rem' }}>
+                  이번 학기 취득: <strong style={{ color:'#8B5CF6' }}>+{semesterMileage}점</strong>
+                </div>
+                {mileage?.history?.length > 0 && (
+                  <div className="mile-history" style={{ marginTop:'.875rem' }}>
+                    {mileage.history.slice(0, 2).map((h, i) => (
+                      <div className="mile-item" key={i}>
+                        <span className="mile-item-name">{h.activityName ?? h.title}</span>
+                        <div style={{ textAlign:'right', flexShrink:0 }}>
+                          <div className="mile-item-pts">+{h.points ?? h.point}점</div>
+                          <div className="mile-item-date">{h.earnedDate ?? h.date}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        {/* 메인 콘텐츠 영역 */}
-        <div className="main">
-          
-          {/* 👇 AdminDashboard의 TopBar 적용 (하드코딩 된 Topbar 제거됨) */}
-          <TopBar title="내 현황 홈" />
+        <div className="sec-lbl">Academic Status</div>
 
-          <div className="content">
-            <div className="top-grid">
-              <div className="visa-card">
-                <svg className="visa-bg-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8h16v10zm-2-1h-6v-2h6v2z"/></svg>
-                <div className="visa-label">체류 비자 만료까지</div>
-                <div className="visa-dday">D-<span>{visaInfo.dDay}</span></div>
-                <div className="visa-info">
-                  <span className="visa-type">{visaInfo.type}</span>
-                  만료 예정일 · {visaInfo.expireDate}
-                </div>
+        <div className="data-card">
+          <div className="card-hd">
+            <div className="card-hd-title">이번 학기 출결 현황</div>
+          </div>
+          <div className="att-th">
+            <span className="att-col-name">수강 과목</span>
+            <span className="att-col-bar" style={{ textAlign:'center' }}>출결 분포</span>
+            <span className="att-col-nums">출석 / 결석 / 지각</span>
+            <span className="att-col-status">상태</span>
+          </div>
+          {loading ? (
+            [1,2,3].map(i => (
+              <div className="att-row" key={i}>
+                <div className="att-col-name"><Skeleton h="1rem" w="70%"/></div>
+                <div className="att-col-bar"><Skeleton h="6px"/></div>
+                <div className="att-col-nums"><Skeleton h="1rem" w="80%"/></div>
+                <div className="att-col-status"><Skeleton h="1.25rem" w="3rem"/></div>
               </div>
-              
-              <div className="mileage-card">
-                <div className="mileage-label">보유 중인 KM 마일리지</div>
-                <div className="mileage-value">{mileage.total} <span>점</span></div>
-                <div>
-                  <span className="mileage-sub">이번 학기 신규 획득 <b>+{mileage.semester}점</b></span>
-                </div>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-header">
-                <div className="card-title">이번 학기 출결 요약</div>
-                <div className="badge b-blue">13주차 기준</div>
-              </div>
-              <div style={{ padding: '16px 24px 8px', display: 'flex', fontSize: 13, color: '#94A3B8', fontWeight: 600, borderBottom: '1px solid #F1F5F9' }}>
-                <span style={{ flex: 1 }}>수강 과목명</span>
-                <span style={{ width: 140, textAlign: 'center' }}>출석 / 결석 / 지각</span>
-                <span style={{ width: 60, textAlign: 'right' }}>현재 상태</span>
-              </div>
-              {attendanceSummary.map((a) => (
-                <div key={a.course} className="attend-row">
-                  <div className="attend-course">{a.course}</div>
-                  <div className="attend-counts">{a.total - a.absent - a.late} / {a.absent} / {a.late}</div>
-                  <div className="attend-status">
-                    <span className={`badge ${a.status === '정상' ? 'b-green' : a.status === '주의' ? 'b-amber' : 'b-red'}`}>
-                      {a.status}
+            ))
+          ) : enrollments.length === 0 ? (
+            <div style={{ padding:'1.5rem', textAlign:'center', color:'#94A3B8', fontSize:'.875rem' }}>수강 정보가 없습니다.</div>
+          ) : (
+            enrollments.map((e, i) => {
+              const present   = (e.totalWeeks ?? 0) - (e.absentCount ?? 0) - (e.lateCount ?? 0);
+              const isDanger  = e.warningLevel === '위험';
+              const isWarning = e.warningLevel === '주의';
+              return (
+                <div className="att-row" key={i}>
+                  <div className="att-col-name">
+                    <div className="course-name">{e.courseName ?? e.courseId}</div>
+                    {e.courseCode && <div className="course-code">{e.courseCode}</div>}
+                  </div>
+                  <div className="att-col-bar">
+                    <AttendBar total={e.totalWeeks ?? 0} absent={e.absentCount ?? 0} late={e.lateCount ?? 0} />
+                  </div>
+                  <div className="att-col-nums">{present}회 / {e.absentCount ?? 0}회 / {e.lateCount ?? 0}회</div>
+                  <div className="att-col-status">
+                    <span className={`pill ${isDanger ? 'pill-red' : isWarning ? 'pill-amber' : 'pill-green'}`}>
+                      {isDanger ? '위험' : isWarning ? '주의' : '정상'}
                     </span>
                   </div>
                 </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="data-card">
+          <div className="card-hd">
+            <div className="card-hd-title">순수 온라인 강의 수강 한도</div>
+            <div className="card-badge">기준 {onlineLimit}%</div>
+          </div>
+          <div className="gauge-section">
+            {loading ? (
+              <Skeleton w="130px" h="130px" radius="50%"/>
+            ) : (
+              <GaugeRing
+                pct={(onlineCredits / Math.max(1, totalCredits * (onlineLimit / 100))) * 100}
+                size={130} stroke={13} color={onlineColor}
+                label={
+                  <div>
+                    <div style={{ fontSize:'1.25rem', fontWeight:700, color: onlinePct > onlineLimit ? '#DC2626' : '#0F172A', lineHeight:1 }}>
+                      {onlinePct}%
+                    </div>
+                    <div style={{ fontSize:'.625rem', color:'#94A3B8', marginTop:'2px' }}>온라인 비율</div>
+                  </div>
+                }
+              />
+            )}
+            <div className="gauge-detail">
+              {[
+                { label: '온라인 이수', val: `${onlineCredits}학점`, pct: Math.min(100, (onlineCredits / Math.max(1, totalCredits * (onlineLimit / 100))) * 100), color: onlineColor },
+                { label: '허용 한도',   val: `${Math.floor(totalCredits * (onlineLimit / 100))}학점`, pct: 100, color: '#E2E8F0' },
+                { label: '전체 수강',   val: `${totalCredits}학점`, pct: 100, color: '#CBD5E1' },
+              ].map(({ label, val, pct, color }) => (
+                <div className="gauge-row" key={label}>
+                  <span className="gauge-lbl">{label}</span>
+                  <div className="prog-track">
+                    <div className="prog-fill" style={{ width: loading ? '0%' : `${pct}%`, background: color }} />
+                  </div>
+                  <span className="prog-val" style={{ color: label === '온라인 이수' ? onlineColor : '#64748B' }}>
+                    {loading ? '-' : val}
+                  </span>
+                </div>
               ))}
-            </div>
 
-            <div className="card">
-              <div className="card-header">
-                <div className="card-title">순수 온라인 강의 수강 한도</div>
-                <div className={`badge ${onlineCredit.ratio >= 30 ? 'b-amber' : 'b-green'}`}>
-                  {onlineCredit.ratio}% 사용
+              {!loading && onlinePct > onlineLimit && (
+                <div style={{ marginTop:'.75rem', padding:'.625rem .875rem', background:'#FEF2F2', borderRadius:'.625rem', border:'1px solid #FECACA', display:'flex', alignItems:'center', gap:'.5rem' }}>
+                  <svg width="16" height="16" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                  </svg>
+                  <span style={{ fontSize:'.75rem', color:'#DC2626', fontWeight:600 }}>
+                    온라인 강의 한도({onlineLimit}%) 초과 — 담당자에게 문의하세요
+                  </span>
                 </div>
-              </div>
-              <div className="online-body">
-                <div className="online-numbers">
-                  <div className="online-used">{onlineCredit.used}</div>
-                  <div className="online-limit">/ {onlineCredit.limit} 학점</div>
+              )}
+              {!loading && onlinePct > onlineLimit * 0.8 && onlinePct <= onlineLimit && (
+                <div style={{ marginTop:'.75rem', padding:'.625rem .875rem', background:'#FFFBEB', borderRadius:'.625rem', border:'1px solid #FDE68A', fontSize:'.75rem', color:'#92400E', fontWeight:600 }}>
+                  ⚠ 한도의 80% 이상 사용 중입니다
                 </div>
-                <div className="online-bar-bg">
-                  <div className="online-bar-fill" style={{ width: `${onlineCredit.ratio}%`, background: onlineCredit.ratio >= 30 ? '#F59E0B' : '#3B82F6' }} />
-                </div>
-                <div className="online-desc">
-                  졸업 전까지 수강 가능한 순수 온라인 강의 한도 <b>{onlineCredit.limit}학점</b> 중 현재 <b>{onlineCredit.used}학점</b>을 사용했습니다.
-                </div>
-              </div>
+              )}
             </div>
-
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import PrivateRoute from './router/PrivateRoute.jsx';
 
 // 레이아웃
 import ProfessorLayout from './pages/professor/layout/ProfessorLayout.jsx';
+import StudentLayout from './pages/student/layout/StudentLayout.jsx'; // 👈 학생 레이아웃 임포트 확인
 
 // 공통 및 인증
 import Login from './pages/auth/Login.jsx';
@@ -27,8 +28,8 @@ import MyStudentList from './pages/professor/students/MyStudentList.jsx';
 import ProfStudentDetail from './pages/professor/students/StudentDetail/index.jsx';
 import AttendanceInput from './pages/professor/attendance/AttendanceInput.jsx';
 
-// 학생 컴포넌트
-import MyDashboard from './pages/student/dashboard/MyDashboard.jsx';
+// 💡 학생 컴포넌트 알맹이들은 StudentLayout 내부에서 다이렉트로 호출하므로 
+// 💡 App.jsx 단의 이전 MyDashboard 단독 임포트는 깔끔하게 정리했습니다.
 
 function App() {
   return (
@@ -79,8 +80,15 @@ function App() {
 
         <Route path="/professor/*" element={<Navigate to="/professor/dashboard" replace />} />
 
-        {/* --- STUDENT 권한 그룹 --- */}
-        <Route path="/student/dashboard" element={<PrivateRoute allowedRoles={['STUDENT']}><MyDashboard /></PrivateRoute>} />
+        {/* ─── STUDENT 권한 그룹 (내부 라우터 연동 모듈형 레이아웃) ─── */}
+        <Route 
+          path="/student/*" 
+          element={
+            <PrivateRoute allowedRoles={['STUDENT']}>
+              <StudentLayout />
+            </PrivateRoute>
+          } 
+        />
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

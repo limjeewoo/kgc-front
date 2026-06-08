@@ -18,23 +18,39 @@ export default function TopBar({ title }) {
       .catch(() => setSemester(null));
   }, []);
 
-  // // 알림 조회
-  // useEffect(() => {
-  //   api.get('/api/v1/notifications')
-  //     .then(res => { if (res.data.success) setNotifications(res.data.data); })
-  //     .catch(() => setNotifications([]));
-  // }, []);
+  // 알림 목록 조회 (로그인한 유저 기준)
+  useEffect(() => {
+    // userId가 없으면(로그인 상태가 아니면) 호출하지 않음
+    if (!userId) return;
+
+    api.get('/api/v1/notifications')
+      .then(res => { 
+        if (res.data.success) {
+          setNotifications(res.data.data);
+        }
+      })
+      .catch((e) => {
+        console.error('알림 목록 조회 실패:', e);
+        setNotifications([]);
+      });
+  }, [userId]);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   // 알림 읽음 처리
   const handleReadNotif = async (notiId) => {
+    // 이미 읽은 알림은 중복으로 API를 호출하지 않도록 처리
+    const targetNoti = notifications.find(n => n.notiId === notiId);
+    if (targetNoti && targetNoti.isRead) return;
+
     try {
       await api.patch(`/api/v1/notifications/${notiId}/read`);
       setNotifications(prev =>
         prev.map(n => n.notiId === notiId ? { ...n, isRead: true } : n)
       );
-    } catch (e) {}
+    } catch (e) {
+      console.error('알림 읽음 처리 실패:', e);
+    }
   };
 
   // 로그아웃
@@ -48,19 +64,23 @@ export default function TopBar({ title }) {
 
   const roleLabel = role === 'ADMIN' ? '관리자' : role === 'PROFESSOR' ? '교수' : '유학생';
 
+  // 알림 타입 라벨 (JOB_APPROVAL 추가)
   const notiTypeLabel = (type) => {
     if (type === 'VISA_EXPIRE') return '비자 만료';
     if (type === 'ATTEND_WARNING') return '출결 경고';
     if (type === 'ONLINE_LIMIT') return '온라인 초과';
     if (type === 'CRISIS_ALERT') return '위기 징후';
+    if (type === 'JOB_APPROVAL') return '취업/알바 승인';
     return '알림';
   };
 
+  // 알림 타입 색상 (JOB_APPROVAL 추가)
   const notiTypeColor = (type) => {
     if (type === 'VISA_EXPIRE') return '#DC2626';
     if (type === 'ATTEND_WARNING') return '#D97706';
     if (type === 'ONLINE_LIMIT') return '#2563EB';
     if (type === 'CRISIS_ALERT') return '#DC2626';
+    if (type === 'JOB_APPROVAL') return '#059669'; // 초록색 계열
     return '#6B7280';
   };
 
