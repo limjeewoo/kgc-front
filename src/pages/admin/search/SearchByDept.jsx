@@ -23,7 +23,7 @@ export default function SearchByDept({ onBack }) {
     studentId: '',    
     name: '',         
     gender: '',
-    nationality: '',
+    nationality: '',  // 이제 ID 대신 국적 이름(예: "한국", "베트남")이 저장됩니다.
     grade: '',
     classSec: '',
   });
@@ -33,6 +33,30 @@ export default function SearchByDept({ onBack }) {
     baseURL: BASE_URL,
     headers: { Authorization: `Bearer ${accessToken}` }
   });
+
+  // 4. 다중 필터 적용 검색
+  const fetchStudents = useCallback(async (currentFilters) => {
+    setIsLoading(true);
+    setSelected(new Set());
+    try {
+      const params = {};
+      Object.entries(currentFilters).forEach(([key, val]) => {
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          params[key] = String(val).trim();
+        }
+      });
+
+      const res = await api.get('/api/v1/search/dept', { params });
+      if (res.data.success) {
+        setStudents(res.data.data || []);
+      }
+    } catch (err) {
+      console.error("학생 목록 조회 실패", err);
+      setStudents([]); 
+    } finally {
+      setIsLoading(false);
+    }
+  }, [accessToken]);
 
   // 3. 초기 데이터 로드 (학과 및 국적 목록)
   useEffect(() => {
@@ -50,35 +74,15 @@ export default function SearchByDept({ onBack }) {
           setNationalities(natRes.value.data.data);
         }
         
-        // 초기 로딩 시 전체 검색 1회 실행
-        fetchStudents(filters);
+        fetchStudents({
+          deptId: '', studentId: '', name: '', gender: '', nationality: '', grade: '', classSec: ''
+        });
       } catch (err) {
         console.error("초기 데이터 로드 실패", err);
       }
     };
     fetchInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 4. 다중 필터 적용 검색
-  const fetchStudents = async (currentFilters) => {
-    setIsLoading(true);
-    setSelected(new Set());
-    try {
-      const params = Object.fromEntries(
-        Object.entries(currentFilters).filter(([_, v]) => v !== '')
-      );
-
-      const res = await api.get('/api/v1/search/dept', { params });
-      if (res.data.success) {
-        setStudents(res.data.data);
-      }
-    } catch (err) {
-      console.error("학생 목록 조회 실패", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [fetchStudents]);
 
   const handleSearch = () => {
     fetchStudents(filters);
@@ -218,11 +222,11 @@ export default function SearchByDept({ onBack }) {
           <div className="sd-filter-group">
             <span className="sd-filter-label">국적 및 성별</span>
             <div style={{display:'flex', gap:'6px'}}>
-              {/* 수정된 부분: nationalities 목록을 map으로 렌더링 */}
+              {/* 수정된 핵심 영역: value를 nationalityId 대신 nationalityName(텍스트)으로 바인딩 */}
               <select className="sd-select" style={{width:'120px'}} value={filters.nationality} onChange={e => setFilter('nationality', e.target.value)}>
                 <option value="">전체 국적</option>
                 {nationalities.map((nat) => (
-                  <option key={nat.nationalityId} value={nat.nationalityId}>
+                  <option key={nat.nationalityId} value={nat.nationalityName}>
                     {nat.nationalityName}
                   </option>
                 ))}
@@ -306,7 +310,7 @@ export default function SearchByDept({ onBack }) {
                         className="sd-btn sd-btn-secondary" 
                         onClick={() => navigate(`/admin/students/${s.studentId}`)}
                       >
-                        상보기
+                        상세보기
                       </button>
                     </td>
                   </tr>
