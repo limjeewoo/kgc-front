@@ -15,26 +15,30 @@ import AdvisorAssign from '../professors/AdvisorAssign.jsx';
 import JobTab from '../students/StudentDetail/JobTab.jsx';
 import MileageTab from '../students/StudentDetail/MileageTab.jsx';
 import SemesterManagement from "../semesters/SemestersManagement.jsx";
+import JobPending from "../jobs/JobPending.jsx";
+import MileageManage from "../jobs/MileageManage.jsx";
 
 const NOT_IMPLEMENTED = new Set(['상담 내역', '교양필수 관리']);
-const SEARCH_SUB_MENUS = ['개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색', '학생 아르바이트 현황'];
-const PROF_SUB_MENUS = ['전체 교수 목록', '학생-지도교수 배정 관리'];
+const SEARCH_SUB_MENUS = ['개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색'];
+const JOB_SUB_MENUS   = ['학생 근로', '학생 근로 현황'];   
+const PROF_SUB_MENUS  = ['전체 교수 목록', '학생-지도교수 배정 관리'];
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeMenu, setActiveMenu] = useState('대시보드');
 
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
-  const [profDropdownOpen, setProfDropdownOpen] = useState(false);
+  const [jobDropdownOpen,    setJobDropdownOpen]    = useState(false);
+  const [profDropdownOpen,   setProfDropdownOpen]   = useState(false);
 
   const [currentSemester, setCurrentSemester] = useState(null);
-  const [visaList, setVisaList] = useState([]);
-  const [attendanceList, setAttendanceList] = useState([]);
-  const [onlineList, setOnlineList] = useState([]);
-  const [totalStudents, setTotalStudents] = useState(0);
-  const [pendingJobs, setPendingJobs] = useState(0);
+  const [visaList,        setVisaList]        = useState([]);
+  const [attendanceList,  setAttendanceList]  = useState([]);
+  const [onlineList,      setOnlineList]      = useState([]);
+  const [totalStudents,   setTotalStudents]   = useState(0);
+  const [pendingJobs,     setPendingJobs]     = useState(0);
 
-  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [isExcelModalOpen,     setIsExcelModalOpen]     = useState(false);
   const [courseListRefreshKey, setCourseListRefreshKey] = useState(0);
 
   const handleExcelSuccess = () => {
@@ -53,6 +57,7 @@ export default function AdminDashboard() {
           api.get('/api/v1/visas/expiring', { params: { days: 30 } }),
           api.get('/api/v1/attend/warnings'),
           api.get('/api/v1/search/online-violations'),
+          api.get('/api/v1/jobs/pending'),
         ]);
 
         const [semRes, studentsRes, visaRes, attendRes, onlineRes, jobsRes] = results;
@@ -68,7 +73,7 @@ export default function AdminDashboard() {
         if (onlineRes?.status === 'fulfilled' && onlineRes.value?.data?.success)
           setOnlineList(onlineRes.value.data.data || []);
         if (jobsRes?.status === 'fulfilled' && jobsRes.value?.data?.success)
-          setPendingJobs(jobsRes.value.data.data?.length || 0);
+          setPendingJobs((jobsRes.value.data.data || []).filter(j => j.approvalStatus === 'PENDING').length);
       } catch (error) {
         console.error('대시보드 데이터 로드 중 에러:', error);
       } finally {
@@ -81,21 +86,31 @@ export default function AdminDashboard() {
   }, [activeMenu]);
 
   const isSearchMenuActive = SEARCH_SUB_MENUS.includes(activeMenu);
-  const isProfMenuActive = PROF_SUB_MENUS.includes(activeMenu) || activeMenu === '교수 등록';
+  const isJobMenuActive    = JOB_SUB_MENUS.includes(activeMenu);
+  const isProfMenuActive   = PROF_SUB_MENUS.includes(activeMenu) || activeMenu === '교수 등록';
 
   const handleMenuClick = (menuName) => {
     if (menuName === '통합 검색') {
       setSearchDropdownOpen(prev => !prev);
+      setJobDropdownOpen(false);
+      setProfDropdownOpen(false);
+      return;
+    }
+    if (menuName === '학생 근로') {
+      setJobDropdownOpen(prev => !prev);
+      setSearchDropdownOpen(false);
       setProfDropdownOpen(false);
       return;
     }
     if (menuName === '교수 관리') {
       setProfDropdownOpen(prev => !prev);
       setSearchDropdownOpen(false);
+      setJobDropdownOpen(false);
       return;
     }
     setActiveMenu(menuName);
     if (!SEARCH_SUB_MENUS.includes(menuName)) setSearchDropdownOpen(false);
+    if (!JOB_SUB_MENUS.includes(menuName) && menuName !== '학생 근로') setJobDropdownOpen(false);
     if (!PROF_SUB_MENUS.includes(menuName) && menuName !== '교수 등록') setProfDropdownOpen(false);
   };
 
@@ -218,7 +233,6 @@ export default function AdminDashboard() {
       `}</style>
 
       <div className="admin-wrap">
-
         <div className="sidebar">
           <div className="sidebar-logo" onClick={() => setActiveMenu('대시보드')}>
             <img src="/logo-fff.png" alt="Logo" className="logo-img" />
@@ -227,43 +241,102 @@ export default function AdminDashboard() {
 
           <div className="sb-sec">
             <div className="sb-lbl">메인</div>
-            <button className={`nav-btn ${activeMenu === '대시보드' ? 'active' : ''}`} onClick={() => handleMenuClick('대시보드')}>대시보드</button>
+            <button className={`nav-btn ${activeMenu === '대시보드' ? 'active' : ''}`}
+              onClick={() => handleMenuClick('대시보드')}>
+              대시보드
+            </button>
           </div>
 
           <div className="sb-sec">
             <div className="sb-lbl">학생 관리</div>
-            <button className={`nav-btn ${activeMenu === '학생 목록' ? 'active' : ''}`} onClick={() => handleMenuClick('학생 목록')}>학생 목록</button>
-            <button className={`nav-btn ${isSearchMenuActive ? 'parent-active' : ''}`} onClick={() => handleMenuClick('통합 검색')}>
-              통합 검색 <span className={`nav-arrow ${searchDropdownOpen ? 'open' : ''}`}>▼</span>
+
+            <button className={`nav-btn ${activeMenu === '학생 목록' ? 'active' : ''}`}
+              onClick={() => handleMenuClick('학생 목록')}>
+              학생 목록
+            </button>
+
+            <button className={`nav-btn ${isSearchMenuActive ? 'parent-active' : ''}`}
+              onClick={() => handleMenuClick('통합 검색')}>
+              통합 검색
+              <span className={`nav-arrow ${searchDropdownOpen ? 'open' : ''}`}>▼</span>
             </button>
             <div className={`sub-menu ${searchDropdownOpen ? 'open' : ''}`}>
               {SEARCH_SUB_MENUS.map(sub => (
-                <button key={sub} className={`sub-nav-btn ${activeMenu === sub ? 'active' : ''}`} onClick={() => setActiveMenu(sub)}>{sub}</button>
+                <button key={sub}
+                  className={`sub-nav-btn ${activeMenu === sub ? 'active' : ''}`}
+                  onClick={() => setActiveMenu(sub)}>
+                  {sub}
+                </button>
+              ))}
+            </div>
+
+            <button
+              className={`nav-btn ${isJobMenuActive ? 'parent-active' : ''}`}
+              onClick={() => handleMenuClick('학생 근로')}>
+              학생 근로
+              {pendingJobs > 0 && <span className="nav-badge">{pendingJobs}</span>}
+              <span className={`nav-arrow ${jobDropdownOpen ? 'open' : ''}`}
+                style={{ marginLeft: pendingJobs > 0 ? '0.25rem' : 'auto' }}>▼</span>
+            </button>
+            <div className={`sub-menu ${jobDropdownOpen ? 'open' : ''}`}>
+              {JOB_SUB_MENUS.map(sub => (
+                <button key={sub}
+                  className={`sub-nav-btn ${activeMenu === sub ? 'active' : ''}`}
+                  onClick={() => setActiveMenu(sub)}>
+                  {sub}
+                </button>
               ))}
             </div>
           </div>
 
           <div className="sb-sec">
             <div className="sb-lbl">학사</div>
-            <button className={`nav-btn ${activeMenu === '출결 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('출결 관리')}>출결 관리</button>
-            <button className={`nav-btn ${activeMenu === '과목 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('과목 관리')}>과목 관리</button>
-            <button className={`nav-btn ${activeMenu === '교양필수 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('교양필수 관리')}>교양필수 관리</button>
+            <button className={`nav-btn ${activeMenu === '출결 관리' ? 'active' : ''}`}
+              onClick={() => handleMenuClick('출결 관리')}>출결 관리</button>
+            <button className={`nav-btn ${activeMenu === '과목 관리' ? 'active' : ''}`}
+              onClick={() => handleMenuClick('과목 관리')}>과목 관리</button>
+            <button className={`nav-btn ${activeMenu === '교양필수 관리' ? 'active' : ''}`}
+              onClick={() => handleMenuClick('교양필수 관리')}>교양필수 관리</button>
           </div>
 
           <div className="sb-sec">
             <div className="sb-lbl">활동 및 시스템</div>
-            <button className={`nav-btn ${activeMenu === '마일리지 승인' ? 'active' : ''}`} onClick={() => handleMenuClick('마일리지 승인')}>
-              마일리지 승인 {pendingJobs > 0 && <span className="nav-badge">{pendingJobs}</span>}
+            <button className={`nav-btn ${activeMenu === '마일리지 승인' ? 'active' : ''}`}
+              onClick={() => handleMenuClick('마일리지 승인')}>
+              마일리지 승인
             </button>
-            <button className={`nav-btn ${isProfMenuActive ? 'parent-active' : ''}`} onClick={() => handleMenuClick('교수 관리')}>
-              교수 관리 <span className={`nav-arrow ${profDropdownOpen ? 'open' : ''}`}>▼</span>
+            <button className={`nav-btn ${activeMenu === '마일리지 조회' ? 'active' : ''}`}
+              onClick={() => handleMenuClick('마일리지 조회')}>
+              마일리지 조회
+            </button>
+            <button className={`nav-btn ${isProfMenuActive ? 'parent-active' : ''}`}
+              onClick={() => handleMenuClick('교수 관리')}>
+              교수 관리
+              <span className={`nav-arrow ${profDropdownOpen ? 'open' : ''}`}>▼</span>
             </button>
             <div className={`sub-menu ${profDropdownOpen ? 'open' : ''}`}>
               {PROF_SUB_MENUS.map(sub => (
-                <button key={sub} className={`sub-nav-btn ${activeMenu === sub ? 'active' : ''}`} onClick={() => setActiveMenu(sub)}>{sub}</button>
+                <button key={sub}
+                  className={`sub-nav-btn ${activeMenu === sub ? 'active' : ''}`}
+                  onClick={() => setActiveMenu(sub)}>
+                  {sub}
+                </button>
               ))}
             </div>
-            <button className={`nav-btn ${activeMenu === '학과/학기 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('학과/학기 관리')}>학과/학기 관리</button>
+            <button className={`nav-btn ${activeMenu === '학과/학기 관리' ? 'active' : ''}`}
+              onClick={() => handleMenuClick('학과/학기 관리')}>
+              학과/학기 관리
+            </button>
+          </div>
+
+          <div className="sidebar-bottom">
+            <div className="user-info">
+              <div className="user-avatar">A</div>
+              <div>
+                <div className="user-name">관리자</div>
+                <div className="user-role">ADMIN / STAFF</div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -309,9 +382,9 @@ export default function AdminDashboard() {
                     <div className="stat-val" style={{color:'#F59E0B'}}>{attendanceList.length}<span className="unit">명</span></div>
                     <div className="stat-hint">결석 기준 초과</div>
                   </button>
-                  <button className="stat-card c-purple" onClick={() => setActiveMenu('마일리지 승인')}>
+                  <button className="stat-card c-purple" onClick={() => setActiveMenu('학생 근로')}>
                     <div className="stat-icon-wrap c-purple">📋</div>
-                    <div className="stat-lbl">마일리지 대기</div>
+                    <div className="stat-lbl">근로 승인 대기</div>
                     <div className="stat-val">{pendingJobs}<span className="unit">건</span></div>
                     <div className="stat-hint">승인 처리 필요</div>
                   </button>
@@ -358,10 +431,9 @@ export default function AdminDashboard() {
                       ))
                     }
                   </div>
-
                   <div className="data-card">
                     <div className="card-hd">
-                      <span className="card-hd-title"> 출결 위험군</span>
+                      <span className="card-hd-title">출결 위험군</span>
                       <span className="count-pill">{attendanceList.length}명</span>
                     </div>
                     {attendanceList.length === 0
@@ -382,7 +454,7 @@ export default function AdminDashboard() {
 
                 <div className="data-card online-card">
                   <div className="card-hd">
-                    <span className="card-hd-title"> 순수 온라인 수업 비율 30% 초과</span>
+                    <span className="card-hd-title">순수 온라인 수업 비율 30% 초과</span>
                     <span className="count-pill">{onlineList.length}명</span>
                   </div>
                   {onlineList.length === 0
@@ -401,20 +473,24 @@ export default function AdminDashboard() {
               </>
             )}
 
-            {activeMenu === '학생 목록' && <StudentList />}
-            {activeMenu === '개인별 검색' && <SearchByStudent onBack={() => setActiveMenu('대시보드')} />}
-            {activeMenu === '학과별 검색' && <SearchByDept onBack={() => setActiveMenu('대시보드')} />}
-            {activeMenu === '학과-반별 검색' && <SearchByClass onBack={() => setActiveMenu('대시보드')} />}
-            {activeMenu === '과목별 검색' && <SearchByCourse onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '학생 목록'           && <StudentList />}
+            {activeMenu === '개인별 검색'          && <SearchByStudent onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '학과별 검색'          && <SearchByDept    onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '학과-반별 검색'       && <SearchByClass   onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '과목별 검색'          && <SearchByCourse  onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '온라인 30% 초과 검색' && <OnlineViolation onBack={() => setActiveMenu('대시보드')} />}
-            {activeMenu === '학생 아르바이트 현황' && <JobTab onBack={() => setActiveMenu('대시보드')} />}
-            {activeMenu === '출결 관리' && <SearchByClass onBack={() => setActiveMenu('대시보드')} />}
-            {activeMenu === '과목 관리' && <CourseList key={courseListRefreshKey} onBack={() => setActiveMenu('대시보드')} />}
-            {activeMenu === '전체 교수 목록' && <ProfessorList onRegisterClick={() => setActiveMenu('교수 등록')} />}
+
+            {activeMenu === '학생 근로'    && <JobPending onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '학생 근로 현황' && <JobTab   onBack={() => setActiveMenu('대시보드')} />}
+
+            {activeMenu === '출결 관리'          && <SearchByClass     onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '과목 관리'          && <CourseList        key={courseListRefreshKey} onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '전체 교수 목록'     && <ProfessorList     onRegisterClick={() => setActiveMenu('교수 등록')} />}
             {activeMenu === '학생-지도교수 배정 관리' && <AdvisorAssign />}
-            {activeMenu === '교수 등록' && <ProfessorRegister onComplete={() => setActiveMenu('전체 교수 목록')} onCancel={() => setActiveMenu('전체 교수 목록')} />}
-            {activeMenu === '마일리지 승인' && <MileageTab onBack={() => setActiveMenu('대시보드')} />}
-            {activeMenu === '학과/학기 관리' && <SemesterManagement />}
+            {activeMenu === '교수 등록'          && <ProfessorRegister onComplete={() => setActiveMenu('전체 교수 목록')} onCancel={() => setActiveMenu('전체 교수 목록')} />}
+            {activeMenu === '마일리지 승인'      && <MileageTab        onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '마일리지 조회'      && <MileageManage />}
+            {activeMenu === '학과/학기 관리'     && <SemesterManagement />}
 
             {NOT_IMPLEMENTED.has(activeMenu) && (
               <div className="not-impl">

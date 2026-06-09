@@ -1,16 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from "../../../../api/axios";
 
-/**
- * JobTab.jsx — 시간제 취업(알바) 이력 관리
- *
- * 사용 API:
- *   GET  /api/v1/students/{studentId}/jobs          — 근로 이력 목록
- *   GET  /api/v1/topik/work-hours/{studentId}       — TOPIK 기반 합법 최대 근로시간
- *   PATCH /api/v1/jobs/{jobId}/approval             — 승인 / 반려
- *   PATCH /api/v1/jobs/{jobId}/contract             — 근로계약서 PDF 업로드
- */
-
 // ─── 상수 ───────────────────────────────────────────────
 const DEFAULT_MAX_HOURS = 20; // 기본 주 최대 근로시간 (TOPIK 미취득 시)
 
@@ -34,7 +24,6 @@ function HoursBar({ weekly, max }) {
   const over  = weekly > max;
   const warn  = weekly >= max * 0.8 && !over;
   const color = over ? '#EF4444' : warn ? '#F59E0B' : '#3B82F6';
-  const bg    = over ? '#FEF2F2' : warn ? '#FFFBEB' : '#EFF6FF';
 
   return (
     <div style={{ minWidth: 140 }}>
@@ -105,7 +94,6 @@ export default function JobTab({ studentId, studentName }) {
   const [loading, setLoading]   = useState(true);
   const [actionLoading, setActionLoading] = useState(null); // jobId
   const [rejectTarget, setRejectTarget]   = useState(null); // jobId
-  const [uploadTarget, setUploadTarget]   = useState(null); // jobId
   const [toast, setToast]       = useState(null);
   const [filterStatus, setFilterStatus] = useState('ALL');
 
@@ -116,7 +104,12 @@ export default function JobTab({ studentId, studentName }) {
 
   // ── 데이터 로드 ──────────────────────────────────────
   const fetchData = async () => {
-    if (!studentId) return;
+    // 변경 포인트 1: studentId가 없으면 로딩을 즉시 끄고 함수를 종료합니다.
+    if (!studentId) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     try {
       const [jobsRes, hoursRes] = await Promise.allSettled([
@@ -191,7 +184,6 @@ export default function JobTab({ studentId, studentName }) {
       showToast(e.response?.data?.message || '업로드 실패', 'error');
     } finally {
       setActionLoading(null);
-      setUploadTarget(null);
     }
   };
 
@@ -212,8 +204,6 @@ export default function JobTab({ studentId, studentName }) {
         @keyframes toastIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
 
         .jt-wrap { animation: fadeUp 0.28s ease; }
-
-        /* 통계 바 */
         .jt-summary { display:flex; gap:10px; margin-bottom:1.25rem; }
         .jt-sum-card { background:#fff; border:1px solid #F1F5F9; border-radius:10px; padding:14px 18px; flex:1; display:flex; align-items:center; gap:10px; }
         .jt-sum-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
@@ -221,19 +211,16 @@ export default function JobTab({ studentId, studentName }) {
         .jt-sum-val { font-size:18px; font-weight:700; color:#0F172A; margin-left:auto; }
         .jt-sum-unit { font-size:12px; color:#94A3B8; font-weight:400; }
 
-        /* 전체 시간 경고 배너 */
         .jt-banner { border-radius:10px; padding:12px 16px; margin-bottom:1.25rem; display:flex; align-items:center; gap:10px; font-size:13px; font-weight:600; }
         .jt-banner.over { background:#FEF2F2; border:1.5px solid #FECACA; color:#DC2626; }
         .jt-banner.warn { background:#FFFBEB; border:1.5px solid #FDE68A; color:#D97706; }
         .jt-banner.ok   { background:#ECFDF5; border:1.5px solid #6EE7B7; color:#059669; }
 
-        /* 필터 탭 */
         .jt-filters { display:flex; gap:6px; margin-bottom:1rem; }
         .jt-filter-btn { padding:7px 16px; border-radius:8px; border:1.5px solid #E5E7EB; background:#fff; color:#6B7280; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s; font-family:inherit; }
         .jt-filter-btn:hover { border-color:#93C5FD; color:#1D4ED8; background:#EFF6FF; }
         .jt-filter-btn.active { background:#1A3A5C; color:#fff; border-color:#1A3A5C; }
 
-        /* 카드 목록 */
         .jt-list { display:flex; flex-direction:column; gap:10px; }
         .jt-card { background:#fff; border:1px solid #F1F5F9; border-radius:12px; padding:18px 20px; transition:all 0.15s; }
         .jt-card:hover { border-color:#E2E8F0; box-shadow:0 4px 16px rgba(0,0,0,0.06); }
@@ -252,7 +239,6 @@ export default function JobTab({ studentId, studentName }) {
 
         .jt-card-bottom { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
 
-        /* 액션 버튼 */
         .jt-btn { display:inline-flex; align-items:center; gap:5px; border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; padding:7px 14px; transition:all 0.15s; font-family:inherit; white-space:nowrap; }
         .jt-btn:disabled { opacity:0.5; cursor:not-allowed; }
         .jt-btn-approve { background:#ECFDF5; color:#059669; border:1.5px solid #6EE7B7; }
@@ -264,26 +250,20 @@ export default function JobTab({ studentId, studentName }) {
         .jt-btn-view    { background:#F8FAFC; color:#475569; border:1.5px solid #E2E8F0; }
         .jt-btn-view:hover:not(:disabled)    { background:#F1F5F9; }
 
-        /* 반려 사유 */
         .jt-reject-reason { margin-top:10px; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; padding:10px 12px; font-size:12px; color:#DC2626; }
-
-        /* 빈 상태 */
         .jt-empty { padding:4rem; text-align:center; background:#fff; border-radius:12px; border:1px solid #F1F5F9; color:#CBD5E1; }
         .jt-empty-icon { font-size:2.5rem; margin-bottom:10px; }
         .jt-empty-txt { font-size:13px; }
 
-        /* 토스트 */
         .jt-toast { position:fixed; bottom:24px; right:24px; padding:12px 20px; border-radius:10px; font-size:13px; font-weight:600; animation:toastIn 0.25s ease; z-index:9999; box-shadow:0 8px 24px rgba(0,0,0,0.12); display:flex; align-items:center; gap:8px; }
         .jt-toast.success { background:#0F172A; color:#fff; }
         .jt-toast.error   { background:#DC2626; color:#fff; }
 
-        /* 스피너 */
         @keyframes spin { to{transform:rotate(360deg)} }
         .spin { animation:spin 0.7s linear infinite; display:inline-block; }
       `}</style>
 
       <div className="jt-wrap">
-
         {/* ── 요약 통계 ── */}
         <div className="jt-summary">
           <div className="jt-sum-card">
@@ -349,6 +329,12 @@ export default function JobTab({ studentId, studentName }) {
             <span className="spin" style={{ display:'inline-block', width:20, height:20, border:'2px solid #E5E7EB', borderTopColor:'#1A3A5C', borderRadius:'50%' }} />
             데이터를 불러오는 중...
           </div>
+        ) : !studentId ? (
+          // 변경 포인트 3: 상위 컴포넌트에서 아직 학생 ID를 주지 않았을 때 안내 메시지 출력
+          <div className="jt-empty">
+            <div className="jt-empty-icon">👤</div>
+            <div className="jt-empty-txt">조회할 학생을 먼저 선택해 주세요.</div>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="jt-empty">
             <div className="jt-empty-icon">💼</div>
@@ -366,7 +352,6 @@ export default function JobTab({ studentId, studentName }) {
 
               return (
                 <div key={job.jobId} className={`jt-card ${statusKey}`}>
-
                   {/* 카드 상단 */}
                   <div className="jt-card-top">
                     <div>
@@ -425,15 +410,14 @@ export default function JobTab({ studentId, studentName }) {
                             style={{ display:'none' }}
                             onChange={e => handleContractUpload(job.jobId, e.target.files[0])}
                           />
-                          <label htmlFor={`contract-${job.jobId}`}>
-                            <button
-                              className="jt-btn jt-btn-upload"
-                              disabled={isAct}
-                              onClick={() => document.getElementById(`contract-${job.jobId}`).click()}
-                            >
-                              {isAct ? <span className="spin">⏳</span> : '📎'} 계약서 업로드
-                            </button>
-                          </label>
+                          {/* 변경 포인트 2: 복잡한 label 태그를 제거하고 원클릭 버튼 구조로 변경 */}
+                          <button
+                            className="jt-btn jt-btn-upload"
+                            disabled={isAct}
+                            onClick={() => document.getElementById(`contract-${job.jobId}`).click()}
+                          >
+                            {isAct ? <span className="spin">⏳</span> : '📎'} 계약서 업로드
+                          </button>
                         </>
                       )}
 

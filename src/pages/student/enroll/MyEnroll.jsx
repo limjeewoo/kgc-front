@@ -223,7 +223,7 @@ export default function MyEnroll() {
               <select className="form-select" value={selSem} onChange={e => setSelSem(e.target.value)}>
                 {semesters.map(s => (
                   <option key={s.semesterId} value={s.semesterId}>
-                    {s.semesterName ?? `${s.year}년 ${s.term}`}
+                    {s.semesterName ?? `${s.year}-${s.term}`}
                   </option>
                 ))}
               </select>
