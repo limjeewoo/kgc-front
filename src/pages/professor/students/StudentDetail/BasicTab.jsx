@@ -2,16 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../../../api/axios';
 
-/**
- * BasicTab — 학생 기본 정보
- *
- * readOnly=false (기본, 관리자) : 신규 등록(isNewMode) + 조회 모드
- * readOnly=true  (교수)        : 모든 입력 disabled, 수정 버튼/등록 버튼 숨김
- *
- * URL 파라미터:
- *   id === 'new' → 신규 등록 모드
- *   id === studentId → 조회 모드
- */
 export default function BasicTab({ readOnly = false, onTabChange }) {
   const { studentId } = useParams();
   const navigate = useNavigate();
@@ -26,19 +16,21 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
     maxWorkHours:'정보없음', attendance:'-', gpa:'0.0', photoUrl:null,
   };
 
-  const [isLoading, setIsLoading]       = useState(true);
-  const [student, setStudent]           = useState(EMPTY_STUDENT);
-  const [departments, setDepartments]   = useState([]);
+  const [isLoading, setIsLoading]         = useState(true);
+  const [student, setStudent]             = useState(EMPTY_STUDENT);
+  const [originalStudent, setOriginalStudent] = useState(EMPTY_STUDENT);
+  const [departments, setDepartments]     = useState([]);
   const [nationalities, setNationalities] = useState([]);
+  const [isEditMode, setIsEditMode]       = useState(false);
+  const [isSaving, setIsSaving]           = useState(false);
 
-  // ── 초기 데이터 로드 ──────────────────────────────────────
   useEffect(() => {
     setIsLoading(true);
     Promise.all([
       api.get('/api/v1/depts').catch(() => ({ data: { success: false } })),
       api.get('/api/v1/nationalities').catch(() => ({ data: { success: false } })),
     ]).then(([deptRes, natRes]) => {
-      if (deptRes.data?.success)  setDepartments(deptRes.data.data);
+      if (deptRes.data?.success) setDepartments(deptRes.data.data);
       if (natRes.data?.success) {
         setNationalities(natRes.data.data);
       } else {
@@ -52,9 +44,8 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
       return;
     }
 
-    // 🎯 [방어 로직 추가] id가 없거나 'undefined' 글자 자체로 들어올 경우 API 호출 차단
     if (!id || id === 'undefined') {
-      console.warn('유효하지 않은 학생 ID입니다. 데이터를 조회하지 않습니다.');
+      console.warn('유효하지 않은 학생 ID입니다.');
       setIsLoading(false);
       return;
     }
@@ -63,7 +54,7 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
       .then(res => {
         if (res.data.success) {
           const s = res.data.data;
-          setStudent({
+          const mapped = {
             studentId:    s.studentId || id,
             deptId:       s.deptId || '',
             deptName:     s.deptName || '소속 정보 없음',
@@ -85,7 +76,9 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
             attendance:   s.totalAttendRate ? `${s.totalAttendRate}%` : '-',
             gpa:          s.totalGpa || s.gpa || '0.0',
             photoUrl:     s.photoUrl || null,
-          });
+          };
+          setStudent(mapped);
+          setOriginalStudent(mapped);
         }
       })
       .catch(e => console.error('학생 조회 실패:', e))
@@ -95,7 +88,7 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
 
   const set = (field) => (e) => setStudent(p => ({ ...p, [field]: e.target.value }));
 
-  // ── 신규 등록 제출 ────────────────────────────────────────
+  // 신규 등록
   const handleRegisterSubmit = async () => {
     if (!student.studentId || !student.korName || !student.deptId || !student.nationality) {
       alert('학번, 한글 이름, 소속 학과, 국적은 필수 입력 항목입니다.');
@@ -129,20 +122,60 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
     }
   };
 
+  // 정보 수정 저장 — PUT /api/v1/students/{studentId}
+  const handleEditSave = async () => {
+    if (!student.korName || !student.deptId || !student.nationality) {
+      alert('한글 이름, 소속 학과, 국적은 필수 입력 항목입니다.');
+      return;
+    }
+    try {
+      setIsSaving(true);
+      const res = await api.put(`/api/v1/students/${id}`, {
+        korName:      student.korName,
+        engName:      student.engName,
+        deptId:       student.deptId,
+        grade:        parseInt(student.grade),
+        classSec:     student.classSec,
+        gender:       student.gender,
+        nationality:  student.nationality,
+        birthDate:    student.birthDate,
+        phone:        student.phone,
+        address:      student.address,
+        admissionDate: student.admissionDate,
+        enrollStatus: student.enrollStatus,
+        foreignRegNo: student.foreignRegNo,
+      });
+      if (res.data.success) {
+        alert('학생 정보가 수정되었습니다.');
+        setOriginalStudent(student);
+        setIsEditMode(false);
+      } else {
+        alert(`수정 실패: ${res.data.message}`);
+      }
+    } catch (e) {
+      alert(e.response?.data?.message || '서버 통신 오류');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 수정 취소 — 원본으로 복원
+  const handleEditCancel = () => {
+    setStudent(originalStudent);
+    setIsEditMode(false);
+  };
+
   if (isLoading) return (
     <div style={{ padding:'5rem', textAlign:'center', color:'#9CA3AF' }}>데이터 로드 중...</div>
   );
 
   const initials = student.korName ? student.korName.slice(0, 2) : 'NEW';
 
-  // 읽기 전용 여부 결합 (교수 or 조회 모드)
-  const isViewOnly = readOnly || !isNewMode;
+  // 입력 비활성화 조건: 교수(readOnly) 또는 조회 모드(수정 버튼 누르기 전)
+  const isViewOnly = readOnly || (!isNewMode && !isEditMode);
 
-  // ── 공통 입력 렌더러 ──────────────────────────────────────
   const renderInput = (field, type = 'text', placeholder = '') => {
-    if (isViewOnly) {
-      return <span className="bt-info-val">{student[field] || '–'}</span>;
-    }
+    if (isViewOnly) return <span className="bt-info-val">{student[field] || '–'}</span>;
     return (
       <input
         type={type}
@@ -155,9 +188,7 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
   };
 
   const renderSelect = (field, options) => {
-    if (isViewOnly) {
-      return <span className="bt-info-val">{student[field] || '–'}</span>;
-    }
+    if (isViewOnly) return <span className="bt-info-val">{student[field] || '–'}</span>;
     return (
       <select className="bt-form-select" value={student[field] || ''} onChange={set(field)}>
         {options}
@@ -177,8 +208,8 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
         .bt-profile-photo { width:4.5rem; height:4.5rem; border-radius:14px; background:linear-gradient(135deg,#3B82F6,#1A3A5C); display:flex; align-items:center; justify-content:center; font-size:1.5rem; font-weight:700; color:#fff; overflow:hidden; flex-shrink:0; }
         .bt-profile-name { font-size:1.2rem; font-weight:700; color:#0F172A; margin-bottom:4px; }
 
-        /* 교수 읽기 전용 배너 */
         .bt-readonly-banner { display:flex; align-items:center; gap:8px; padding:10px 16px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; font-size:12px; color:#D97706; font-weight:600; margin-bottom:1rem; }
+        .bt-editmode-banner { display:flex; align-items:center; gap:8px; padding:10px 16px; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:10px; font-size:12px; color:#1D4ED8; font-weight:600; margin-bottom:1rem; }
 
         .bt-info-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(18rem,1fr)); gap:1rem; margin-bottom:1.5rem; }
         .bt-info-card { background:#fff; border-radius:14px; border:1px solid #F1F5F9; padding:1.25rem; }
@@ -195,6 +226,11 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
 
         .bt-submit-btn { background:#1A3A5C; color:#fff; border:none; padding:10px 24px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; font-family:inherit; transition:background .15s; }
         .bt-submit-btn:hover { background:#15304e; }
+        .bt-submit-btn:disabled { background:#94A3B8; cursor:not-allowed; }
+        .bt-edit-btn { background:#3B82F6; color:#fff; border:none; padding:10px 24px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; font-family:inherit; transition:background .15s; }
+        .bt-edit-btn:hover { background:#2563EB; }
+        .bt-cancel-btn { background:#F3F4F6; color:#374151; border:none; padding:10px 24px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; font-family:inherit; transition:background .15s; margin-right:8px; }
+        .bt-cancel-btn:hover { background:#E5E7EB; }
 
         .bt-chip { display:inline-block; padding:2px 9px; border-radius:6px; font-size:11px; font-weight:600; margin-right:5px; }
         .bt-chip-green { background:#ECFDF5; color:#059669; }
@@ -211,16 +247,37 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
             학생 관리 › <strong>{isNewMode ? '신규 학생 등록' : `${student.korName} 정보`}</strong>
           </div>
         </div>
-        {/* 신규 등록 버튼 — 관리자 + 신규 모드일 때만 */}
-        {isNewMode && !readOnly && (
-          <button className="bt-submit-btn" onClick={handleRegisterSubmit}>등록 완료</button>
-        )}
+
+        <div style={{ display:'flex', gap:'8px' }}>
+          {/* 신규 등록 버튼 */}
+          {isNewMode && !readOnly && (
+            <button className="bt-submit-btn" onClick={handleRegisterSubmit}>등록 완료</button>
+          )}
+          {/* 수정 모드 버튼 — 관리자 + 조회 모드일 때 */}
+          {!isNewMode && !readOnly && !isEditMode && (
+            <button className="bt-edit-btn" onClick={() => setIsEditMode(true)}>✏️ 정보 수정</button>
+          )}
+          {/* 저장/취소 버튼 — 수정 모드일 때 */}
+          {isEditMode && (
+            <>
+              <button className="bt-cancel-btn" onClick={handleEditCancel}>취소</button>
+              <button className="bt-submit-btn" onClick={handleEditSave} disabled={isSaving}>
+                {isSaving ? '저장 중...' : '💾 저장'}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* 교수 읽기 전용 안내 */}
+      {/* 배너 */}
       {readOnly && (
         <div className="bt-readonly-banner">
           🔒 교수 권한으로 조회 중입니다. 학적 정보 수정은 관리자만 가능합니다.
+        </div>
+      )}
+      {isEditMode && (
+        <div className="bt-editmode-banner">
+          ✏️ 수정 모드입니다. 변경 후 우측 상단 [저장] 버튼을 눌러주세요.
         </div>
       )}
 
@@ -271,10 +328,10 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
         <div className="bt-info-card">
           <div className="bt-info-card-title">인적 사항</div>
           {[
-            { key:'생년월일',     field:'birthDate',    type:'date' },
-            { key:'연락처',       field:'phone',        type:'tel',  ph:'010-0000-0000' },
-            { key:'주소',         field:'address',      type:'text', ph:'거주 주소 입력' },
-            { key:'외국인등록번호', field:'foreignRegNo', type:'text', ph:'비밀번호 초기화용' },
+            { key:'생년월일',      field:'birthDate',    type:'date' },
+            { key:'연락처',        field:'phone',        type:'tel',  ph:'010-0000-0000' },
+            { key:'주소',          field:'address',      type:'text', ph:'거주 주소 입력' },
+            { key:'외국인등록번호',  field:'foreignRegNo', type:'text', ph:'비밀번호 초기화용' },
           ].map(({ key, field, type, ph }) => (
             <div key={field} className="bt-info-row">
               <span className="bt-info-key">{key}</span>
@@ -301,7 +358,8 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
           </div>
           <div className="bt-info-row">
             <span className="bt-info-key">학번 (ID)</span>
-            {renderInput('studentId', 'text', '학번 입력 (필수)')}
+            {/* 학번은 수정 모드에서도 변경 불가 — 신규 등록 시에만 입력 */}
+            <span className="bt-info-val">{student.studentId || '–'}</span>
           </div>
           <div className="bt-info-row">
             <span className="bt-info-key">소속학과</span>
@@ -375,11 +433,21 @@ export default function BasicTab({ readOnly = false, onTabChange }) {
         </div>
       </div>
 
-      {/* 신규 등록 하단 버튼 (관리자만) */}
+      {/* 신규 등록 하단 버튼 */}
       {isNewMode && !readOnly && (
         <div style={{ textAlign:'center', marginTop:'1.5rem' }}>
           <button className="bt-submit-btn" style={{ padding:'12px 40px', fontSize:15 }} onClick={handleRegisterSubmit}>
             학생 정보 시스템 등록하기
+          </button>
+        </div>
+      )}
+
+      {/* 수정 모드 하단 저장 버튼 */}
+      {isEditMode && (
+        <div style={{ textAlign:'center', marginTop:'1.5rem' }}>
+          <button className="bt-cancel-btn" onClick={handleEditCancel}>취소</button>
+          <button className="bt-submit-btn" style={{ padding:'12px 40px', fontSize:15 }} onClick={handleEditSave} disabled={isSaving}>
+            {isSaving ? '저장 중...' : '변경사항 저장하기'}
           </button>
         </div>
       )}
