@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../../api/axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 import StudentList from '../students/StudentList.jsx';
-import ConsultTab from '../students/StudentDetail/ConsultTab.jsx'; // 👈 새로 추가된 Import
+import ConsultTab from '../students/StudentDetail/ConsultTab.jsx'; 
 import SearchByDept from '../search/SearchByDept.jsx';
 import SearchByClass from '../search/SearchByClass.jsx';
 import SearchByCourse from '../search/SearchByCourse.jsx';
@@ -18,6 +18,7 @@ import MileageTab from '../students/StudentDetail/MileageTab.jsx';
 import SemesterManagement from "../semesters/SemestersManagement.jsx";
 import JobPending from "../jobs/JobPending.jsx";
 import MileageManage from "../jobs/MileageManage.jsx";
+import SystemConfig from  "../Config/SystemConfig.jsx";
 
 const NOT_IMPLEMENTED = new Set(['상담 내역', '교양필수 관리']);
 const SEARCH_SUB_MENUS = ['개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색'];
@@ -256,7 +257,6 @@ export default function AdminDashboard() {
               학생 목록
             </button>
 
-            {/* 👇 새로 추가된 '학생 상담 이력' 버튼 */}
             <button className={`nav-btn ${activeMenu === '학생 상담 이력' ? 'active' : ''}`}
               onClick={() => handleMenuClick('학생 상담 이력')}>
               학생 상담 이력
@@ -304,6 +304,10 @@ export default function AdminDashboard() {
               onClick={() => handleMenuClick('과목 관리')}>과목 관리</button>
             <button className={`nav-btn ${activeMenu === '교양필수 관리' ? 'active' : ''}`}
               onClick={() => handleMenuClick('교양필수 관리')}>교양필수 관리</button>
+              
+            {/* 👇 새로 추가된 권한 관리 버튼 */}
+            <button className={`nav-btn ${activeMenu === '권한 관리' ? 'active' : ''}`}
+              onClick={() => handleMenuClick('권한 관리')}>권한 관리</button>
           </div>
 
           <div className="sb-sec">
@@ -482,7 +486,6 @@ export default function AdminDashboard() {
 
             {activeMenu === '학생 목록'          && <StudentList />}
             
-            {/* 👇 새로 연결된 컴포넌트 라우팅 구역 */}
             {activeMenu === '학생 상담 이력'     && <ConsultTab />}
 
             {activeMenu === '개인별 검색'          && <SearchByStudent onBack={() => setActiveMenu('대시보드')} />}
@@ -502,6 +505,9 @@ export default function AdminDashboard() {
             {activeMenu === '마일리지 승인'      && <MileageTab        onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '마일리지 조회'      && <MileageManage />}
             {activeMenu === '학과/학기 관리'     && <SemesterManagement />}
+            
+            {/* 👇 새로 추가된 권한 관리(SystemConfig) 라우팅 */}
+            {activeMenu === '권한 관리'          && <SystemConfig />}
 
             {NOT_IMPLEMENTED.has(activeMenu) && (
               <div className="not-impl">
