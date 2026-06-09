@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import api from "../../../../api/axios";
 
 /**
- * MileageTab.jsx — KM 마일리지 상세 히스토리
+ * MileageTab.jsx — KM 마일리지 상세 히스토리 (수정본)
  *
  * 사용 API:
- *   GET /api/v1/students/{studentId}/mileage — 마일리지 총점 + 이력 조회
+ * GET /api/v1/students/{studentId}/mileage — 마일리지 총점 + 이력 조회
  */
 
 const fmt = (d) =>
@@ -71,12 +71,43 @@ export default function MileageTab({ studentId }) {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!studentId) return;
+    if (!studentId) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
+    
     api.get(`/api/v1/students/${studentId}/mileage`)
-      .then(res => { if (res.data.success) setData(res.data.data); })
-      .catch(e => console.error('MileageTab 로드 실패:', e))
-      .finally(() => setLoading(false));
+      .then(res => {
+        const responseData = res.data;
+        
+        if (responseData) {
+          // 🛠️ 백엔드의 다양한 응답 래핑 구조를 유연하게 대응하여 무한 로딩 방지
+          if (responseData.success && responseData.data) {
+            // 구조 1: { success: true, data: { totalScore, history } }
+            setData(responseData.data);
+          } else if (responseData.history || responseData.totalScore !== undefined) {
+            // 구조 2: { totalScore, history } (래핑이 없는 날것의 데이터 형태)
+            setData(responseData);
+          } else if (responseData.data && (responseData.data.history || responseData.data.totalScore !== undefined)) {
+            // 구조 3: { data: { totalScore, history } } (success 필드가 누락된 경우)
+            setData(responseData.data);
+          } else {
+            console.warn('데이터는 받아왔으나 예상한 마일리지 필드 구조가 아닙니다:', responseData);
+            setData({ totalScore: 0, history: [] });
+          }
+        }
+      })
+      .catch(e => {
+        console.error('MileageTab 로드 실패 또는 네트워크 에러:', e);
+        // 404 혹은 500 등 에러 발생 시 무한 루프에 갇히지 않도록 기본 구조 바인딩
+        setData({ totalScore: 0, history: [] });
+      })
+      .finally(() => {
+        // 성공하든 에러가 나든 무조건 스피너는 멈추도록 안전장치 설정
+        setLoading(false);
+      });
   }, [studentId]);
 
   const history = data?.history || [];
@@ -86,8 +117,8 @@ export default function MileageTab({ studentId }) {
   const filtered = (filter === 'ALL' ? history : history.filter(h => h.category?.toUpperCase() === filter))
     .slice()
     .sort((a, b) => {
-      if (sort === 'DATE_DESC') return new Date(b.earnedAt) - new Date(a.earnedAt);
-      if (sort === 'DATE_ASC')  return new Date(a.earnedAt) - new Date(b.earnedAt);
+      if (sort === 'DATE_DESC') return new Date(b.earnedAt || b.createdAt) - new Date(a.earnedAt || a.createdAt);
+      if (sort === 'DATE_ASC')  return new Date(a.earnedAt || a.createdAt) - new Date(b.earnedAt || b.createdAt);
       if (sort === 'SCORE_DESC') return (b.score ?? 0) - (a.score ?? 0);
       return 0;
     });
@@ -303,19 +334,19 @@ export default function MileageTab({ studentId }) {
               <tbody>
                 {(() => {
                   // 누적 점수 계산용 — 날짜 오름차순 기준으로 누적 후 현재 정렬 순서에 맵핑
-                  const sorted_asc = [...history].sort((a, b) => new Date(a.earnedAt) - new Date(b.earnedAt));
+                  const sorted_asc = [...history].sort((a, b) => new Date(a.earnedAt || a.createdAt) - new Date(b.earnedAt || b.createdAt));
                   const runningMap = {};
                   let acc = 0;
                   sorted_asc.forEach(h => {
                     acc += h.score ?? 0;
-                    runningMap[h.mileageId ?? h.id ?? (h.earnedAt + h.score)] = acc;
+                    runningMap[h.mileageId ?? h.id ?? ((h.earnedAt || h.createdAt) + h.score)] = acc;
                   });
 
                   return filtered.map((item, idx) => {
                     const meta    = getCategoryMeta(item.category);
                     const score   = item.score ?? 0;
                     const isPlus  = score >= 0;
-                    const key     = item.mileageId ?? item.id ?? (item.earnedAt + item.score);
+                    const key     = item.mileageId ?? item.id ?? ((item.earnedAt || item.createdAt) + item.score);
                     const running = runningMap[key];
 
                     return (
