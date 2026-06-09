@@ -14,14 +14,19 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
 
   const can = (key) => permissions?.find(p => p.permissionKey === key)?.isEnabled === true;
 
-  const [uploadFile, setUploadFile] = useState(null);
-  const [uploading, setUploading]   = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
+  // 학생정보 업로드
+  const [uploadFile, setUploadFile]   = useState(null);
+  const [uploading, setUploading]     = useState(false);
+  const [showUpload, setShowUpload]   = useState(false);
+
+  // 외국인현황 업로드
+  const [foreignFile, setForeignFile] = useState(null);
+  const [foreignUploading, setForeignUploading] = useState(false);
+  const [showForeign, setShowForeign] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
+      setIsLoading(true); setError(null);
       try {
         const [studentRes, deptRes] = await Promise.allSettled([
           api.get('/api/v1/students'),
@@ -31,11 +36,8 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
           setStudents(studentRes.value.data.data || []);
         if (deptRes.status === 'fulfilled' && deptRes.value.data?.success)
           setDepartments(deptRes.value.data.data || []);
-      } catch (err) {
-        setError('데이터를 불러오는데 실패했습니다.');
-      } finally {
-        setIsLoading(false);
-      }
+      } catch { setError('데이터를 불러오는데 실패했습니다.'); }
+      finally { setIsLoading(false); }
     };
     fetchData();
   }, []);
@@ -70,16 +72,31 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
       });
       if (res.data.success) {
         alert('학생 일괄 등록이 완료되었습니다.');
-        setShowUpload(false);
-        setUploadFile(null);
+        setShowUpload(false); setUploadFile(null);
         const res2 = await api.get('/api/v1/students');
         if (res2.data.success) setStudents(res2.data.data || []);
       }
-    } catch (e) {
-      alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.');
-    } finally {
-      setUploading(false);
-    }
+    } catch (e) { alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.'); }
+    finally { setUploading(false); }
+  };
+
+  const handleForeignUpload = async () => {
+    if (!foreignFile) { alert('파일을 선택해주세요.'); return; }
+    const formData = new FormData();
+    formData.append('file', foreignFile);
+    setForeignUploading(true);
+    try {
+      const res = await api.post('/api/v1/students/bulk-update-foreign', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (res.data.success) {
+        alert('외국인현황 업데이트가 완료되었습니다.');
+        setShowForeign(false); setForeignFile(null);
+        const res2 = await api.get('/api/v1/students');
+        if (res2.data.success) setStudents(res2.data.data || []);
+      }
+    } catch (e) { alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.'); }
+    finally { setForeignUploading(false); }
   };
 
   return (
@@ -90,6 +107,9 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
         .ssl-title  { font-size:1.375rem; font-weight:700; color:#111827; }
         .ssl-btn { background:#1A3A5C; color:#fff; padding:0.625rem 1.125rem; border-radius:0.5rem; font-size:0.8125rem; font-weight:600; border:none; cursor:pointer; font-family:inherit; }
         .ssl-btn:hover { background:#112740; }
+        .ssl-btn-outline { background:#fff; color:#1A3A5C; padding:0.625rem 1.125rem; border-radius:0.5rem; font-size:0.8125rem; font-weight:600; border:1.5px solid #1A3A5C; cursor:pointer; font-family:inherit; }
+        .ssl-btn-outline:hover { background:#F0F4F8; }
+        .ssl-btn-group { display:flex; gap:0.5rem; }
         .ssl-filter { background:#fff; border-radius:0.875rem; border:1px solid #F3F4F6; padding:1.25rem; margin-bottom:1.25rem; display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; }
         .ssl-search-wrap { position:relative; flex:1; min-width:180px; }
         .ssl-search-icon { position:absolute; left:0.75rem; top:50%; transform:translateY(-50%); color:#9CA3AF; }
@@ -127,12 +147,16 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
         .ssl-modal-cancel  { padding:0.625rem 1.25rem; border-radius:0.5rem; font-size:0.8125rem; font-weight:600; cursor:pointer; background:#fff; border:1px solid #E5E7EB; color:#374151; font-family:inherit; }
         .ssl-modal-confirm { padding:0.625rem 1.25rem; border-radius:0.5rem; font-size:0.8125rem; font-weight:600; cursor:pointer; background:#10B981; color:#fff; border:none; font-family:inherit; }
         .ssl-modal-confirm:disabled { background:#9CA3AF; cursor:not-allowed; }
+        .ssl-modal-badge { display:inline-block; background:#EFF6FF; color:#1D4ED8; font-size:0.6875rem; font-weight:700; padding:2px 8px; border-radius:4px; margin-bottom:1rem; }
       `}</style>
 
       <div className="ssl-header">
         <h1 className="ssl-title">학생 목록 관리</h1>
         {can('STUDENT_UPLOAD') && (
-          <button className="ssl-btn" onClick={() => setShowUpload(true)}>+ 엑셀 일괄 등록</button>
+          <div className="ssl-btn-group">
+            <button className="ssl-btn-outline" onClick={() => setShowForeign(true)}>외국인현황 업데이트</button>
+            <button className="ssl-btn" onClick={() => setShowUpload(true)}>+ 학생 일괄 등록</button>
+          </div>
         )}
       </div>
 
@@ -159,9 +183,7 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
       <div className="ssl-table-card">
         <table className="ssl-table">
           <thead>
-            <tr>
-              <th>학번</th><th>이름 / 국적</th><th>학과 / 학년</th><th>비자</th><th>학적상태</th>
-            </tr>
+            <tr><th>학번</th><th>이름 / 국적</th><th>학과 / 학년</th><th>비자</th><th>학적상태</th></tr>
           </thead>
           <tbody>
             {isLoading ? (
@@ -207,6 +229,7 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
         )}
       </div>
 
+      {/* 학생 일괄 등록 모달 */}
       {showUpload && (
         <div className="ssl-modal-bg" onClick={()=>setShowUpload(false)}>
           <div className="ssl-modal" onClick={e=>e.stopPropagation()}>
@@ -226,6 +249,32 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
               <button className="ssl-modal-cancel" onClick={()=>{setShowUpload(false);setUploadFile(null);}} disabled={uploading}>취소</button>
               <button className="ssl-modal-confirm" onClick={handleBulkUpload} disabled={uploading||!uploadFile}>
                 {uploading ? '업로드 중...' : '업로드 시작'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 외국인현황 업데이트 모달 */}
+      {showForeign && (
+        <div className="ssl-modal-bg" onClick={()=>setShowForeign(false)}>
+          <div className="ssl-modal" onClick={e=>e.stopPropagation()}>
+            <div className="ssl-modal-title">외국인현황 업데이트</div>
+            <div className="ssl-modal-sub">외국인등록번호, 여권번호 등 외국인현황 정보를 일괄 업데이트합니다.</div>
+            <div className="ssl-dropzone" onClick={()=>document.getElementById('staffForeignFile').click()}>
+              <svg width="40" height="40" fill="none" stroke="#9CA3AF" strokeWidth="1.5" viewBox="0 0 24 24">
+                <path d="M12 4v12m0 0l-3-3m3 3l3-3M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <div style={{fontSize:'0.8125rem',color:'#6B7280',marginTop:'0.5rem'}}>
+                {foreignFile ? '파일을 변경하려면 클릭하세요' : '클릭하여 엑셀 파일을 선택하세요'}
+              </div>
+              <input id="staffForeignFile" type="file" hidden accept=".xlsx,.xls" onChange={e=>setForeignFile(e.target.files[0])} />
+              {foreignFile && <div className="ssl-file-name">📄 {foreignFile.name}</div>}
+            </div>
+            <div className="ssl-modal-footer">
+              <button className="ssl-modal-cancel" onClick={()=>{setShowForeign(false);setForeignFile(null);}} disabled={foreignUploading}>취소</button>
+              <button className="ssl-modal-confirm" onClick={handleForeignUpload} disabled={foreignUploading||!foreignFile}>
+                {foreignUploading ? '업로드 중...' : '업로드 시작'}
               </button>
             </div>
           </div>

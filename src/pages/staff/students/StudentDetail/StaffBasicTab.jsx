@@ -71,18 +71,19 @@ export default function StaffBasicTab({ studentId, onBack, permissions }) {
   const handleEditSubmit = async () => {
     try {
       const payload = {
-        korName:      editForm.korName,
-        engName:      editForm.engName,
-        deptId:       editForm.deptId,
-        grade:        parseInt(editForm.grade),
-        classSec:     editForm.classSec,
-        gender:       editForm.gender,
-        nationality:  editForm.nationality,
-        birthDate:    editForm.birthDate,
-        phone:        editForm.phone,
-        address:      editForm.address,
-        admissionDate:editForm.admissionDate,
-        enrollStatus: editForm.enrollStatus,
+        studentId:     studentId,  
+        korName:       editForm.korName,
+        engName:       editForm.engName,
+        deptId:        editForm.deptId,
+        grade:         parseInt(editForm.grade),
+        classSec:      editForm.classSec,
+        gender:        editForm.gender,
+        nationality:   editForm.nationality,
+        birthDate:     editForm.birthDate     || null,
+        phone:         editForm.phone         || null,
+        address:       editForm.address       || null,
+        admissionDate: editForm.admissionDate || null,
+        enrollStatus:  editForm.enrollStatus,
       };
       const res = await api.put(`/api/v1/students/${studentId}`, payload);
       if (res.data.success) {
@@ -239,7 +240,7 @@ export default function StaffBasicTab({ studentId, onBack, permissions }) {
                     </select>
                   : <input type={type||'text'} className="sbt-input" placeholder={ph||''} value={editForm[field]||''} onChange={e=>setEditForm(p=>({...p,[field]:e.target.value}))}/>
               ) : (
-                <span className="sbt-val">{field==='gender'?(student.gender==='MALE'?'남성':'여성'):(student[field]||'-')}</span>
+                <span className="sbt-val">{field === 'gender' ? (student.gender === 'MALE' || student.gender === '남' ? '남성' : '여성'):(student[field]||'-')}</span>
               )}
             </div>
           ))}

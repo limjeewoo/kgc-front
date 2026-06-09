@@ -3,10 +3,11 @@ import api from '../../../api/axios';
 import SearchByClass from '../../admin/search/SearchByClass.jsx';
 
 export default function StaffAttendPage({ permissions }) {
-  const [showUpload, setShowUpload]             = useState(false);
-  const [uploadFile, setUploadFile]             = useState(null);
-  const [uploading, setUploading]               = useState(false);
+  const [showUpload, setShowUpload]               = useState(false);
+  const [uploadFile, setUploadFile]               = useState(null);
+  const [uploading, setUploading]                 = useState(false);
   const [currentSemesterId, setCurrentSemesterId] = useState('');
+  const [refreshKey, setRefreshKey]               = useState(0);
 
   const can = (key) => permissions?.find(p => p.permissionKey === key)?.isEnabled === true;
 
@@ -26,12 +27,15 @@ export default function StaffAttendPage({ permissions }) {
       const res = await api.post(
         `/api/v1/attend/upload?semesterId=${currentSemesterId}`,
         formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30000 }
       );
       if (res.data.success) {
         alert('출결 업로드가 완료되었습니다.');
         setShowUpload(false);
         setUploadFile(null);
+        setRefreshKey(k => k + 1);
+      } else {
+        alert(res.data.message || '업로드 실패');
       }
     } catch (e) {
       alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.');
@@ -43,7 +47,6 @@ export default function StaffAttendPage({ permissions }) {
   return (
     <div style={{ fontFamily: "'DM Sans','Noto Sans KR',sans-serif", position: 'relative' }}>
       <style>{`
-        /* SearchByClass 원본 탑바 숨김 */
         .sc-topbar { display: none !important; }
 
         .sap-topbar {
@@ -91,7 +94,6 @@ export default function StaffAttendPage({ permissions }) {
         .sap-btn-confirm:disabled { background: #9CA3AF; cursor: not-allowed; }
       `}</style>
 
-      {/* 조교용 탑바 */}
       <div className="sap-topbar">
         <div className="sap-breadcrumb">
           조교 대시보드 › <span>출결 관리</span>
@@ -108,10 +110,8 @@ export default function StaffAttendPage({ permissions }) {
         </div>
       </div>
 
-      {/* SearchByClass 재사용 (탑바만 CSS로 숨김) */}
-      <SearchByClass onBack={null} />
+      <SearchByClass key={refreshKey} onBack={null} />
 
-      {/* 업로드 모달 */}
       {showUpload && (
         <div className="sap-modal-bg" onClick={() => { setShowUpload(false); setUploadFile(null); }}>
           <div className="sap-modal" onClick={e => e.stopPropagation()}>
