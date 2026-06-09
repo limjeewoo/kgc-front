@@ -18,6 +18,7 @@ export default function PrivateRoute({ children, allowedRoles }) {
   // 2. 권한 없음 → 본인 대시보드로
   if (allowedRoles && !allowedRoles.includes(role)) {
     if (role === 'ADMIN') return <Navigate to="/admin/dashboard" replace />;
+    if (role === 'STAFF') return <Navigate to="/staff/dashboard" replace />;
     if (role === 'PROFESSOR') return <Navigate to="/professor/dashboard" replace />;
     if (role === 'STUDENT') return <Navigate to="/student/dashboard" replace />;
     return <Navigate to="/login" replace />;

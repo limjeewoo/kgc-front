@@ -11,6 +11,10 @@ import Login from './pages/auth/Login.jsx';
 
 // 어드민 컴포넌트
 import AdminDashboard from './pages/admin/dashboard/AdminDashboard.jsx';
+// 조교 컴포넌트
+import StaffDashboard   from './pages/staff/dashboard/StaffDashboard.jsx';
+import StaffStudentList from './pages/staff/students/StaffStudentList.jsx';
+import StaffBasicTab    from './pages/staff/students/StudentDetail/StaffBasicTab.jsx';
 import SemesterManagement from "./pages/admin/semesters/SemestersManagement.jsx"; 
 import BasicTab from "./pages/admin/students/StudentDetail/BasicTab.jsx";
 import VisaTab from "./pages/admin/students/StudentDetail/VisaTab.jsx";
@@ -28,8 +32,6 @@ import ProfDashboard from './pages/professor/dashboard/ProfDashboard.jsx';
 import MyStudentList from './pages/professor/students/MyStudentList.jsx';
 import ProfStudentDetail from './pages/professor/students/StudentDetail/index.jsx';
 import AttendanceInput from './pages/professor/attendance/AttendanceInput.jsx';
-// ✨ ConsultTab 임포트 추가
-import ConsultTab from './pages/professor/students/StudentDetail/ConsultTab.jsx';
 
 function App() {
   return (
@@ -37,6 +39,12 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
+
+        {/* --- STAFF 권한 그룹 --- */}
+        <Route path="/staff/dashboard" element={<PrivateRoute allowedRoles={['STAFF']}><StaffDashboard /></PrivateRoute>} />
+        <Route path="/staff/students"  element={<PrivateRoute allowedRoles={['STAFF']}><StaffStudentList /></PrivateRoute>} />
+        <Route path="/staff/students/:id" element={<Navigate replace to="basic" />} />
+        <Route path="/staff/students/:id/basic" element={<PrivateRoute allowedRoles={['STAFF']}><StaffBasicTab /></PrivateRoute>} />
 
         {/* --- ADMIN 권한 그룹 --- */}
         <Route path="/admin/dashboard" element={<PrivateRoute allowedRoles={['ADMIN']}><AdminDashboard /></PrivateRoute>} />
@@ -71,8 +79,7 @@ function App() {
           <Route path="students/:studentId" element={<ProfStudentDetail />} />
           <Route path="attendance" element={<AttendanceInput />} />
           
-          {/* ✨ 기존 '상담 목록 준비 중' 텍스트를 ConsultTab 컴포넌트로 교체 */}
-          <Route path="consult" element={<ConsultTab />} />
+          <Route path="consult" element={<div style={{ padding: '2rem' }}>상담 목록 준비 중</div>} />
           <Route path="consult/write" element={<div style={{ padding: '2rem' }}>상담 일지 작성 준비 중</div>} />
           <Route path="jobs" element={<div style={{ padding: '2rem' }}>교수 1차 승인 준비 중</div>} />
         </Route>

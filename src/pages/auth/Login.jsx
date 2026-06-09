@@ -5,6 +5,7 @@ import useAuthStore from '../../store/authStore';
 
 const ROLES = [
   { label: '관리자', value: 'ADMIN' },
+  { label: '조교', value: 'STAFF' },
   { label: '교수', value: 'PROFESSOR' },
   { label: '유학생', value: 'STUDENT' },
 ];
@@ -43,6 +44,7 @@ export default function Login() {
         });
 
         if (data.role === 'ADMIN') navigate('/admin/dashboard', { replace: true });
+        else if (data.role === 'STAFF') navigate('/staff/dashboard', { replace: true });
         else if (data.role === 'PROFESSOR') navigate('/professor/dashboard', { replace: true });
         else if (data.role === 'STUDENT') navigate('/student/dashboard', { replace: true });
       } else {

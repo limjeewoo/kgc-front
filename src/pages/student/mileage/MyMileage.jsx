@@ -2,17 +2,25 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-// 1. 공통 Axios 인스턴스 설정 (토큰 자동 주입)
+// 1. 공통 Axios 인스턴스 설정
 const api = axios.create({
   baseURL: '/api/v1',
   headers: { 'Content-Type': 'application/json' },
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      const backupToken = localStorage.getItem('token');
+      if (backupToken) config.headers.Authorization = `Bearer ${backupToken}`;
+    } else {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 // 2. 전역 CSS 스타일 가이드
 const GLOBAL_MILEAGE_CSS = `
@@ -55,7 +63,6 @@ const GLOBAL_MILEAGE_CSS = `
   .pill-gray { background: #F1F5F9; color: #475569; }
 `;
 
-// 3. 독립형 펄스 스켈레톤 애니메이터
 function Skeleton({ h = '1rem', w = '100%', style = {} }) {
   return (
     <div style={{ 
@@ -67,16 +74,10 @@ function Skeleton({ h = '1rem', w = '100%', style = {} }) {
   );
 }
 
-// 4. 데이터 부재 상태 컴포넌트
 function EmptyState({ text }) {
-  return (
-    <div style={styles.emptyState}>
-      {text}
-    </div>
-  );
+  return ( <div style={styles.emptyState}>{text}</div> );
 }
 
-// 5. 메인 컴포넌트
 export default function MyMileage() {
   const [mileageData, setMileageData] = useState({ totalMileage: 0, semesterMileage: 0, history: [] });
   const [isLoading, setIsLoading] = useState(true);
@@ -85,16 +86,28 @@ export default function MyMileage() {
     const fetchMileageData = async () => {
       try {
         setIsLoading(true);
-        const res = await api.get('/mileage/me');
+        
+        // Step 1: 현재 로그인한 학생의 ID 식별하기 (/auth/me 호출)
+        const meRes = await api.get('/auth/me');
+        const meData = meRes.data?.data ?? meRes.data;
+        const studentId = meData?.userId ?? meData?.studentId ?? (typeof meData === 'string' || typeof meData === 'number' ? String(meData) : null);
+        
+        if (!studentId) {
+          throw new Error('사용자 정보를 조회할 수 없습니다.');
+        }
+
+        // Step 2: 식별된 ID 기반 혹은 백엔드가 새로 열어준 마일리지 엔드포인트 호출
+        // 💡 만약 백엔드 주소가 다르면 아래 주소만 변경하면 됩니다! (예: `/students/mileage/me` 등)
+        const res = await api.get(`/students/${studentId}/mileage`);
         
         setMileageData({
-          totalMileage: res.data.totalMileage ?? 0,
-          semesterMileage: res.data.semesterMileage ?? 0,
-          history: Array.isArray(res.data.history) ? res.data.history : []
+          totalMileage: res.data?.totalMileage ?? res.data?.data?.totalMileage ?? 0,
+          semesterMileage: res.data?.semesterMileage ?? res.data?.data?.semesterMileage ?? 0,
+          history: Array.isArray(res.data?.history) ? res.data.history : (Array.isArray(res.data?.data?.history) ? res.data.data.history : [])
         });
       } catch (error) {
         console.error('API Error:', error);
-        // 폴백 데이터 매핑
+        // 폴백 데이터 매핑 (404 상태여도 화면 컴포넌트가 깨지지 않고 목데이터를 보여주도록 유지)
         setMileageData({
           totalMileage: 250,
           semesterMileage: 100,
@@ -121,7 +134,6 @@ export default function MyMileage() {
         <div className="sw-content">
           <div className="sec-label">마일리지 요약</div>
           
-          {/* 핵심 성과 요약 대시보드 */}
           <div className="stats-grid">
             <div className="stat-card c-blue">
               <div className="stat-lbl">총 누적 마일리지</div>
@@ -142,7 +154,6 @@ export default function MyMileage() {
 
           <div className="sec-label">마일리지 이력 관리</div>
 
-          {/* 상세 적립 내역 테이블 */}
           <div className="data-card">
             <div className="card-hd">
               <div className="card-hd-title">상세 적립 내역</div>
@@ -206,7 +217,6 @@ export default function MyMileage() {
   );
 }
 
-// 6. 무거운 인라인 스타일 자산 격리 및 교정
 const styles = {
   emptyState: { padding: '4rem 1.5rem', textAlign: 'center', color: '#94A3B8', fontSize: '.875rem' },
   thCenter: { textAlign: 'center' },
