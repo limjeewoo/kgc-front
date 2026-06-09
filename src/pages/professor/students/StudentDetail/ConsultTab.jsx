@@ -8,13 +8,17 @@ function ConsultTab() {
   const [searchStudentId, setSearchStudentId] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
 
+  // 모달 및 폼 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
+  const [currentConsultId, setCurrentConsultId] = useState(null); // 수정 시 사용할 ID
   const [targetStudentId, setTargetStudentId] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [consultDate, setConsultDate] = useState(new Date().toISOString().split('T')[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 상담 이력 조회
   const fetchConsultations = async (targetId) => {
     const activeId = (targetId !== undefined ? targetId : searchStudentId)?.trim();
     if (!activeId) {
@@ -44,7 +48,10 @@ function ConsultTab() {
     }
   };
 
+  // 등록 모달 열기
   const openCreateModal = () => {
+    setModalMode('create');
+    setCurrentConsultId(null);
     setTargetStudentId(searchStudentId);
     setTitle('');
     setContent('');
@@ -52,6 +59,28 @@ function ConsultTab() {
     setIsModalOpen(true);
   };
 
+  // 수정 모달 열기
+  const openEditModal = (item) => {
+    setModalMode('edit');
+    setCurrentConsultId(item.consultId);
+    setTargetStudentId(searchStudentId);
+    setConsultDate(item.consultDate || new Date().toISOString().split('T')[0]);
+
+    // 합쳐진 rawContent에서 제목과 내용 분리
+    let parsedTitle = '';
+    let parsedContent = item.rawContent || '';
+    if (parsedContent.startsWith('[') && parsedContent.includes(']\n')) {
+      const splitIndex = parsedContent.indexOf(']\n');
+      parsedTitle = parsedContent.substring(1, splitIndex);
+      parsedContent = parsedContent.substring(splitIndex + 2); // ']\n' 이후의 내용
+    }
+
+    setTitle(parsedTitle);
+    setContent(parsedContent);
+    setIsModalOpen(true);
+  };
+
+  // 저장 (등록 및 수정)
   const handleSubmit = async (e) => {
     e.preventDefault();
     const cleanTargetId = targetStudentId.trim();
@@ -59,20 +88,31 @@ function ConsultTab() {
       alert('필수 정보를 모두 입력해주세요.');
       return;
     }
+
     const requestBody = {
       consultDate,
       rawContent: title.trim() ? `[${title.trim()}]\n${content.trim()}` : content.trim(),
     };
+
     try {
       setIsSubmitting(true);
-      const response = await api.post(`/api/v1/students/${cleanTargetId}/consultations`, requestBody);
+      let response;
+
+      if (modalMode === 'create') {
+        // 등록 POST
+        response = await api.post(`/api/v1/students/${cleanTargetId}/consultations`, requestBody);
+      } else {
+        // 수정 PATCH (이전 에러 로그 기반의 URL 매핑 적용)
+        response = await api.patch(`/api/v1/consultations/${currentConsultId}`, requestBody);
+      }
+
       if (response.data?.success !== false) {
-        alert('새로운 상담 일지가 등록되었습니다.');
+        alert(modalMode === 'create' ? '새로운 상담 일지가 등록되었습니다.' : '상담 일지가 수정되었습니다.');
         setIsModalOpen(false);
         setSearchStudentId(cleanTargetId);
-        fetchConsultations(cleanTargetId);
+        fetchConsultations(cleanTargetId); // 목록 새로고침
       } else {
-        alert(response.data?.message || '등록에 실패했습니다.');
+        alert(response.data?.message || '처리에 실패했습니다.');
       }
     } catch (error) {
       console.error('상담 저장 실패:', error);
@@ -110,7 +150,13 @@ function ConsultTab() {
           .item-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.625rem; border-bottom: 1px dashed #F1F5F9; padding-bottom: 0.625rem; }
           .prof-info { font-size: 0.8125rem; font-weight: 600; color: #334155; display: flex; align-items: center; gap: 6px; }
           .prof-badge { background: #E0F2FE; color: #0369A1; font-size: 0.6875rem; font-weight: 700; padding: 0.125rem 0.375rem; border-radius: 0.25rem; }
-          .consult-date { font-size: 0.75rem; color: #94A3B8; font-weight: 600; }
+          
+          /* 아이콘 버튼 스타일 (수정 전용으로 유지) */
+          .action-group { display: flex; align-items: center; gap: 0.5rem; }
+          .btn-icon { background: none; border: none; font-size: 1rem; cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0.6; transition: 0.2s; }
+          .btn-icon:hover { opacity: 1; background: #F1F5F9; }
+          
+          .consult-date { font-size: 0.75rem; color: #94A3B8; font-weight: 600; margin-right: 0.5rem; }
           .item-body .item-text { font-size: 0.8125rem; color: #475569; line-height: 1.6; white-space: pre-wrap; margin-top: 0.5rem; }
           .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.3); display: flex; align-items: center; justify-content: center; z-index: 999; backdrop-filter: blur(2px); }
           .modal-box { background: #fff; border-radius: 1rem; width: 32rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden; animation: fadeUp 0.2s ease; }
@@ -170,7 +216,11 @@ function ConsultTab() {
                   <div className="prof-info">
                     학생 <span className="prof-badge">{searchStudentId}</span>
                   </div>
-                  <span className="consult-date">{item.consultDate}</span>
+                  <div className="action-group">
+                    <span className="consult-date">{item.consultDate}</span>
+                    <button className="btn-icon" onClick={() => openEditModal(item)} title="수정">✏️</button>
+                    {/* 🗑️ 삭제 버튼이 있던 자리를 지웠습니다. */}
+                  </div>
                 </div>
                 <div className="item-body">
                   <div className="item-text">{item.rawContent || '상담 내용이 없습니다.'}</div>
@@ -183,7 +233,9 @@ function ConsultTab() {
         {isModalOpen && (
           <div className="modal-overlay">
             <div className="modal-box">
-              <div className="modal-hd">✍️ 새로운 상담 일지 등록</div>
+              <div className="modal-hd">
+                {modalMode === 'create' ? '✍️ 새로운 상담 일지 등록' : '✏️ 상담 일지 수정'}
+              </div>
               <form onSubmit={handleSubmit}>
                 <div className="modal-bd">
                   <div className="form-row">
@@ -195,6 +247,7 @@ function ConsultTab() {
                         placeholder="예: 20260001"
                         value={targetStudentId}
                         onChange={(e) => setTargetStudentId(e.target.value)}
+                        disabled={modalMode === 'edit'}
                         required
                       />
                     </div>
@@ -235,7 +288,7 @@ function ConsultTab() {
                 <div className="modal-ft">
                   <button type="button" className="btn-cancel" onClick={() => setIsModalOpen(false)}>취소</button>
                   <button type="submit" className="btn-submit" disabled={isSubmitting}>
-                    {isSubmitting ? '저장 중...' : '기록 저장'}
+                    {isSubmitting ? '저장 중...' : (modalMode === 'create' ? '기록 저장' : '수정 완료')}
                   </button>
                 </div>
               </form>

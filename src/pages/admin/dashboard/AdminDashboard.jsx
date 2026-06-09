@@ -368,7 +368,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="dash-actions">
                     <button className="btn btn-excel" onClick={() => setIsExcelModalOpen(true)}>
-                      📥 과목 엑셀 일괄 등록
+                      📥 엑셀 일괄 등록
                     </button>
                   </div>
                 </div>
