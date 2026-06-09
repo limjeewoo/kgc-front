@@ -28,6 +28,8 @@ import ProfDashboard from './pages/professor/dashboard/ProfDashboard.jsx';
 import MyStudentList from './pages/professor/students/MyStudentList.jsx';
 import ProfStudentDetail from './pages/professor/students/StudentDetail/index.jsx';
 import AttendanceInput from './pages/professor/attendance/AttendanceInput.jsx';
+// ✨ ConsultTab 임포트 추가
+import ConsultTab from './pages/professor/students/StudentDetail/ConsultTab.jsx';
 
 function App() {
   return (
@@ -69,7 +71,8 @@ function App() {
           <Route path="students/:studentId" element={<ProfStudentDetail />} />
           <Route path="attendance" element={<AttendanceInput />} />
           
-          <Route path="consult" element={<div style={{ padding: '2rem' }}>상담 목록 준비 중</div>} />
+          {/* ✨ 기존 '상담 목록 준비 중' 텍스트를 ConsultTab 컴포넌트로 교체 */}
+          <Route path="consult" element={<ConsultTab />} />
           <Route path="consult/write" element={<div style={{ padding: '2rem' }}>상담 일지 작성 준비 중</div>} />
           <Route path="jobs" element={<div style={{ padding: '2rem' }}>교수 1차 승인 준비 중</div>} />
         </Route>

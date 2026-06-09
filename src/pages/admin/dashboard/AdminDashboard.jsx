@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../../api/axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 import StudentList from '../students/StudentList.jsx';
+import ConsultTab from '../students/StudentDetail/ConsultTab.jsx'; // 👈 새로 추가된 Import
 import SearchByDept from '../search/SearchByDept.jsx';
 import SearchByClass from '../search/SearchByClass.jsx';
 import SearchByCourse from '../search/SearchByCourse.jsx';
@@ -255,6 +256,12 @@ export default function AdminDashboard() {
               학생 목록
             </button>
 
+            {/* 👇 새로 추가된 '학생 상담 이력' 버튼 */}
+            <button className={`nav-btn ${activeMenu === '학생 상담 이력' ? 'active' : ''}`}
+              onClick={() => handleMenuClick('학생 상담 이력')}>
+              학생 상담 이력
+            </button>
+
             <button className={`nav-btn ${isSearchMenuActive ? 'parent-active' : ''}`}
               onClick={() => handleMenuClick('통합 검색')}>
               통합 검색
@@ -473,7 +480,11 @@ export default function AdminDashboard() {
               </>
             )}
 
-            {activeMenu === '학생 목록'           && <StudentList />}
+            {activeMenu === '학생 목록'          && <StudentList />}
+            
+            {/* 👇 새로 연결된 컴포넌트 라우팅 구역 */}
+            {activeMenu === '학생 상담 이력'     && <ConsultTab />}
+
             {activeMenu === '개인별 검색'          && <SearchByStudent onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '학과별 검색'          && <SearchByDept    onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '학과-반별 검색'       && <SearchByClass   onBack={() => setActiveMenu('대시보드')} />}
