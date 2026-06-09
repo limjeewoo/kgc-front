@@ -50,7 +50,7 @@ export default function SearchByClass({ onBack }) {
     }
   }, []);
 
-  // 3. [핵심] 반별 학생 수강과목 및 결석 데이터 파싱
+  // 3. 반별 학생 수강과목 및 결석 데이터 파싱
   const fetchClassData = useCallback(async () => {
     if (!filters.deptId || !filters.classSec) return;
     setIsLoading(true);
@@ -62,10 +62,8 @@ export default function SearchByClass({ onBack }) {
       const json = await res.json();
       
       if (json.success && json.data) {
-        // 백엔드 구조에 맞춰 파싱: courses 배열 합산 처리
         const parsedStudents = json.data.map(student => {
           const courses = student.courses || [];
-          // 과목별 결석/지각 합산 계산
           const totalAbsent = courses.reduce((sum, c) => sum + (c.totalAbsent || 0), 0);
           const totalLate = courses.reduce((sum, c) => sum + (c.totalLate || 0), 0);
 
@@ -87,7 +85,6 @@ export default function SearchByClass({ onBack }) {
     }
   }, [filters]);
 
-  // 라이프사이클 이펙트
   useEffect(() => { fetchDepts(); }, [fetchDepts]);
   useEffect(() => { fetchAdvisors(filters.deptId); }, [filters.deptId, fetchAdvisors]);
   useEffect(() => { fetchClassData(); }, [fetchClassData]);
@@ -96,7 +93,7 @@ export default function SearchByClass({ onBack }) {
   // 필터링 처리 (결석 3회 이상)
   const displayed = quickFilter ? students.filter(s => s.totalAbsent >= 3) : students;
 
-  // 상단 통계 스냅샷 (출석률 제외하고 총 결석 기반 위험/주의 산정)
+  // 상단 통계 스냅샷
   const stats = {
     total: students.length,
     danger: students.filter(s => s.totalAbsent >= 6).length,
@@ -104,6 +101,17 @@ export default function SearchByClass({ onBack }) {
   };
 
   const setFilter = (key, val) => setFilters(prev => ({ ...prev, [key]: val }));
+
+  // 출결 상태에 따른 텍스트 변환 함수 (툴팁 용)
+  const getAttendLabel = (status) => {
+    switch(status) {
+      case 1: return '출석';
+      case 2: return '결석';
+      case 3: return '지각';
+      case 4: return '공결';
+      default: return '미입력';
+    }
+  };
 
   if (showCourse) {
     return (
@@ -144,7 +152,6 @@ export default function SearchByClass({ onBack }) {
         .sc-card-title { font-size:13px; font-weight:700; color:#111827; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid #F3F4F6; display:flex; align-items:center; gap:8px; }
         .sc-card-title::before { content:''; display:inline-block; width:3px; height:14px; background:#3B82F6; border-radius:2px; flex-shrink:0; }
         
-        /* Stats Banner 변경 (3칸으로 축소) */
         .sc-stat-row { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
         .sc-stat-card { background:#fff; border-radius:12px; border:1px solid #F3F4F6; padding:14px 16px; }
         .sc-stat-label { font-size:11px; color:#9CA3AF; margin-bottom:5px; }
@@ -172,11 +179,21 @@ export default function SearchByClass({ onBack }) {
         .sc-grid tr.warning-row td { background:#FFFBEB; }
         .sc-grid tr:hover td { background:#F8FAFC !important; }
 
-        /* 과목별 뱃지 스타일 */
+        /* 과목별 뱃지 및 주차별 출결 미니 타임라인 스타일 */
         .sc-course-list { display: flex; flex-wrap: wrap; gap: 8px; }
-        .sc-course-badge { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #E5E7EB; padding: 6px 10px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .sc-course-badge { display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid #E5E7EB; padding: 8px 10px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .sc-course-info { display: flex; align-items: center; gap: 6px; }
         .sc-course-name { font-weight: 600; color: #374151; font-size: 11.5px; }
         .sc-course-stat { font-size: 11px; color: #6B7280; border-left: 1px solid #E5E7EB; padding-left: 6px; }
+        
+        /* 미니 타임라인 */
+        .sc-week-timeline { display: flex; gap: 2px; align-items: center; }
+        .sc-week-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+        .sc-week-dot.st-0 { background: #E5E7EB; } /* 미입력 */
+        .sc-week-dot.st-1 { background: #10B981; } /* 출석 */
+        .sc-week-dot.st-2 { background: #EF4444; } /* 결석 */
+        .sc-week-dot.st-3 { background: #F59E0B; } /* 지각 */
+        .sc-week-dot.st-4 { background: #3B82F6; } /* 공결 */
 
         .sc-side { display:flex; flex-direction:column; gap:14px; min-width:0; }
         .sc-prof-list { display:flex; flex-direction:column; gap:8px; }
@@ -285,6 +302,8 @@ export default function SearchByClass({ onBack }) {
                       <tr key={s.studentId} className={isDanger ? 'danger-row' : isWarning ? 'warning-row' : ''}>
                         <td className="left">
                           <div style={{ fontWeight: 700, fontSize: '13.5px' }}>{s.engName}</div>
+                          {/* 한국어 이름 추가 표시 */}
+                          {s.korName && <div style={{ fontSize: '12px', color: '#4B5563', marginTop: '2px' }}>{s.korName}</div>}
                           <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: '2px' }}>{s.studentId}</div>
                         </td>
                         
@@ -292,12 +311,26 @@ export default function SearchByClass({ onBack }) {
                           <div className="sc-course-list">
                             {s.courses.map(c => (
                               <div key={c.courseId} className="sc-course-badge">
-                                <span className="sc-course-name">{c.courseName}</span>
-                                <span className="sc-course-stat">결석 {c.totalAbsent}</span>
-                                {c.warningStatus && (
-                                  <span className={`sc-chip ${c.warningStatus === '위험' ? 'sc-chip-red' : 'sc-chip-amber'}`} style={{ padding: '2px 6px', fontSize: '10px' }}>
-                                    {c.warningStatus}
-                                  </span>
+                                <div className="sc-course-info">
+                                  <span className="sc-course-name">{c.courseName}</span>
+                                  <span className="sc-course-stat">결석 {c.totalAbsent}</span>
+                                  {c.warningStatus && (
+                                    <span className={`sc-chip ${c.warningStatus === '위험' ? 'sc-chip-red' : 'sc-chip-amber'}`} style={{ padding: '2px 6px', fontSize: '10px' }}>
+                                      {c.warningStatus}
+                                    </span>
+                                  )}
+                                </div>
+                                {/* 주차별 미니 타임라인 추가 */}
+                                {c.weeklyAttend && c.weeklyAttend.length > 0 && (
+                                  <div className="sc-week-timeline">
+                                    {c.weeklyAttend.map((status, idx) => (
+                                      <div 
+                                        key={idx} 
+                                        className={`sc-week-dot st-${status}`} 
+                                        title={`${idx + 1}주차: ${getAttendLabel(status)}`}
+                                      />
+                                    ))}
+                                  </div>
                                 )}
                               </div>
                             ))}
@@ -349,13 +382,15 @@ export default function SearchByClass({ onBack }) {
                 <div className="sc-focus-list">
                   {students
                     .filter(s => s.totalAbsent >= 3)
-                    .sort((a, b) => b.totalAbsent - a.totalAbsent) // 결석 많은 순 정렬
+                    .sort((a, b) => b.totalAbsent - a.totalAbsent)
                     .slice(0, 6)
                     .map(s => (
                       <div key={s.studentId} className="sc-focus-row">
-                        <span style={{ fontWeight: 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-                          {s.engName}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={{ fontWeight: 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                            {s.korName ? `${s.korName} (${s.engName})` : s.engName}
+                          </span>
+                        </div>
                         <span className="sc-chip sc-chip-red" style={{ flexShrink: 0 }}>누적 {s.totalAbsent}회</span>
                       </div>
                     ))
