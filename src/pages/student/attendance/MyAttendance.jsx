@@ -122,64 +122,53 @@ export default function MyAttendance() {
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
   const [studentId,    setStudentId]    = useState(null);
-  const [semesters,    setSemesters]    = useState([]); // 추출된 학기 목록
-  const [selSem,       setSelSem]       = useState(''); // 선택된 학기
-  const [allEnrollments, setAllEnrollments] = useState([]); // 전체 학기 수강 목록
+  const [semesters,    setSemesters]    = useState([]); // 서버에서 받아온 전체 학기 목록
+  const [selSem,       setSelSem]       = useState(''); // 선택된 학기 ID
+  const [allEnrollments, setAllEnrollments] = useState([]); // 내 전체 수강 목록
   const [enrollments,  setEnrollments]  = useState([]); // 필터링된 현재 학기 수강 목록
   const [attendMap,    setAttendMap]    = useState({});
-  const [dangerCount,  setDangerCount]  = useState(4); // 결석 위험 기준치 기본값
-  const [warningCount, setWarningCount] = useState(2); // 결석 주의 기준치 기본값
-  const [totalWeeks,   setTotalWeeks]   = useState(15); // 총 주차 기본값
+  
+  // 관리자 스케줄러 API 호출 삭제 후 기본값 고정 사용
+  const [dangerCount]  = useState(4); // 결석 위험 기준치
+  const [warningCount] = useState(2); // 결석 주의 기준치
+  const [totalWeeks,   setTotalWeeks]   = useState(15);
 
-  // 초기 로드: 내 ID 확인 및 수강 내역 통째로 불러오기
   async function init() {
     setLoading(true);
     setError(null);
     try {
+      // 1. 내 정보 가져오기
       const me = await apiFetch('/auth/me');
       const sid = me?.userId ?? me?.studentId ?? (typeof me === 'string' || typeof me === 'number' ? String(me) : null);
       if (!sid) throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
       setStudentId(sid);
 
-      // ★ 관리자 전용일 수 있는 스케줄러 정보는 에러 나도 조용히 무시 (기본값 사용)
+      // 🚨 403 에러를 발생시키던 /admin/scheduler 조회 로직은 완전히 삭제했습니다.
+
+      // 2. [수정됨] 권한이 열린 학기 API를 직접 호출하여 리스트 세팅
+      let fetchedSemesters = [];
       try {
-        const cfg = await apiFetch('/admin/scheduler');
-        const find = (key) => Array.isArray(cfg) ? cfg.find(c => c.configKey === key)?.value : cfg?.[key];
-        const dc = Number(find('ATTEND_DANGER_COUNT'));
-        const wc = Number(find('ATTEND_WARNING_COUNT'));
-        if (dc) setDangerCount(dc);
-        if (wc) setWarningCount(wc);
+        const semData = await apiFetch('/semesters');
+        fetchedSemesters = toArray(semData).sort((a, b) => b.semesterId - a.semesterId);
+        setSemesters(fetchedSemesters);
       } catch (e) {
-        // console.warn('스케줄러 설정을 불러오지 못해 기본값을 사용합니다.', e);
+        console.warn('학기 목록을 불러오지 못했습니다.', e);
       }
 
-      // ★ 403을 뱉는 /semesters 대신, 내 전체 수강 내역을 먼저 가져와서 학기를 추출합니다.
+      // 3. 내 전체 수강 내역 가져오기
       const enrollData = await apiFetch(`/students/${sid}/enrollments`);
       const list = toArray(enrollData);
       setAllEnrollments(list);
 
-      // 수강 내역에서 고유 학기(Semester) 목록 추출
-      const semMap = new Map();
-      list.forEach(e => {
-        if (e.semester && e.semester.semesterId) {
-          semMap.set(e.semester.semesterId, e.semester);
-        } else if (e.semesterId) {
-          semMap.set(e.semesterId, { 
-            semesterId: e.semesterId, 
-            semesterName: (e.semesterName ?? `${e.year ?? ''}년 ${e.term ?? ''}`.trim()) || `학기 코드 ${e.semesterId}`,
-            totalWeeks: e.totalWeeks ?? 15
-          });
-        }
-      });
-
-      const uniqueSemesters = Array.from(semMap.values()).sort((a, b) => b.semesterId - a.semesterId);
-      setSemesters(uniqueSemesters);
-
-      // 가장 최신 학기를 기본값으로 세팅
-      if (uniqueSemesters.length > 0) {
-        setSelSem(String(uniqueSemesters[0].semesterId));
+      // 4. 초기 학기 셀렉터 세팅
+      if (fetchedSemesters.length > 0) {
+        setSelSem(String(fetchedSemesters[0].semesterId));
+      } else if (list.length > 0) {
+        // 학기 API 실패 시 수강 내역의 첫 번째 과목 학기로 폴백
+        const fallbackSemId = list[0].semesterId ?? list[0].semester?.semesterId;
+        if (fallbackSemId) setSelSem(String(fallbackSemId));
       } else {
-        setLoading(false); // 수강 내역이 하나도 없을 경우 로딩 해제
+        setLoading(false);
       }
     } catch (err) {
       setError(err.message || '데이터를 불러오지 못했습니다.');
@@ -189,11 +178,11 @@ export default function MyAttendance() {
 
   useEffect(() => { init(); }, []);
 
-  // 선택 학기가 변경될 때마다 해당 학기의 수강 목록만 필터링하여 출결을 병렬 로드
+  // 선택 학기가 변경될 때마다 해당 학기의 수강 목록 필터링 및 출결 로드
   useEffect(() => {
     if (!selSem && allEnrollments.length === 0) return;
 
-    // 선택된 학기 객체를 찾아서 총 주차(totalWeeks) 갱신 (없으면 기본 15)
+    // 선택된 학기의 총 주차 갱신
     const curSemObj = semesters.find(s => String(s.semesterId) === selSem);
     setTotalWeeks(curSemObj?.totalWeeks ?? 15);
 
@@ -213,7 +202,7 @@ export default function MyAttendance() {
       setLoading(true);
       setError(null);
       try {
-        // ★ 필터링된 현재 학기 과목들에 대해서만 출결 정보 병렬 요청
+        // [수정됨] 권한이 열린 학생 본인의 출결 API 정상 호출
         const results = await Promise.allSettled(
           currentList.map(e => apiFetch(`/enrollments/${e.enrollId}/attendances`))
         );
@@ -231,7 +220,6 @@ export default function MyAttendance() {
     })();
   }, [selSem, allEnrollments, semesters]);
 
-  // 파생 통계
   const dangerCourses  = enrollments.filter(e => (attendMap[e.enrollId] ?? []).filter(a => a.status === 2).length >= dangerCount).length;
   const warningCourses = enrollments.filter(e => {
     const absent = (attendMap[e.enrollId] ?? []).filter(a => a.status === 2).length;
@@ -279,7 +267,7 @@ export default function MyAttendance() {
                 <select className="form-select" value={selSem} onChange={e => setSelSem(e.target.value)}>
                   {semesters.map(s => (
                     <option key={s.semesterId} value={s.semesterId}>
-                      {s.semesterName ?? `${s.year}년 ${s.term}`}
+                      {s.semesterName ?? `${s.year}-${s.term}`}
                     </option>
                   ))}
                 </select>

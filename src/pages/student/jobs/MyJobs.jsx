@@ -10,9 +10,8 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken'); // 기존 일관성을 위해 accessToken으로 매핑 유지
+  const token = localStorage.getItem('accessToken'); 
   if (!token) {
-    // 토큰이 없을 경우 이전의 전역 token 키 이름 스왑 대비 방어
     const backupToken = localStorage.getItem('token');
     if (backupToken) config.headers.Authorization = `Bearer ${backupToken}`;
   } else {
@@ -177,24 +176,33 @@ export default function MyJobs() {
     setLoading(true); 
     setError(null);
     try {
+      // 1. 내 정보 가져오기 및 식별 번호 파싱
       const meRes = await api.get('/auth/me');
       const meData = meRes.data?.data ?? meRes.data;
       
-      // 일관성 있는 안전한 학번 식별자 파싱
       const sid = meData?.userId ?? meData?.studentId ?? (typeof meData === 'string' || typeof meData === 'number' ? String(meData) : null);
       
       if (!sid) {
         throw new Error('사용자 식별 번호(학번)를 식별할 수 없습니다.');
       }
 
+      // 2. 403 Forbidden 우회조치: 학생 전용 URL(/students/{studentId}/jobs) 호출로 복구
+      // 관리자용 /search/student/* API는 학생 권한으로 접근 시 403 차단됨 확인
       const jobsRes = await api.get(`/students/${sid}/jobs`);
-      // 공통 데이터 껍데기 포맷 해제 검증 적용
-      const jobsList = jobsRes.data?.data ?? jobsRes.data;
+      const jobsData = jobsRes.data?.data ?? jobsRes.data;
       
-      setJobs(Array.isArray(jobsList) ? jobsList : []);
+      // 응답 데이터 배열 가공 및 안전장치
+      let jobsList = [];
+      if (Array.isArray(jobsData)) {
+        jobsList = jobsData;
+      } else if (jobsData && Array.isArray(jobsData.jobs)) {
+        jobsList = jobsData.jobs;
+      }
+      
+      setJobs(jobsList);
     } catch (err) {
       console.error(err);
-      setError(err.message || '근로 신청 이력 정보를 수신해오지 못했습니다.');
+      setError(err.response?.data?.message || err.message || '근로 신청 이력 정보를 수신해오지 못했습니다.');
     } finally {
       setLoading(false);
     }
@@ -318,9 +326,8 @@ export default function MyJobs() {
   );
 }
 
-// 5. 무거운 인라인 스타일 자산 관리
 const styles = {
-  errBanner: { padding: '1rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', fontSize: '.875rem' },
+  errBanner: { padding: '1rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', justifycontent: 'space-between', marginBottom: '1rem', fontSize: '.875rem' },
   retryBtn: { background: 'none', border: 'none', color: '#DC2626', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' },
   emptyState: { padding: '3rem 1.5rem', textAlign: 'center', color: '#94A3B8', fontSize: '.875rem' },
   stepWrapper: { display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '5rem' },

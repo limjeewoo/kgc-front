@@ -5,12 +5,16 @@ import TopBar from '../../../components/layout/TopBar.jsx';
 
 const api = axios.create({
   baseURL: '/api/v1',
+  headers: { 'Content-Type': 'application/json' },
 });
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      const backupToken = localStorage.getItem('token');
+      if (backupToken) config.headers.Authorization = `Bearer ${backupToken}`;
+    } else {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -21,27 +25,22 @@ api.interceptors.request.use(
 const GLOBAL_STYLE_CSS = `
   .sw-content { padding: 4px 4px 24px; animation: uploadFadeUp 0.28s ease; }
   @keyframes uploadFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
   .data-card { background: #fff; border-radius: 14px; border: 1px solid #E2E8F0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); overflow: hidden; margin-top: 1.25rem; }
   .card-hd { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem; border-bottom: 1px solid #F1F5F9; flex-wrap: wrap; gap: .75rem; }
   .card-hd-title { font-size: 1rem; font-weight: 700; color: #1E293B; }
   .card-badge { background: #EFF6FF; color: #1D4ED8; font-size: .75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
   .card-body { padding: 1.5rem; }
-
   .form-group { margin-bottom: 1.25rem; }
   .form-label { display: block; font-size: .8125rem; font-weight: 600; color: #475569; margin-bottom: .5rem; }
   .form-label .req { color: #EF4444; margin-left: 2px; }
   .form-input { width: 100%; padding: .625rem .875rem; border: 1px solid #CBD5E1; border-radius: 8px; font-size: .875rem; color: #334155; transition: all .15s; box-sizing: border-box; }
   .form-input:focus { outline: none; border-color: #3B82F6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
   .form-hint { font-size: .75rem; color: #64748B; margin-top: .375rem; }
-
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   @media(max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
-
   .upload-zone { border: 2px dashed #CBD5E1; border-radius: .875rem; padding: 2.5rem 1.5rem; text-align: center; cursor: pointer; transition: all .2s; background: #FAFBFD; }
   .upload-zone:hover, .upload-zone.drag { border-color: #3B82F6; background: #EFF6FF; }
   .upload-zone.has-file { border-color: #10B981; background: #F0FDF4; }
-
   .btn-primary { background: #3B82F6; color: #fff; border: none; padding: .625rem 1.25rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background .15s ease; display: inline-flex; align-items: center; gap: .5rem; }
   .btn-primary:hover { background: #2563EB; }
   .btn-primary:disabled { background: #94A3B8; cursor: not-allowed; }
@@ -67,28 +66,36 @@ export default function JobUpload() {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
 
+  // 💡 백엔드 JSON 필드명에 완벽히 맞춘 상태(state)
   const [form, setForm] = useState({
-    companyName: '',
-    workplaceAddr: '',
-    weeklyHours: '',
+    industry: '',           // 이전 jobType 대신 백엔드가 요구하는 industry 사용
+    wage: '',               // 백엔드가 요구하는 시급 입력란 추가
+    workHoursPerWeek: '',   // 이전 weeklyHours 대신 백엔드가 요구하는 변수명 사용
     startDate: '',
     endDate: '',
-    jobType: '',
+    companyName: '',        // UI용 (추가 전송)
+    workplaceAddr: '',      // UI용 (추가 전송)
     file: null,
   });
 
-  // 2. 초기 데이터 패칭 Logic 고도화 (Axios 반영 및 의존성 최적화)
   const init = useCallback(async () => {
     try {
       const meRes = await api.get('/auth/me');
-      const me = meRes.data;
-      setStudentId(me.userId);
+      const meData = meRes.data?.data ?? meRes.data;
+      
+      const sid = meData?.userId ?? meData?.studentId ?? (typeof meData === 'string' || typeof meData === 'number' ? String(meData) : null);
+      
+      if (sid) {
+        setStudentId(sid);
+        
+        const hoursRes = await api.get(`/topik/work-hours/${sid}`)
+          .then(res => res.data?.data ?? res.data)
+          .catch(() => null);
 
-      const hours = await api.get(`/topik/work-hours/${me.userId}`)
-        .then(res => res.data)
-        .catch(() => null);
-
-      if (hours !== null) setMaxHours(hours);
+        if (hoursRes !== null) {
+          setMaxHours(Number(hoursRes));
+        }
+      }
     } catch (err) {
       /* silent */
     }
@@ -117,14 +124,18 @@ export default function JobUpload() {
     set('file', f);
   }
 
-  // 3. 근로 등록 및 파일 업로드 (Axios 통일)
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.companyName || !form.weeklyHours || !form.startDate) {
-      setError('필수 항목을 모두 입력해주세요.');
+    
+    const hoursNum = Number(form.workHoursPerWeek);
+    const wageNum = Number(form.wage);
+    
+    // 필수값 검증 로직 강화
+    if (!form.industry?.trim() || !form.startDate || isNaN(hoursNum) || hoursNum <= 0 || isNaN(wageNum) || wageNum <= 0) {
+      setError('필수 항목(업종, 시급, 시작일, 근무시간)을 모두 정확하게 입력해주세요.');
       return;
     }
-    if (maxHours !== null && Number(form.weeklyHours) > maxHours) {
+    if (maxHours !== null && hoursNum > maxHours) {
       setError(`TOPIK 등급 기준 주당 최대 ${maxHours}시간까지 허용됩니다.`);
       return;
     }
@@ -133,24 +144,38 @@ export default function JobUpload() {
     setError(null);
 
     try {
-      // Step 1: 근로 등록 데이터 송신 (POST)
-      const jobResponse = await api.post(`/students/${studentId}/jobs`, {
-        companyName: form.companyName,
-        workplaceAddr: form.workplaceAddr,
-        weeklyHours: Number(form.weeklyHours),
-        startDate: form.startDate,
-        endDate: form.endDate || undefined,
-        jobType: form.jobType || undefined,
-      });
+      // 💡 백엔드 명세서에 완벽하게 맞춘 요청 페이로드
+      const requestBody = {
+        industry: form.industry.trim(),       // 필수: String
+        wage: wageNum,                        // 필수: Number
+        workHoursPerWeek: hoursNum,           // 필수: Number
+        startDate: form.startDate,            // 필수: String ("YYYY-MM-DD")
+        endDate: form.endDate || null,        // 선택: String ("YYYY-MM-DD")
+        // 혹시 몰라 기존 UI 필드도 함께 전송 (백엔드에 없으면 자동 무시됨)
+        companyName: form.companyName?.trim() || "정보없음",
+        workplaceAddr: form.workplaceAddr?.trim() || "정보없음", 
+      };
 
-      const json = jobResponse.data;
-      if (!json.success) throw new Error(json.message ?? '등록 실패');
+      // Step 1: 근로 등록 데이터 송신
+      const jobResponse = await api.post(`/students/${studentId}/jobs`, requestBody);
 
+      const resBody = jobResponse.data;
+      const resData = resBody?.data ?? resBody;
+      const success = resBody?.success ?? (!!resData);
 
-      if (form.file && json.data?.jobId) {
+      if (!success) {
+        throw new Error(resBody?.message ?? '등록 실패');
+      }
+
+      // Step 2: 파일 업로드 진행
+      const targetJobId = resData?.jobId;
+      if (form.file && targetJobId) {
         const fd = new FormData();
         fd.append('file', form.file);
-        await api.patch(`/jobs/${json.data.jobId}/contract`, fd);
+        
+        await api.patch(`/jobs/${targetJobId}/contract`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
       }
 
       setDone(true);
@@ -184,7 +209,10 @@ export default function JobUpload() {
               <button className="btn-outline" onClick={() => navigate('/student/jobs')}>
                 근로 이력 보기
               </button>
-              <button className="btn-primary" onClick={() => { setDone(false); setForm({ companyName: '', workplaceAddr: '', weeklyHours: '', startDate: '', endDate: '', jobType: '', file: null }); }}>
+              <button className="btn-primary" onClick={() => { 
+                setDone(false); 
+                setForm({ companyName: '', industry: '', wage: '', workplaceAddr: '', workHoursPerWeek: '', startDate: '', endDate: '', file: null }); 
+              }}>
                 추가 등록하기
               </button>
             </div>
@@ -194,7 +222,7 @@ export default function JobUpload() {
     </>
   );
 
-  const weeklyNum = Number(form.weeklyHours);
+  const weeklyNum = Number(form.workHoursPerWeek);
   const hoursOver = maxHours !== null && weeklyNum > maxHours && weeklyNum > 0;
 
   return (
@@ -227,21 +255,28 @@ export default function JobUpload() {
             <div className="card-body">
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">사업체명 <span className="req">*</span></label>
+                  <label className="form-label">사업체명</label>
                   <input className="form-input" placeholder="예: (주)경민상사" value={form.companyName}
                     onChange={e => set('companyName', e.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">업종 · 직종</label>
-                  <input className="form-input" placeholder="예: 일반음식점 서빙, 편의점" value={form.jobType}
-                    onChange={e => set('jobType', e.target.value)} />
+                  <label className="form-label">업종 · 직종 <span className="req">*</span></label>
+                  <input className="form-input" placeholder="예: 일반음식점 서빙, 편의점" value={form.industry}
+                    onChange={e => set('industry', e.target.value)} />
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">근무지 주소</label>
-                <input className="form-input" placeholder="정확한 근무지 소재지 주소를 입력하세요" value={form.workplaceAddr}
-                  onChange={e => set('workplaceAddr', e.target.value)} />
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">근무지 주소</label>
+                  <input className="form-input" placeholder="정확한 근무지 소재지 주소를 입력하세요" value={form.workplaceAddr}
+                    onChange={e => set('workplaceAddr', e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">시급 <span className="req">*</span></label>
+                  <input type="number" className="form-input" placeholder="예: 9860" value={form.wage}
+                    onChange={e => set('wage', e.target.value)} />
+                </div>
               </div>
 
               <div className="form-row">
@@ -260,8 +295,8 @@ export default function JobUpload() {
               <div className="form-group">
                 <label className="form-label">주당 허용 근무시간 <span className="req">*</span></label>
                 <input type="number" className="form-input" min="1" max="40" placeholder="숫자만 입력 (예: 20)"
-                  value={form.weeklyHours}
-                  onChange={e => set('weeklyHours', e.target.value)}
+                  value={form.workHoursPerWeek}
+                  onChange={e => set('workHoursPerWeek', e.target.value)}
                   style={{ borderColor: hoursOver ? '#EF4444' : undefined }}
                 />
                 {hoursOver && (
