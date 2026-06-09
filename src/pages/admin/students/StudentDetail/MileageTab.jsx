@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from "../../../../api/axios";
 
 /**
- * MileageTab.jsx — KM 마일리지 상세 히스토리 (수정본)
+ * MileageTab.jsx — KM 마일리지 상세 히스토리 (종합 대시보드 수정본)
  *
  * 사용 API:
  * GET /api/v1/students/{studentId}/mileage — 마일리지 총점 + 이력 조회
@@ -12,7 +12,7 @@ const fmt = (d) =>
   d ? new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '–';
 
 const CATEGORY_META = {
-  ATTEND:    { label: '출결',     icon: '📅', color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
+  ATTEND:    { label: '출결',    icon: '📅', color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
   TOPIK:     { label: 'TOPIK',   icon: '📝', color: '#8B5CF6', bg: '#F5F3FF', border: '#DDD6FE' },
   ACTIVITY:  { label: '활동',    icon: '🏆', color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
   VOLUNTEER: { label: '봉사',    icon: '🤝', color: '#10B981', bg: '#ECFDF5', border: '#6EE7B7' },
@@ -43,7 +43,6 @@ function DonutChart({ segments, total }) {
 
   return (
     <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ transform: 'rotate(-90deg)' }}>
-      {/* 배경 링 */}
       <circle cx={CX} cy={CY} r={RADIUS} fill="none" stroke="#F1F5F9" strokeWidth={STROKE} />
       {arcs.map((arc, i) => (
         <circle
@@ -64,12 +63,11 @@ function DonutChart({ segments, total }) {
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────
 export default function MileageTab({ studentId }) {
-  const [data,    setData]    = useState(null);   // { totalScore, history: [] }
+  const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter,  setFilter]  = useState('ALL');
-  const [sort,    setSort]    = useState('DATE_DESC'); // DATE_DESC | DATE_ASC | SCORE_DESC
+  const [sort,    setSort]    = useState('DATE_DESC');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!studentId) {
       setLoading(false);
@@ -81,37 +79,30 @@ export default function MileageTab({ studentId }) {
     api.get(`/api/v1/students/${studentId}/mileage`)
       .then(res => {
         const responseData = res.data;
-        
         if (responseData) {
-          // 🛠️ 백엔드의 다양한 응답 래핑 구조를 유연하게 대응하여 무한 로딩 방지
           if (responseData.success && responseData.data) {
-            // 구조 1: { success: true, data: { totalScore, history } }
             setData(responseData.data);
           } else if (responseData.history || responseData.totalScore !== undefined) {
-            // 구조 2: { totalScore, history } (래핑이 없는 날것의 데이터 형태)
             setData(responseData);
           } else if (responseData.data && (responseData.data.history || responseData.data.totalScore !== undefined)) {
-            // 구조 3: { data: { totalScore, history } } (success 필드가 누락된 경우)
             setData(responseData.data);
           } else {
-            console.warn('데이터는 받아왔으나 예상한 마일리지 필드 구조가 아닙니다:', responseData);
+            console.warn('데이터는 받아왔으나 구조가 매핑되지 않습니다:', responseData);
             setData({ totalScore: 0, history: [] });
           }
         }
       })
       .catch(e => {
-        console.error('MileageTab 로드 실패 또는 네트워크 에러:', e);
-        // 404 혹은 500 등 에러 발생 시 무한 루프에 갇히지 않도록 기본 구조 바인딩
+        console.error('MileageTab 로드 실패:', e);
         setData({ totalScore: 0, history: [] });
       })
       .finally(() => {
-        // 성공하든 에러가 나든 무조건 스피너는 멈추도록 안전장치 설정
         setLoading(false);
       });
   }, [studentId]);
 
   const history = data?.history || [];
-  const total   = data?.totalScore ?? 0;
+  const total   = data?.totalScore ?? 0; // 보유 마일리지
 
   // ── 필터 + 정렬 ─────────────────────────────────────────
   const filtered = (filter === 'ALL' ? history : history.filter(h => h.category?.toUpperCase() === filter))
@@ -123,14 +114,21 @@ export default function MileageTab({ studentId }) {
       return 0;
     });
 
-  // ── 카테고리별 집계 (도넛 + 요약용) ──────────────────────
+  // ── 대시보드용 신규 지표 연산 집계 로직 ──────────────────────
   const categoryTotals = Object.keys(CATEGORY_META).map(key => {
     const items = history.filter(h => h.category?.toUpperCase() === key && (h.score ?? 0) > 0);
     return { key, value: items.reduce((s, h) => s + (h.score ?? 0), 0), ...CATEGORY_META[key] };
   }).filter(c => c.value > 0);
 
-  const earned  = history.filter(h => (h.score ?? 0) > 0).reduce((s, h) => s + h.score, 0);
+  // 1. 누적 배정 마일리지 (순수 플러스 합산액)
+  const totalEarned  = history.filter(h => (h.score ?? 0) > 0).reduce((s, h) => s + h.score, 0);
+  // 차감 마일리지 계산
   const deducted = Math.abs(history.filter(h => (h.score ?? 0) < 0).reduce((s, h) => s + h.score, 0));
+
+  // 2. 최고 점수 보유 이력 추출 (단일 건 기준 가장 높게 수여받은 내역)
+  const maxScoreItem = history.length > 0 
+    ? [...history].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0] 
+    : null;
 
   const categories = Object.keys(CATEGORY_META);
 
@@ -139,84 +137,111 @@ export default function MileageTab({ studentId }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&display=swap');
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes countUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
 
         .mt-wrap { animation: fadeUp 0.28s ease; }
 
-        /* ── 상단 요약 ── */
-        .mt-top { display:grid; grid-template-columns:auto 1fr; gap:20px; margin-bottom:1.5rem; background:#fff; border:1px solid #F1F5F9; border-radius:14px; padding:20px 24px; align-items:center; }
-        .mt-donut-wrap { position:relative; width:120px; height:120px; flex-shrink:0; }
-        .mt-donut-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
-        .mt-donut-score { font-size:22px; font-weight:800; color:#0F172A; line-height:1; }
-        .mt-donut-lbl { font-size:10px; color:#94A3B8; font-weight:600; letter-spacing:0.05em; margin-top:3px; }
+        /* ── 최신 대시보드 상단 3단 위젯 Grid 구조 ── */
+        .mt-dashboard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 1.5rem; }
+        .mt-dash-card { background: #fff; border: 1px solid #F1F5F9; border-radius: 14px; padding: 22px 24px; display: flex; flex-direction: column; justify-content: center; position: relative; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .mt-dash-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+        
+        .card-purple::before { background: #8B5CF6; }
+        .card-blue::before { background: #3B82F6; }
+        .card-emerald::before { background: #10B981; }
 
-        .mt-score-right { display:flex; flex-direction:column; gap:12px; }
-        .mt-score-row { display:flex; align-items:baseline; gap:8px; }
-        .mt-score-big { font-size:36px; font-weight:800; color:#0F172A; line-height:1; animation:countUp 0.4s ease; }
-        .mt-score-unit { font-size:14px; color:#94A3B8; font-weight:500; }
+        .mt-dash-label { font-size: 12px; font-weight: 700; color: #64748B; margin-bottom: 6px; letter-spacing: -0.01em; }
+        .mt-dash-value { font-size: 30px; font-weight: 800; color: #0F172A; line-height: 1.1; display: flex; align-items: baseline; gap: 4px; }
+        .mt-dash-unit { font-size: 13px; font-weight: 500; color: #94A3B8; }
+        .mt-dash-sub { font-size: 11px; color: #94A3B8; margin-top: 8px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
 
-        .mt-score-sub { display:flex; gap:16px; }
-        .mt-score-item { display:flex; align-items:center; gap:6px; font-size:12px; }
-        .mt-score-dot { width:7px; height:7px; border-radius:50%; }
-
-        .mt-category-chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
-        .mt-chip { display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:20px; font-size:11px; font-weight:700; border:1px solid transparent; }
+        /* 도넛 섹션 컴팩트 배치 */
+        .mt-chart-section { display: flex; background: #fff; border: 1px solid #F1F5F9; border-radius: 14px; padding: 20px 24px; align-items: center; gap: 24px; margin-bottom: 1.5rem; }
+        .mt-donut-wrap { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
+        .mt-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .mt-donut-score { font-size: 22px; font-weight: 800; color: #0F172A; line-height: 1; }
+        .mt-donut-lbl { font-size: 10px; color: #94A3B8; font-weight: 600; margin-top: 3px; }
+        
+        .mt-category-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .mt-chip { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; border: 1px solid transparent; }
 
         /* ── 필터/정렬 바 ── */
-        .mt-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:8px; }
-        .mt-filters { display:flex; gap:5px; flex-wrap:wrap; }
-        .mt-filter-btn { padding:6px 13px; border-radius:7px; border:1.5px solid #E5E7EB; background:#fff; color:#6B7280; font-size:11px; font-weight:700; cursor:pointer; transition:all 0.15s; font-family:inherit; }
-        .mt-filter-btn:hover { border-color:#93C5FD; color:#1D4ED8; background:#EFF6FF; }
-        .mt-filter-btn.active { background:#1A3A5C; color:#fff; border-color:#1A3A5C; }
-
-        .mt-sort { padding:6px 12px; border:1.5px solid #E5E7EB; border-radius:7px; font-size:11px; font-weight:600; background:#fff; color:#374151; cursor:pointer; font-family:inherit; outline:none; }
+        .mt-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px; }
+        .mt-filters { display: flex; gap: 5px; flex-wrap: wrap; }
+        .mt-filter-btn { padding: 6px 13px; border-radius: 7px; border: 1.5px solid #E5E7EB; background: #fff; color: #6B7280; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .mt-filter-btn:hover { border-color: #93C5FD; color: #1D4ED8; background: #EFF6FF; }
+        .mt-filter-btn.active { background: #1A3A5C; color: #fff; border-color: #1A3A5C; }
+        .mt-sort { padding: 6px 12px; border: 1.5px solid #E5E7EB; border-radius: 7px; font-size: 11px; font-weight: 600; background: #fff; color: #374151; cursor: pointer; outline: none; }
 
         /* ── 히스토리 테이블 ── */
-        .mt-card { background:#fff; border:1px solid #F1F5F9; border-radius:12px; overflow:hidden; }
-        .mt-table { width:100%; border-collapse:collapse; font-size:12px; }
-        .mt-table thead tr { background:#F8FAFC; }
-        .mt-table th { padding:10px 16px; font-size:11px; font-weight:700; color:#64748B; border-bottom:1.5px solid #E2E8F0; text-align:left; white-space:nowrap; letter-spacing:0.03em; }
-        .mt-table th.right { text-align:right; }
-        .mt-table tbody tr { transition:background 0.12s; }
-        .mt-table tbody tr:hover { background:#F8FBFF; }
-        .mt-table tbody tr:last-child td { border-bottom:none; }
-        .mt-table td { padding:11px 16px; border-bottom:1px solid #F1F5F9; color:#374151; vertical-align:middle; }
-        .mt-table td.right { text-align:right; }
+        .mt-card { background: #fff; border: 1px solid #F1F5F9; border-radius: 12px; overflow: hidden; }
+        .mt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .mt-table thead tr { background: #F8FAFC; }
+        .mt-table th { padding: 10px 16px; font-size: 11px; font-weight: 700; color: #64748B; border-bottom: 1.5px solid #E2E8F0; text-align: left; }
+        .mt-table th.right { text-align: right; }
+        .mt-table td { padding: 11px 16px; border-bottom: 1px solid #F1F5F9; color: #374151; vertical-align: middle; }
+        .mt-table td.right { text-align: right; }
+        .mt-table tbody tr:hover { background: #F8FBFF; }
 
-        .mt-cat-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:6px; font-size:10px; font-weight:700; border:1px solid transparent; white-space:nowrap; }
-        .mt-score-cell { font-size:13px; font-weight:800; }
-        .mt-score-plus  { color:#059669; }
-        .mt-score-minus { color:#DC2626; }
-        .mt-desc { color:#374151; font-weight:500; }
-        .mt-date { color:#94A3B8; font-size:11px; white-space:nowrap; }
+        .mt-cat-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: 10px; font-weight: 700; border: 1px solid transparent; }
+        .mt-score-cell { font-size: 13px; font-weight: 800; }
+        .mt-score-plus  { color: #059669; }
+        .mt-score-minus { color: #DC2626; }
+        .mt-desc { color: #374151; font-weight: 500; }
+        .mt-date { color: #94A3B8; font-size: 11px; }
+        .mt-running { font-size: 11px; color: #CBD5E1; font-weight: 600; }
 
-        /* 누적 점수 표시 */
-        .mt-running { font-size:11px; color:#CBD5E1; font-weight:600; }
-
-        /* ── 빈 상태 ── */
-        .mt-empty { padding:4rem; text-align:center; color:#CBD5E1; }
-        .mt-empty-icon { font-size:2.5rem; margin-bottom:10px; }
-        .mt-empty-txt  { font-size:13px; }
-
-        /* ── 로딩 ── */
+        .mt-empty { padding: 4rem; text-align: center; color: #CBD5E1; }
+        .mt-empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
+        .mt-loading { display: flex; align-items: center; justify-content: center; padding: 4rem; gap: 10px; color: #94A3B8; font-size: 13px; }
+        .mt-spinner { width: 20px; height: 20px; border: 2px solid #E5E7EB; border-top-color: #1A3A5C; border-radius: 50%; animation: spin 0.7s linear infinite; }
         @keyframes spin { to{transform:rotate(360deg)} }
-        .mt-loading { display:flex; align-items:center; justify-content:center; padding:4rem; gap:10px; color:#94A3B8; font-size:13px; }
-        .mt-spinner { width:20px; height:20px; border:2px solid #E5E7EB; border-top-color:#1A3A5C; border-radius:50%; animation:spin 0.7s linear infinite; }
-
-        /* ── 하단 집계 행 ── */
-        .mt-table tfoot tr { background:#F8FAFC; }
-        .mt-table tfoot td { padding:10px 16px; font-size:12px; font-weight:700; color:#374151; border-top:2px solid #E2E8F0; }
       `}</style>
 
       <div className="mt-wrap">
+        
+        {/* ── 📊 상단 핵심 지표 대시보드 (보유 / 누적 배정 / 최고 기록) ── */}
+        <div className="mt-dashboard">
+          
+          {/* 위젯 1: 현재 보유 마일리지 */}
+          <div className="mt-dash-card card-purple">
+            <div className="mt-dash-label">보유 마일리지</div>
+            <div className="mt-dash-value">
+              {total.toLocaleString()} <span className="mt-dash-unit">pt</span>
+            </div>
+            <div className="mt-dash-sub">현재 사용 가능한 실시간 최종 가용 점수</div>
+          </div>
 
-        {/* ── 상단 요약 카드 ── */}
-        <div className="mt-top">
-          {/* 도넛 차트 */}
+          {/* 위젯 2: 누적 배정 마일리지 */}
+          <div className="mt-dash-card card-blue">
+            <div className="mt-dash-label">누적 배정 마일리지</div>
+            <div className="mt-dash-value" style={{ color: '#2563EB' }}>
+              {totalEarned.toLocaleString()} <span className="mt-dash-unit">pt</span>
+            </div>
+            <div className="mt-dash-sub">
+              차감 이력을 제외하고 부여받은 순수 총점 합계
+            </div>
+          </div>
+
+          {/* 위젯 3: 단일 최고 기록 보유 항목 */}
+          <div className="mt-dash-card card-emerald">
+            <div className="mt-dash-label">최고 점수 보유 내역</div>
+            <div className="mt-dash-value" style={{ color: '#059669' }}>
+              {maxScoreItem ? `+${maxScoreItem.score?.toLocaleString()}` : '0'}{' '}
+              <span className="mt-dash-unit">pt</span>
+            </div>
+            <div className="mt-dash-sub">
+              {maxScoreItem ? `최고 항목: ${maxScoreItem.description || maxScoreItem.reason}` : '수여 내역 없음'}
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── 🍩 카테고리별 분해 분석 차트 바 ── */}
+        <div className="mt-chart-section">
           <div className="mt-donut-wrap">
             <DonutChart
               segments={categoryTotals.map(c => ({ color: c.color, value: c.value }))}
-              total={earned}
+              total={totalEarned}
             />
             <div className="mt-donut-center">
               <div className="mt-donut-score">{total}</div>
@@ -224,34 +249,9 @@ export default function MileageTab({ studentId }) {
             </div>
           </div>
 
-          {/* 점수 요약 */}
-          <div className="mt-score-right">
-            <div>
-              <div className="mt-score-row">
-                <div className="mt-score-big">{total.toLocaleString()}</div>
-                <div className="mt-score-unit">KM Point</div>
-              </div>
-              <div className="mt-score-sub" style={{ marginTop: 6 }}>
-                <div className="mt-score-item">
-                  <div className="mt-score-dot" style={{ background: '#10B981' }} />
-                  <span style={{ color: '#64748B' }}>획득</span>
-                  <span style={{ fontWeight: 700, color: '#059669' }}>+{earned.toLocaleString()}</span>
-                </div>
-                <div className="mt-score-item">
-                  <div className="mt-score-dot" style={{ background: '#EF4444' }} />
-                  <span style={{ color: '#64748B' }}>차감</span>
-                  <span style={{ fontWeight: 700, color: '#DC2626' }}>−{deducted.toLocaleString()}</span>
-                </div>
-                <div className="mt-score-item">
-                  <div className="mt-score-dot" style={{ background: '#94A3B8' }} />
-                  <span style={{ color: '#64748B' }}>이력 수</span>
-                  <span style={{ fontWeight: 700, color: '#374151' }}>{history.length}건</span>
-                </div>
-              </div>
-            </div>
-
-            {/* 카테고리별 칩 */}
-            {categoryTotals.length > 0 && (
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '10px' }}>카테고리별 누적 비율</div>
+            {categoryTotals.length > 0 ? (
               <div className="mt-category-chips">
                 {categoryTotals.map(c => (
                   <div
@@ -265,6 +265,8 @@ export default function MileageTab({ studentId }) {
                   </div>
                 ))}
               </div>
+            ) : (
+              <div style={{ fontSize: '11px', color: '#94A3B8' }}>누적된 세부 카테고리별 통계가 없습니다.</div>
             )}
           </div>
         </div>
@@ -333,7 +335,6 @@ export default function MileageTab({ studentId }) {
               </thead>
               <tbody>
                 {(() => {
-                  // 누적 점수 계산용 — 날짜 오름차순 기준으로 누적 후 현재 정렬 순서에 맵핑
                   const sorted_asc = [...history].sort((a, b) => new Date(a.earnedAt || a.createdAt) - new Date(b.earnedAt || b.createdAt));
                   const runningMap = {};
                   let acc = 0;
