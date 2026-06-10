@@ -2,17 +2,16 @@ import React, { useState, useEffect } from 'react';
 import api from '../../../api/axios';
 import useAuthStore from '../../../store/authStore';
 
-// ── 조교 전용 컴포넌트
-import StaffStudentList   from '../students/StaffStudentList.jsx';
-import StaffStudentDetail from '../students/StudentDetail/StaffStudentDetail.jsx';
-import StaffAttendPage    from '../attend/StaffAttendPage.jsx';
+import StaffStudentList    from '../students/StaffStudentList.jsx';
+import StaffStudentDetail  from '../students/StudentDetail/StaffStudentDetail.jsx';
+import StaffAttendPage     from '../attend/StaffAttendPage.jsx';
+import StaffVisaExpirePage from '../visa/StaffVisaExpirePage.jsx';
 
-// ── 관리자 컴포넌트 재사용
-import SearchByStudent   from '../../admin/search/SearchByStudent.jsx';
-import SearchByDept      from '../../admin/search/SearchByDept.jsx';
-import SearchByClass     from '../../admin/search/SearchByClass.jsx';
-import SearchByCourse    from '../../admin/search/SearchByCourse.jsx';
-import OnlineViolation   from '../../admin/search/OnlineViolation.jsx';
+import SearchByStudent  from '../../admin/search/SearchByStudent.jsx';
+import SearchByDept     from '../../admin/search/SearchByDept.jsx';
+import SearchByClass    from '../../admin/search/SearchByClass.jsx';
+import SearchByCourse   from '../../admin/search/SearchByCourse.jsx';
+import OnlineViolation  from '../../admin/search/OnlineViolation.jsx';
 import StaffJobPendingPage from '../jobs/StaffJobPendingPage.jsx';
 import StaffMileagePage    from '../jobs/StaffMileagePage.jsx';
 
@@ -42,7 +41,6 @@ export default function StaffDashboard() {
   const [attendanceList, setAttendanceList]   = useState([]);
   const [pendingJobs, setPendingJobs]         = useState([]);
 
-  // permissions는 메뉴 관계없이 항상 로드
   useEffect(() => {
     api.get('/api/v1/admin/role-permissions/STAFF')
       .then(res => { if (res.data?.success) setPermissions(res.data.data || []); })
@@ -57,7 +55,7 @@ export default function StaffDashboard() {
         const results = await Promise.allSettled([
           api.get('/api/v1/semesters/current'),
           api.get('/api/v1/students'),
-          api.get('/api/v1/visas/expiring', { params: { days: 30 } }),
+          api.get('/api/v1/visas/expiring', { params: { days: 60 } }),
           api.get('/api/v1/attend/warnings'),
           api.get('/api/v1/jobs/pending'),
         ]);
@@ -72,14 +70,6 @@ export default function StaffDashboard() {
     };
     fetchData();
   }, [activeMenu]);
-
-  const handleJobApproval = async (jobId, approved, reason = '') => {
-    const body = approved ? { approved: true } : { approved: false, reason };
-    try {
-      const res = await api.patch(`/api/v1/jobs/${jobId}/approval`, body);
-      if (res.data.success) setPendingJobs(prev => prev.filter(j => j.jobId !== jobId));
-    } catch (e) { alert(e.response?.data?.message || '처리 중 오류가 발생했습니다.'); }
-  };
 
   const handleMenuClick = (name) => {
     if (name === '통합 검색') { setSearchOpen(p => !p); return; }
@@ -101,6 +91,14 @@ export default function StaffDashboard() {
   const semLabel = currentSemester ? `${currentSemester.year}년 ${currentSemester.term}학기` : '학기 정보 없음';
   const isSearchActive = SEARCH_SUB_MENUS.includes(activeMenu);
   const can = (key) => permissions.find(p => p.permissionKey === key)?.isEnabled === true;
+
+  // 비자 위험/주의 분류
+  const visaDanger  = visaList.filter(v => v.dDay <= 30);
+  const visaWarning = visaList.filter(v => v.dDay > 30 && v.dDay <= 60);
+
+  // 출결 위험/주의 분류
+  const attendDanger  = attendanceList.filter(a => (a.totalAbsent ?? a.absenceCount ?? 0) >= 6);
+  const attendWarning = attendanceList.filter(a => (a.totalAbsent ?? a.absenceCount ?? 0) >= 3 && (a.totalAbsent ?? a.absenceCount ?? 0) < 6);
 
   return (
     <>
@@ -142,7 +140,6 @@ export default function StaffDashboard() {
         .sw-semester-badge { font-size:0.75rem; background:#EFF6FF; color:#1D4ED8; padding:4px 12px; border-radius:20px; font-weight:600; }
         .sw-content { padding:24px 28px; animation:fadeUp 0.25s ease; }
 
-        /* ── stat 카드 (관리자 스타일) */
         .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
         .stat-card { background:#fff; border-radius:14px; border:1px solid #F3F4F6; padding:20px; cursor:pointer; transition:0.2s; text-align:left; position:relative; overflow:hidden; }
         .stat-card::after { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
@@ -161,48 +158,45 @@ export default function StaffDashboard() {
         .stat-val .unit { font-size:0.875rem; font-weight:400; color:#9CA3AF; margin-left:3px; }
         .stat-hint { font-size:0.6875rem; color:#CBD5E1; margin-top:6px; }
 
-        /* ── 섹션 레이블 */
         .section-label { font-size:0.6875rem; font-weight:700; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 12px; }
 
-        /* ── 빠른 이동 */
-        .quick-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:28px; }
-        .qa-card { background:#fff; border-radius:12px; border:1px solid #F3F4F6; padding:16px; display:flex; align-items:center; gap:12px; cursor:pointer; transition:0.15s; text-align:left; font-family:inherit; }
+        .quick-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:28px; }
+        .qa-card { background:#fff; border-radius:12px; border:1px solid #F3F4F6; padding:16px; display:flex; align-items:center; gap:12px; cursor:pointer; transition:0.15s; text-align:left; font-family:inherit; border:none; }
         .qa-card:hover { border-color:#CBD5E1; box-shadow:0 4px 12px -2px rgba(0,0,0,0.06); }
         .qa-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:1.125rem; flex-shrink:0; }
         .qa-text { font-size:0.8125rem; font-weight:700; color:#111827; }
         .qa-sub  { font-size:0.6875rem; color:#9CA3AF; margin-top:2px; }
 
-        /* ── 위젯 카드 */
         .bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
         .data-card { background:#fff; border-radius:14px; border:1px solid #F3F4F6; overflow:hidden; }
-        .card-hd { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid #F3F4F6; }
+        .card-hd { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid #F3F4F6; cursor:pointer; transition:background 0.12s; }
+        .card-hd:hover { background:#F8FAFC; }
         .card-hd-title { font-size:0.875rem; font-weight:700; color:#111827; }
+        .card-hd-right { display:flex; align-items:center; gap:8px; }
         .count-pill { font-size:0.6875rem; font-weight:700; padding:3px 10px; border-radius:20px; background:#F3F4F6; color:#374151; }
         .count-pill.red    { background:#FEF2F2; color:#DC2626; }
         .count-pill.amber  { background:#FFFBEB; color:#D97706; }
         .count-pill.purple { background:#F5F3FF; color:#7C3AED; }
-        .list-row { display:flex; align-items:center; gap:12px; padding:11px 18px; border-bottom:1px solid #F9FAFB; cursor:pointer; transition:background 0.12s; width:100%; border:none; background:transparent; text-align:left; font-family:inherit; }
-        .list-row:last-child { border-bottom:none; }
-        .list-row:hover { background:#FAFAFA; }
-        .avatar { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:0.875rem; font-weight:700; flex-shrink:0; }
-        .row-name { font-size:0.8125rem; font-weight:600; color:#111827; }
-        .row-sub  { font-size:0.6875rem; color:#9CA3AF; margin-top:1px; }
-        .pill { margin-left:auto; font-size:0.6875rem; font-weight:700; padding:3px 10px; border-radius:20px; flex-shrink:0; }
-        .pill-red   { background:#FEF2F2; color:#DC2626; }
-        .pill-amber { background:#FFFBEB; color:#D97706; }
-        .empty-box { padding:28px; text-align:center; color:#9CA3AF; font-size:0.8125rem; }
 
-        /* ── 근로 승인 위젯 */
-        .job-row { display:flex; align-items:center; gap:12px; padding:12px 18px; border-bottom:1px solid #F9FAFB; }
+        .summary-body { padding:16px 18px; }
+        .summary-row  { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid #F9FAFB; }
+        .summary-row:last-child { border-bottom:none; }
+        .summary-label { font-size:0.8125rem; color:#374151; font-weight:500; }
+        .summary-badge { font-size:0.6875rem; font-weight:700; padding:3px 10px; border-radius:20px; }
+        .badge-red    { background:#FEF2F2; color:#DC2626; }
+        .badge-amber  { background:#FFFBEB; color:#D97706; }
+        .badge-gray   { background:#F3F4F6; color:#6B7280; }
+        .card-link { padding:10px 18px; font-size:0.75rem; color:#3B82F6; cursor:pointer; border-top:1px solid #F3F4F6; display:flex; align-items:center; justify-content:flex-end; gap:4px; }
+        .card-link:hover { background:#F8FAFC; }
+
+        .job-row { display:flex; align-items:center; gap:12px; padding:12px 18px; border-bottom:1px solid #F9FAFB; cursor:pointer; transition:background 0.12s; }
         .job-row:last-child { border-bottom:none; }
+        .job-row:hover { background:#F8FAFC; }
         .job-info { flex:1; min-width:0; }
         .job-name { font-size:0.8125rem; font-weight:600; color:#111827; }
         .job-meta { font-size:0.6875rem; color:#9CA3AF; margin-top:2px; }
-        .job-btns { display:flex; gap:6px; flex-shrink:0; }
-        .btn-approve { padding:5px 12px; border-radius:6px; font-size:0.75rem; font-weight:600; border:none; cursor:pointer; background:#1A3A5C; color:#fff; transition:0.15s; font-family:inherit; }
-        .btn-approve:hover { background:#112740; }
-        .btn-reject  { padding:5px 12px; border-radius:6px; font-size:0.75rem; font-weight:600; border:1px solid #FECACA; cursor:pointer; background:#fff; color:#DC2626; transition:0.15s; font-family:inherit; }
-        .btn-reject:hover { background:#FEF2F2; }
+        .avatar { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:0.875rem; font-weight:700; flex-shrink:0; }
+        .empty-box { padding:28px; text-align:center; color:#9CA3AF; font-size:0.8125rem; }
 
         @media (max-width:1100px) { .stat-grid { grid-template-columns:repeat(2,1fr); } .quick-grid { grid-template-columns:repeat(2,1fr); } .bottom-grid { grid-template-columns:1fr; } }
         @media (max-width:720px)  { .sw-sidebar { width:200px; } .stat-grid { grid-template-columns:1fr 1fr; } }
@@ -225,6 +219,16 @@ export default function StaffDashboard() {
             <div className="sw-sec">
               <div className="sw-lbl">학생</div>
               <button className={`sw-nav ${activeMenu==='학생 목록'?'active':''}`} onClick={() => handleMenuClick('학생 목록')}>학생 목록</button>
+            </div>
+          )}
+
+          {can('VISA_VIEW') && (
+            <div className="sw-sec">
+              <div className="sw-lbl">비자</div>
+              <button className={`sw-nav ${activeMenu==='비자 만료 현황'?'active':''}`} onClick={() => handleMenuClick('비자 만료 현황')}>
+                비자 만료 현황
+                {visaDanger.length > 0 && <span className="sw-nav-badge">{visaDanger.length}</span>}
+              </button>
             </div>
           )}
 
@@ -275,7 +279,7 @@ export default function StaffDashboard() {
             <div className="sw-topbar-title">{activeMenu === '대시보드' ? '조교 대시보드' : activeMenu}</div>
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
               <span className="sw-semester-badge">{semLabel}</span>
-              <button onClick={handleLogout} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', color:'#374151', fontSize:'0.8125rem', fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'background 0.15s' }}
+              <button onClick={handleLogout} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', color:'#374151', fontSize:'0.8125rem', fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
                 onMouseOver={e => e.currentTarget.style.background='#F9FAFB'}
                 onMouseOut={e => e.currentTarget.style.background='#fff'}>
                 로그아웃
@@ -297,11 +301,11 @@ export default function StaffDashboard() {
                   </button>
                 )}
                 {can('VISA_VIEW') && (
-                  <button className="stat-card c-red" onClick={() => handleMenuClick('개인별 검색')}>
+                  <button className="stat-card c-red" onClick={() => handleMenuClick('비자 만료 현황')}>
                     <div className="stat-icon-wrap c-red">🛂</div>
                     <div className="stat-lbl">비자 만료 임박</div>
                     <div className="stat-val" style={{ color: visaList.length > 0 ? '#EF4444' : '#111827' }}>{visaList.length}<span className="unit">명</span></div>
-                    <div className="stat-hint">D-30 이내</div>
+                    <div className="stat-hint">D-60 이내 · 위험 {visaDanger.length}명</div>
                   </button>
                 )}
                 {can('ATTEND_VIEW') && (
@@ -309,7 +313,7 @@ export default function StaffDashboard() {
                     <div className="stat-icon-wrap c-amber">⚠️</div>
                     <div className="stat-lbl">출결 위험군</div>
                     <div className="stat-val" style={{ color: attendanceList.length > 0 ? '#F59E0B' : '#111827' }}>{attendanceList.length}<span className="unit">명</span></div>
-                    <div className="stat-hint">결석 기준 초과</div>
+                    <div className="stat-hint">위험 {attendDanger.length}명 · 주의 {attendWarning.length}명</div>
                   </button>
                 )}
                 {can('JOB_VIEW') && (
@@ -322,74 +326,72 @@ export default function StaffDashboard() {
                 )}
               </div>
 
-              {/* ── 빠른 이동 */}
+              {/* ── 빠른 이동 (학생 목록 제거, 근로 승인은 JOB_APPROVAL 있을 때만) */}
               <div className="section-label">빠른 이동</div>
               <div className="quick-grid">
-                {can('STUDENT_VIEW') && (
-                  <button className="qa-card" onClick={() => handleMenuClick('학생 목록')}>
-                    <div className="qa-icon" style={{ background:'#EFF6FF' }}>🎓</div>
-                    <div><div className="qa-text">학생 목록</div><div className="qa-sub">전체 학생 조회</div></div>
-                  </button>
-                )}
                 {can('ATTEND_VIEW') && (
-                  <button className="qa-card" onClick={() => handleMenuClick('출결 관리')}>
+                  <button className="qa-card" style={{ background:'#fff', border:'1px solid #F3F4F6', borderRadius:12, padding:16 }} onClick={() => handleMenuClick('출결 관리')}>
                     <div className="qa-icon" style={{ background:'#FFFBEB' }}>📅</div>
                     <div><div className="qa-text">출결 관리</div><div className="qa-sub">출결 현황 조회</div></div>
                   </button>
                 )}
-                {can('JOB_VIEW') && (
-                  <button className="qa-card" onClick={() => handleMenuClick('근로 승인')}>
+                {can('JOB_VIEW') && can('JOB_APPROVAL') && (
+                  <button className="qa-card" style={{ background:'#fff', border:'1px solid #F3F4F6', borderRadius:12, padding:16 }} onClick={() => handleMenuClick('근로 승인')}>
                     <div className="qa-icon" style={{ background:'#F5F3FF' }}>📋</div>
                     <div><div className="qa-text">근로 승인</div><div className="qa-sub">승인 대기 처리</div></div>
                   </button>
                 )}
-                <button className="qa-card" onClick={() => handleMenuClick('개인별 검색')}>
+                <button className="qa-card" style={{ background:'#fff', border:'1px solid #F3F4F6', borderRadius:12, padding:16 }} onClick={() => handleMenuClick('개인별 검색')}>
                   <div className="qa-icon" style={{ background:'#F0FDF4' }}>🔍</div>
                   <div><div className="qa-text">개인별 검색</div><div className="qa-sub">학번으로 통합 조회</div></div>
                 </button>
               </div>
 
-              {/* ── 엑셀 업로드 (STUDENT_UPLOAD 권한) */}
-              {can('STUDENT_UPLOAD') && (
+              {/* ── 엑셀 업로드 */}
+              {(can('STUDENT_UPLOAD')) && (
                 <>
                   <div className="section-label">엑셀 업로드</div>
                   <div className="bottom-grid" style={{ marginBottom:28 }}>
-                    <button className="data-card" style={{ padding:'1.25rem 1.5rem', display:'flex', alignItems:'center', gap:16, cursor:'pointer', border:'1.5px dashed #CBD5E1', background:'#fff', fontFamily:'inherit', textAlign:'left', borderRadius:14 }}
-                      onClick={() => document.getElementById('dash-student-file').click()}>
-                      <div style={{ width:44, height:44, borderRadius:10, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', flexShrink:0 }}>📥</div>
-                      <div>
-                        <div style={{ fontWeight:700, fontSize:'0.9375rem', color:'#111827' }}>학생 일괄 등록</div>
-                        <div style={{ fontSize:'0.75rem', color:'#9CA3AF', marginTop:3 }}>학생정보 엑셀 파일 업로드</div>
-                      </div>
-                      <input id="dash-student-file" type="file" hidden accept=".xlsx,.xls" onChange={async e => {
-                        const file = e.target.files[0]; if (!file) return;
-                        const fd = new FormData(); fd.append('file', file);
-                        try {
-                          const res = await api.post('/api/v1/students/bulk-upload', fd, { headers:{'Content-Type':'multipart/form-data'} });
-                          if (res.data.success) alert('학생 일괄 등록이 완료되었습니다.');
-                          else alert(res.data.message || '업로드 실패');
-                        } catch(e) { alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.'); }
-                        e.target.value = '';
-                      }} />
-                    </button>
-                    <button className="data-card" style={{ padding:'1.25rem 1.5rem', display:'flex', alignItems:'center', gap:16, cursor:'pointer', border:'1.5px dashed #CBD5E1', background:'#fff', fontFamily:'inherit', textAlign:'left', borderRadius:14 }}
-                      onClick={() => document.getElementById('dash-foreign-file').click()}>
-                      <div style={{ width:44, height:44, borderRadius:10, background:'#F0FDF4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', flexShrink:0 }}>🛂</div>
-                      <div>
-                        <div style={{ fontWeight:700, fontSize:'0.9375rem', color:'#111827' }}>외국인현황 업데이트</div>
-                        <div style={{ fontSize:'0.75rem', color:'#9CA3AF', marginTop:3 }}>외국인등록번호·여권번호 일괄 업데이트</div>
-                      </div>
-                      <input id="dash-foreign-file" type="file" hidden accept=".xlsx,.xls" onChange={async e => {
-                        const file = e.target.files[0]; if (!file) return;
-                        const fd = new FormData(); fd.append('file', file);
-                        try {
-                          const res = await api.post('/api/v1/students/bulk-update-foreign', fd, { headers:{'Content-Type':'multipart/form-data'} });
-                          if (res.data.success) alert('외국인현황 업데이트가 완료되었습니다.');
-                          else alert(res.data.message || '업로드 실패');
-                        } catch(e) { alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.'); }
-                        e.target.value = '';
-                      }} />
-                    </button>
+                    {can('STUDENT_UPLOAD') && (
+                      <button className="data-card" style={{ padding:'1.25rem 1.5rem', display:'flex', alignItems:'center', gap:16, cursor:'pointer', border:'1.5px dashed #CBD5E1', background:'#fff', fontFamily:'inherit', textAlign:'left', borderRadius:14 }}
+                        onClick={() => document.getElementById('dash-student-file').click()}>
+                        <div style={{ width:44, height:44, borderRadius:10, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', flexShrink:0 }}>📥</div>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:'0.9375rem', color:'#111827' }}>학생 일괄 등록</div>
+                          <div style={{ fontSize:'0.75rem', color:'#9CA3AF', marginTop:3 }}>학생정보 엑셀 파일 업로드</div>
+                        </div>
+                        <input id="dash-student-file" type="file" hidden accept=".xlsx,.xls" onChange={async e => {
+                          const file = e.target.files[0]; if (!file) return;
+                          const fd = new FormData(); fd.append('file', file);
+                          try {
+                            const res = await api.post('/api/v1/students/bulk-upload', fd, { headers:{'Content-Type':'multipart/form-data'} });
+                            if (res.data.success) alert('학생 일괄 등록이 완료되었습니다.');
+                            else alert(res.data.message || '업로드 실패');
+                          } catch(e) { alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.'); }
+                          e.target.value = '';
+                        }} />
+                      </button>
+                    )}
+                    {can('STUDENT_UPLOAD') && (
+                      <button className="data-card" style={{ padding:'1.25rem 1.5rem', display:'flex', alignItems:'center', gap:16, cursor:'pointer', border:'1.5px dashed #CBD5E1', background:'#fff', fontFamily:'inherit', textAlign:'left', borderRadius:14 }}
+                        onClick={() => document.getElementById('dash-foreign-file').click()}>
+                        <div style={{ width:44, height:44, borderRadius:10, background:'#F0FDF4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', flexShrink:0 }}>🛂</div>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:'0.9375rem', color:'#111827' }}>외국인현황 업데이트</div>
+                          <div style={{ fontSize:'0.75rem', color:'#9CA3AF', marginTop:3 }}>외국인등록번호·여권번호 일괄 업데이트</div>
+                        </div>
+                        <input id="dash-foreign-file" type="file" hidden accept=".xlsx,.xls" onChange={async e => {
+                          const file = e.target.files[0]; if (!file) return;
+                          const fd = new FormData(); fd.append('file', file);
+                          try {
+                            const res = await api.post('/api/v1/students/bulk-update-foreign', fd, { headers:{'Content-Type':'multipart/form-data'} });
+                            if (res.data.success) alert('외국인현황 업데이트가 완료되었습니다.');
+                            else alert(res.data.message || '업로드 실패');
+                          } catch(e) { alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.'); }
+                          e.target.value = '';
+                        }} />
+                      </button>
+                    )}
                   </div>
                 </>
               )}
@@ -399,50 +401,77 @@ export default function StaffDashboard() {
               <div className="bottom-grid">
                 {can('VISA_VIEW') && (
                   <div className="data-card">
-                    <div className="card-hd">
-                      <span className="card-hd-title">비자 만료 임박 (D-30)</span>
-                      <span className={`count-pill ${visaList.length > 0 ? 'red' : ''}`}>{visaList.length}명</span>
+                    <div className="card-hd" onClick={() => handleMenuClick('비자 만료 현황')}>
+                      <span className="card-hd-title">비자 만료 임박</span>
+                      <div className="card-hd-right">
+                        {visaDanger.length > 0 && <span className="count-pill red">위험 {visaDanger.length}명</span>}
+                        {visaWarning.length > 0 && <span className="count-pill amber">주의 {visaWarning.length}명</span>}
+                        {visaList.length === 0 && <span className="count-pill">이상 없음</span>}
+                        <span style={{ fontSize:'0.75rem', color:'#9CA3AF' }}>→</span>
+                      </div>
                     </div>
-                    {visaList.length === 0 ? (
-                      <div className="empty-box">만료 임박 학생이 없습니다. ✅</div>
-                    ) : visaList.slice(0,6).map(v => (
-                      <button key={v.studentId} className="list-row">
-                        <div className="avatar" style={{ background:'#FEF2F2', color:'#EF4444' }}>{v.studentName?.[0] ?? '?'}</div>
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div className="row-name">{v.studentName}</div>
-                          <div className="row-sub">비자: {v.visaType} · {v.expiryDate}</div>
-                        </div>
-                        <span className="pill pill-red">D-{v.dDay}</span>
-                      </button>
-                    ))}
-                    {visaList.length > 6 && (
-                      <div style={{ padding:'10px 18px', fontSize:'0.75rem', color:'#3B82F6', cursor:'pointer' }} onClick={() => handleMenuClick('개인별 검색')}>
-                        +{visaList.length - 6}명 더 보기 →
+                    <div className="summary-body">
+                      {visaList.length === 0 ? (
+                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>만료 임박 학생이 없습니다. ✅</div>
+                      ) : (
+                        <>
+                          <div className="summary-row">
+                            <span className="summary-label">위험 (D-30 이내)</span>
+                            <span className="summary-badge badge-red">{visaDanger.length}명</span>
+                          </div>
+                          <div className="summary-row">
+                            <span className="summary-label">주의 (D-31~60)</span>
+                            <span className="summary-badge badge-amber">{visaWarning.length}명</span>
+                          </div>
+                          <div className="summary-row">
+                            <span className="summary-label">전체 대상</span>
+                            <span className="summary-badge badge-gray">{visaList.length}명</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {visaList.length > 0 && (
+                      <div className="card-link" onClick={() => handleMenuClick('비자 만료 현황')}>
+                        전체 목록 보기 →
                       </div>
                     )}
                   </div>
                 )}
+
                 {can('ATTEND_VIEW') && (
                   <div className="data-card">
-                    <div className="card-hd">
+                    <div className="card-hd" onClick={() => handleMenuClick('출결 관리')}>
                       <span className="card-hd-title">출결 위험군</span>
-                      <span className={`count-pill ${attendanceList.length > 0 ? 'amber' : ''}`}>{attendanceList.length}명</span>
+                      <div className="card-hd-right">
+                        {attendDanger.length > 0 && <span className="count-pill red">위험 {attendDanger.length}명</span>}
+                        {attendWarning.length > 0 && <span className="count-pill amber">주의 {attendWarning.length}명</span>}
+                        {attendanceList.length === 0 && <span className="count-pill">이상 없음</span>}
+                        <span style={{ fontSize:'0.75rem', color:'#9CA3AF' }}>→</span>
+                      </div>
                     </div>
-                    {attendanceList.length === 0 ? (
-                      <div className="empty-box">출결 위험군이 없습니다. ✅</div>
-                    ) : attendanceList.slice(0,6).map(a => (
-                      <button key={a.enrollId ?? a.studentId} className="list-row">
-                        <div className="avatar" style={{ background:'#FFFBEB', color:'#D97706' }}>{a.studentName?.[0] ?? '?'}</div>
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div className="row-name">{a.studentName}</div>
-                          <div className="row-sub">{a.courseName ?? a.deptName}</div>
-                        </div>
-                        <span className="pill pill-amber">결석 {a.totalAbsent ?? a.absenceCount}회</span>
-                      </button>
-                    ))}
-                    {attendanceList.length > 6 && (
-                      <div style={{ padding:'10px 18px', fontSize:'0.75rem', color:'#3B82F6', cursor:'pointer' }} onClick={() => handleMenuClick('출결 관리')}>
-                        +{attendanceList.length - 6}명 더 보기 →
+                    <div className="summary-body">
+                      {attendanceList.length === 0 ? (
+                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>출결 위험군이 없습니다. ✅</div>
+                      ) : (
+                        <>
+                          <div className="summary-row">
+                            <span className="summary-label">위험 (결석 6회+)</span>
+                            <span className="summary-badge badge-red">{attendDanger.length}명</span>
+                          </div>
+                          <div className="summary-row">
+                            <span className="summary-label">주의 (결석 3~5회)</span>
+                            <span className="summary-badge badge-amber">{attendWarning.length}명</span>
+                          </div>
+                          <div className="summary-row">
+                            <span className="summary-label">전체 대상</span>
+                            <span className="summary-badge badge-gray">{attendanceList.length}명</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {attendanceList.length > 0 && (
+                      <div className="card-link" onClick={() => handleMenuClick('출결 관리')}>
+                        출결 관리로 이동 →
                       </div>
                     )}
                   </div>
@@ -454,28 +483,32 @@ export default function StaffDashboard() {
                 <>
                   <div className="section-label">근로 승인 대기</div>
                   <div className="data-card">
-                    <div className="card-hd">
+                    <div className="card-hd" onClick={() => handleMenuClick('근로 승인')}>
                       <span className="card-hd-title">승인 처리가 필요한 근로 신청</span>
-                      <span className={`count-pill ${pendingJobs.length > 0 ? 'purple' : ''}`}>{pendingJobs.length}건</span>
+                      <div className="card-hd-right">
+                        <span className={`count-pill ${pendingJobs.length > 0 ? 'purple' : ''}`}>{pendingJobs.length}건</span>
+                        <span style={{ fontSize:'0.75rem', color:'#9CA3AF' }}>→</span>
+                      </div>
                     </div>
                     {pendingJobs.length === 0 ? (
                       <div className="empty-box">처리 대기 중인 근로 신청이 없습니다. ✅</div>
-                    ) : pendingJobs.slice(0,8).map(job => (
-                      <div key={job.jobId} className="job-row">
+                    ) : pendingJobs.slice(0,5).map(job => (
+                      <div key={job.jobId} className="job-row" onClick={() => handleMenuClick('근로 승인')}>
                         <div className="avatar" style={{ background:'#F5F3FF', color:'#7C3AED' }}>{job.studentName?.[0] ?? '?'}</div>
                         <div className="job-info">
                           <div className="job-name">{job.studentName}</div>
-                          <div className="job-meta">{job.workplace ?? '-'} · {job.weeklyHours ?? '-'}시간/주{job.createdAt ? ` · ${job.createdAt.slice(0,10)}` : ''}</div>
+                          <div className="job-meta">
+                            {job.companyName ?? job.workplace ?? '-'}
+                            {job.weeklyHours ? ` · 주 ${job.weeklyHours}시간` : ''}
+                            {job.createdAt ? ` · ${job.createdAt.slice(0,10)}` : ''}
+                          </div>
                         </div>
-                        <div className="job-btns">
-                          <button className="btn-approve" onClick={() => handleJobApproval(job.jobId, true)}>승인</button>
-                          <button className="btn-reject" onClick={() => { const r = window.prompt('반려 사유를 입력하세요:'); if (r !== null) handleJobApproval(job.jobId, false, r); }}>반려</button>
-                        </div>
+                        <span style={{ fontSize:'0.75rem', color:'#9CA3AF', flexShrink:0 }}>상세 보기 →</span>
                       </div>
                     ))}
-                    {pendingJobs.length > 8 && (
-                      <div style={{ padding:'10px 18px', fontSize:'0.75rem', color:'#3B82F6', cursor:'pointer' }} onClick={() => handleMenuClick('근로 승인')}>
-                        +{pendingJobs.length - 8}건 더 보기 →
+                    {pendingJobs.length > 5 && (
+                      <div className="card-link" onClick={() => handleMenuClick('근로 승인')}>
+                        +{pendingJobs.length - 5}건 더 보기 →
                       </div>
                     )}
                   </div>
@@ -495,14 +528,15 @@ export default function StaffDashboard() {
               onBack={() => { setSelectedStudentId(null); setSelectedStudentName(null); setSelectedStudentTab('basic'); }}
             />
           )}
-          {activeMenu === '출결 관리'            && <StaffAttendPage     permissions={permissions} />}
-          {activeMenu === '근로 승인'            && <StaffJobPendingPage permissions={permissions} />}
-          {activeMenu === '마일리지'             && <StaffMileagePage    permissions={permissions} />}
-          {activeMenu === '개인별 검색'          && <div style={{ padding:'1.25rem 1.75rem' }}><SearchByStudent     onBack={() => setActiveMenu('대시보드')} /></div>}
-          {activeMenu === '학과별 검색'          && <SearchByDept        onBack={() => setActiveMenu('대시보드')} />}
-          {activeMenu === '학과-반별 검색'       && <SearchByClass       onBack={() => setActiveMenu('대시보드')} />}
-          {activeMenu === '과목별 검색'          && <div style={{ padding:'1.25rem 1.75rem' }}><SearchByCourse      onBack={() => setActiveMenu('대시보드')} /></div>}
-          {activeMenu === '온라인 30% 초과 검색' && <div style={{ padding:'1.25rem 1.75rem' }}><OnlineViolation     onBack={() => setActiveMenu('대시보드')} /></div>}
+          {activeMenu === '비자 만료 현황'         && <StaffVisaExpirePage />}
+          {activeMenu === '출결 관리'              && <StaffAttendPage     permissions={permissions} />}
+          {activeMenu === '근로 승인'              && <StaffJobPendingPage permissions={permissions} />}
+          {activeMenu === '마일리지'               && <StaffMileagePage    permissions={permissions} />}
+          {activeMenu === '개인별 검색'            && <div style={{ padding:'1.25rem 1.75rem' }}><SearchByStudent   onBack={() => setActiveMenu('대시보드')} /></div>}
+          {activeMenu === '학과별 검색'            && <SearchByDept        onBack={() => setActiveMenu('대시보드')} />}
+          {activeMenu === '학과-반별 검색'         && <SearchByClass       onBack={() => setActiveMenu('대시보드')} />}
+          {activeMenu === '과목별 검색'            && <div style={{ padding:'1.25rem 1.75rem' }}><SearchByCourse    onBack={() => setActiveMenu('대시보드')} /></div>}
+          {activeMenu === '온라인 30% 초과 검색'   && <div style={{ padding:'1.25rem 1.75rem' }}><OnlineViolation   onBack={() => setActiveMenu('대시보드')} /></div>}
         </main>
       </div>
     </>
