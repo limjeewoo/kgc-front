@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import axios from 'axios'
 import TopBar from '../../../components/layout/TopBar.jsx';
 
 // 1. 공통 Axios 인스턴스 설정
@@ -9,7 +9,6 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  // 정확한 토큰 키 이름(accessToken)으로 변경 완료!
   const token = localStorage.getItem('accessToken');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
@@ -17,7 +16,9 @@ api.interceptors.request.use((config) => {
 
 // 2. 전역 스타일시트 정의
 const GLOBAL_PROFILE_CSS = `
-  .sw-content { padding: 4px 4px 24px; }
+  /* 🛠️ 레이아웃 일관성 유지: 박스 모델 규격 교정 및 좌우 여백 22px 조정 */
+  .sw-content { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; }
+  
   .sec-label { font-size: 1rem; font-weight: 700; color: #1E293B; margin: 1.5rem 0 .75rem; padding-left: 4px; }
 
   .data-card { background: #fff; border-radius: 14px; border: 1px solid #E2E8F0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); overflow: hidden; margin-bottom: 1.25rem; }
@@ -82,34 +83,28 @@ export default function MyProfile() {
     setLoading(true); 
     setError(null);
     try {
-      // 1. 내 로그인 세션 정보 조회
       const meRes = await api.get('/auth/me');
       const body = meRes.data;
       const meData = body?.data ?? body;
       
-      // 대시보드와 동일한 방식의 견고한 학번 추출
       const sid = meData?.userId ?? meData?.studentId ?? (typeof meData === 'string' || typeof meData === 'number' ? String(meData) : null);
       
       if (!sid) {
         throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
       }
       
-      // 2. 학적, 비자, TOPIK 이력 병렬 요청
-      // Promise.allSettled를 사용하여 일부 API가 권한 문제(403) 등으로 실패해도 프로필 화면 전체가 터지지 않게 방어
       const [sRes, vRes, tRes] = await Promise.allSettled([
         api.get(`/students/${sid}`),
         api.get(`/students/${sid}/visas`),
         api.get(`/students/${sid}/topik`),
       ]);
       
-      // 학적(기본 프로필) 데이터 매핑 (필수)
       if (sRes.status === 'fulfilled') {
         setStudent(sRes.value.data?.data ?? sRes.value.data);
       } else {
         throw new Error('기본 인적사항을 불러오지 못했습니다.');
       }
 
-      // 비자 데이터 매핑 (선택적 표시)
       if (vRes.status === 'fulfilled') {
         const vData = vRes.value.data?.data ?? vRes.value.data;
         setVisas(Array.isArray(vData) ? vData : []);
@@ -118,7 +113,6 @@ export default function MyProfile() {
         setVisas([]);
       }
 
-      // TOPIK 데이터 매핑 (선택적 표시)
       if (tRes.status === 'fulfilled') {
         const tData = tRes.value.data?.data ?? tRes.value.data;
         setTopik(Array.isArray(tData) ? tData : []);
@@ -140,7 +134,6 @@ export default function MyProfile() {
   const currentVisa  = visas.find(v => v.isCurrent) ?? visas[0] ?? null;
   const latestTopik  = topik[0] ?? null;
   
-  // 백엔드 포스트맨 명세인 '재학', '휴학' 등에 맞춰 매핑
   const statusColor  = {
     '재학': 'pill-green', '휴학': 'pill-amber', '졸업': 'pill-gray', '제적': 'pill-red',
   };

@@ -23,7 +23,9 @@ api.interceptors.request.use(
 );
 
 const GLOBAL_STYLE_CSS = `
-  .sw-content { padding: 4px 4px 24px; animation: uploadFadeUp 0.28s ease; }
+  /* 🛠️ 대시보드 및 수강 내역과 동일하게 좌우 여백 22px 조정 및 화면 밖 잘림 방지 속성 적용 */
+  .sw-content { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; animation: uploadFadeUp 0.28s ease; }
+  
   @keyframes uploadFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .data-card { background: #fff; border-radius: 14px; border: 1px solid #E2E8F0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); overflow: hidden; margin-top: 1.25rem; }
   .card-hd { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem; border-bottom: 1px solid #F1F5F9; flex-wrap: wrap; gap: .75rem; }
@@ -66,15 +68,14 @@ export default function JobUpload() {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
 
-  // 💡 백엔드 JSON 필드명에 완벽히 맞춘 상태(state)
   const [form, setForm] = useState({
-    industry: '',           // 이전 jobType 대신 백엔드가 요구하는 industry 사용
-    wage: '',               // 백엔드가 요구하는 시급 입력란 추가
-    workHoursPerWeek: '',   // 이전 weeklyHours 대신 백엔드가 요구하는 변수명 사용
+    industry: '',           
+    wage: '',               
+    workHoursPerWeek: '',   
     startDate: '',
     endDate: '',
-    companyName: '',        // UI용 (추가 전송)
-    workplaceAddr: '',      // UI용 (추가 전송)
+    companyName: '',        
+    workplaceAddr: '',      
     file: null,
   });
 
@@ -130,7 +131,6 @@ export default function JobUpload() {
     const hoursNum = Number(form.workHoursPerWeek);
     const wageNum = Number(form.wage);
     
-    // 필수값 검증 로직 강화
     if (!form.industry?.trim() || !form.startDate || isNaN(hoursNum) || hoursNum <= 0 || isNaN(wageNum) || wageNum <= 0) {
       setError('필수 항목(업종, 시급, 시작일, 근무시간)을 모두 정확하게 입력해주세요.');
       return;
@@ -144,19 +144,16 @@ export default function JobUpload() {
     setError(null);
 
     try {
-      // 💡 백엔드 명세서에 완벽하게 맞춘 요청 페이로드
       const requestBody = {
-        industry: form.industry.trim(),       // 필수: String
-        wage: wageNum,                        // 필수: Number
-        workHoursPerWeek: hoursNum,           // 필수: Number
-        startDate: form.startDate,            // 필수: String ("YYYY-MM-DD")
-        endDate: form.endDate || null,        // 선택: String ("YYYY-MM-DD")
-        // 혹시 몰라 기존 UI 필드도 함께 전송 (백엔드에 없으면 자동 무시됨)
+        industry: form.industry.trim(),       
+        wage: wageNum,                        
+        workHoursPerWeek: hoursNum,           
+        startDate: form.startDate,            
+        endDate: form.endDate || null,        
         companyName: form.companyName?.trim() || "정보없음",
         workplaceAddr: form.workplaceAddr?.trim() || "정보없음", 
       };
 
-      // Step 1: 근로 등록 데이터 송신
       const jobResponse = await api.post(`/students/${studentId}/jobs`, requestBody);
 
       const resBody = jobResponse.data;
@@ -167,7 +164,6 @@ export default function JobUpload() {
         throw new Error(resBody?.message ?? '등록 실패');
       }
 
-      // Step 2: 파일 업로드 진행
       const targetJobId = resData?.jobId;
       if (form.file && targetJobId) {
         const fd = new FormData();

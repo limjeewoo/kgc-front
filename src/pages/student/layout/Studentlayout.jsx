@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 
 export default function StudentLayout() {
@@ -8,11 +8,23 @@ export default function StudentLayout() {
   const [isAcademyOpen, setIsAcademyOpen] = useState(true);
   const [isActivityOpen, setIsActivityOpen] = useState(true);
 
-  // 교수 레이아웃과 동일한 고성능 경로 활성화 헬퍼 함수
+  // 현재 정확한 경로 일치 확인
   const isActive = (path) => location.pathname === path;
+  // 하위 경로 포함 일치 확인 (예: /student/jobs/upload 등)
   const isSubActive = (path) => location.pathname.startsWith(path);
 
-  // 내부 화살표 컴포넌트 동기화
+  // 아코디언 메뉴 토글 시 브라우저 레이아웃 깨짐 방지용 헬퍼
+  const toggleAcademy = (e) => {
+    e.preventDefault();
+    setIsAcademyOpen(p => !p);
+  };
+
+  const toggleActivity = (e) => {
+    e.preventDefault();
+    setIsActivityOpen(p => !p);
+  };
+
+  // 내부 화살표 컴포넌트
   const SidebarArrow = ({ open }) => (
     <svg 
       className={`arrow-icon ${open ? 'open' : ''}`} 
@@ -45,7 +57,7 @@ export default function StudentLayout() {
         .sl-ni:hover { background:rgba(255,255,255,.07); color:#fff; }
         .sl-ni.active { background:#3B82F6; color:#fff; font-weight:500; }
         .sl-sub-menu { display:flex; flex-direction:column; padding-left:24px; margin-top:2px; margin-bottom:6px; gap:2px; }
-        .sl-sub-ni { font-size:12px; color:rgba(255,255,255,.55); padding:6px 10px; cursor:pointer; border-radius:6px; transition:all .15s; display:flex; align-items:center; justify-content:space-between; }
+        .sl-sub-ni { font-size:12px; color:rgba(255,255,255,.55); padding:6px 10px; cursor:pointer; border-radius:6px; transition:all .15s; display:flex; align-items:center; justify-content:space-between; user-select:none; }
         .sl-sub-ni:hover { background:rgba(255,255,255,.05); color:rgba(255,255,255,.9); }
         .sl-sub-ni.active { color:#60A5FA; font-weight:600; background:rgba(255,255,255,.03); }
         .sl-main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 100vh; overflow-x: hidden; }
@@ -53,9 +65,14 @@ export default function StudentLayout() {
 
       {/* ── 고정 왼쪽 사이드바 ── */}
       <div className="sl-sidebar">
-        {/* 로고 영역 명확하게 KGC로 적용 */}
+        {/* 로고 영역 */}
         <div className="sl-logo" onClick={() => navigate('/student/dashboard')}>
-          <img src="/logo-fff.png" alt="Logo" className="sl-logo-img" onError={(e) => e.target.style.display='none'} />
+          <img 
+            src="/logo-fff.png" 
+            alt="Logo" 
+            className="sl-logo-img" 
+            onError={(e) => { e.target.style.display = 'none'; }} 
+          />
           <div className="sl-logo-text">KGC <span>경민대학교 국제교육원</span></div>
         </div>
 
@@ -75,7 +92,7 @@ export default function StudentLayout() {
           <div className="sl-lbl">메뉴</div>
 
           {/* 대메뉴 1 - 학업 */}
-          <div className="sl-ni" onClick={() => setIsAcademyOpen(p => !p)}>
+          <div className="sl-ni" onClick={toggleAcademy}>
             학업 및 출결 관리 <SidebarArrow open={isAcademyOpen} />
           </div>
           {isAcademyOpen && (
@@ -90,14 +107,13 @@ export default function StudentLayout() {
           )}
 
           {/* 대메뉴 2 - 취업 */}
-          <div className="sl-ni" onClick={() => setIsActivityOpen(p => !p)}>
-            취업 및 활동 관리 <SidebarArrow open={isActivityOpen} />
+          <div className="sl-ni" onClick={toggleActivity}>
+            근로 및 마일리지 관리 <SidebarArrow open={isActivityOpen} />
           </div>
           {isActivityOpen && (
             <div className="sl-sub-menu">
-              {/* 하위 업로드(jobs/upload) 경로까지 active 감지하도록 isSubActive 적용 */}
               <div className={`sl-sub-ni ${isSubActive('/student/jobs') ? 'active' : ''}`} onClick={() => navigate('/student/jobs')}>
-                취업 및 채용 정보 채널
+                근로 신청서 제출
               </div>
               <div className={`sl-sub-ni ${isActive('/student/mileage') ? 'active' : ''}`} onClick={() => navigate('/student/mileage')}>
                 KM 마일리지 통합 현황
