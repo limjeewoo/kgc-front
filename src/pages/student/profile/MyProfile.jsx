@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios'
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-// 1. 공통 Axios 인스턴스 설정
 const api = axios.create({
   baseURL: '/api/v1',
   headers: { 'Content-Type': 'application/json' },
@@ -14,9 +13,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 2. 전역 스타일시트 정의
 const GLOBAL_PROFILE_CSS = `
-  /* 🛠️ 레이아웃 일관성 유지: 박스 모델 규격 교정 및 좌우 여백 22px 조정 */
   .sw-content { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; }
   
   .sec-label { font-size: 1rem; font-weight: 700; color: #1E293B; margin: 1.5rem 0 .75rem; padding-left: 4px; }
@@ -31,6 +28,16 @@ const GLOBAL_PROFILE_CSS = `
   .info-item-lbl { font-size: .75rem; font-weight: 600; color: #94A3B8; margin-bottom: .25rem; text-transform: uppercase; }
   .info-item-val { font-size: .9375rem; font-weight: 600; color: #334155; }
 
+  .editable-row { display: flex; align-items: center; gap: .5rem; }
+  .edit-input { font-size: .9375rem; font-weight: 600; color: #334155; border: 1px solid #3B82F6; border-radius: 7px; padding: .3rem .6rem; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); width: 100%; box-sizing: border-box; }
+  .edit-input:focus { border-color: #2563EB; }
+  .btn-edit-icon { background: none; border: none; cursor: pointer; color: #94A3B8; padding: 2px; display: inline-flex; align-items: center; border-radius: 4px; transition: color .15s; }
+  .btn-edit-icon:hover { color: #3B82F6; }
+  .btn-save { background: #3B82F6; color: #fff; border: none; padding: 4px 10px; border-radius: 6px; font-size: .75rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-save:hover { background: #2563EB; }
+  .btn-save:disabled { background: #94A3B8; cursor: not-allowed; }
+  .btn-cancel-edit { background: none; border: 1px solid #E2E8F0; color: #64748B; padding: 4px 8px; border-radius: 6px; font-size: .75rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-cancel-edit:hover { background: #F8FAFC; }
   .tbl-wrap { width: 100%; overflow-x: auto; background: #fff; }
   .base-tbl { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
   .base-tbl th { background: #F8FAFC; color: #64748B; font-weight: 600; padding: .75rem 1.5rem; border-bottom: 1px solid #E2E8F0; font-size: .75rem; }
@@ -44,14 +51,14 @@ const GLOBAL_PROFILE_CSS = `
   .pill-blue { background: #EFF6FF; color: #2563EB; }
   .pill-violet { background: #F5F3FF; color: #7C3AED; }
   .pill-gray { background: #F1F5F9; color: #475569; }
+
+  .save-toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); background: #0F172A; color: #fff; padding: .625rem 1.25rem; border-radius: 10px; font-size: .875rem; font-weight: 600; z-index: 9999; animation: toastIn .2s ease; pointer-events: none; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 `;
 
 function Skeleton({ h = '1rem', w = '100%' }) {
   return (
-    <div style={{ 
-      height: h, width: w, backgroundColor: '#E2E8F0', borderRadius: '6px',
-      animation: 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite', marginTop: '2px'
-    }}>
+    <div style={{ height: h, width: w, backgroundColor: '#E2E8F0', borderRadius: '6px', animation: 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite', marginTop: '2px' }}>
       <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }`}</style>
     </div>
   );
@@ -67,38 +74,121 @@ function ErrBanner({ msg, onRetry }) {
 }
 
 function EmptyState({ text }) {
+  return <div style={styles.emptyState}>{text}</div>;
+}
+
+// 수정 가능한 필드 컴포넌트
+function EditableInfoItem({ label, value, fieldKey, studentId, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft]     = useState(value ?? '');
+  const [saving, setSaving]   = useState(false);
+  const [fieldError, setFieldError] = useState(null);
+
+  const isDate = fieldKey === 'birthDate';
+
+  useEffect(() => { setDraft(value ?? ''); }, [value]);
+
+  async function handleSave() {
+    if (!draft.trim()) { setFieldError('값을 입력해주세요.'); return; }
+    setSaving(true); setFieldError(null);
+    try {
+      await api.patch(`/students/${studentId}/profile`, { [fieldKey]: draft.trim() });
+      onSaved(fieldKey, draft.trim());
+      setEditing(false);
+    } catch (err) {
+      setFieldError(err.response?.data?.message ?? '저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') handleSave();
+    if (e.key === 'Escape') { setEditing(false); setDraft(value ?? ''); setFieldError(null); }
+  }
+
+  // yyyy-MM-dd → yyyy. MM. dd 표시용
+  function formatDate(val) {
+    if (!val) return '—';
+    const [y, m, d] = val.split('-');
+    if (!y || !m || !d) return val;
+    return `${y}. ${m}. ${d}`;
+  }
+
   return (
-    <div style={styles.emptyState}>{text}</div>
+    <div>
+      <div className="info-item-lbl">{label}</div>
+      {editing ? (
+        <div>
+          <div className="editable-row">
+            <input
+              className="edit-input"
+              type={isDate ? 'date' : 'text'}
+              value={draft}
+              autoFocus
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+            <button className="btn-save" onClick={handleSave} disabled={saving}>
+              {saving ? '저장 중' : '저장'}
+            </button>
+            <button className="btn-cancel-edit" onClick={() => { setEditing(false); setDraft(value ?? ''); setFieldError(null); }}>
+              취소
+            </button>
+          </div>
+          {fieldError && <div style={{ fontSize: '.75rem', color: '#DC2626', marginTop: '.25rem' }}>⚠️ {fieldError}</div>}
+        </div>
+      ) : (
+        <div className="editable-row">
+          <span className="info-item-val">{isDate ? formatDate(value) : (value ?? '—')}</span>
+          <button className="btn-edit-icon" title="수정하기" onClick={() => setEditing(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 수정 불가 필드
+function InfoItem({ label, value, children }) {
+  return (
+    <div>
+      <div className="info-item-lbl">{label}</div>
+      <div className="info-item-val">{children ?? value ?? '—'}</div>
+    </div>
   );
 }
 
 export default function MyProfile() {
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState(null);
-  const [student, setStudent]   = useState(null);
-  const [visas, setVisas]       = useState([]);
-  const [topik, setTopik]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+  const [student, setStudent] = useState(null);
+  const [studentId, setStudentId] = useState(null);
+  const [visas, setVisas]     = useState([]);
+  const [topik, setTopik]     = useState([]);
+  const [toast, setToast]     = useState(null);
 
   const load = useCallback(async () => {
-    setLoading(true); 
+    setLoading(true);
     setError(null);
     try {
       const meRes = await api.get('/auth/me');
-      const body = meRes.data;
-      const meData = body?.data ?? body;
-      
+      const meData = meRes.data?.data ?? meRes.data;
       const sid = meData?.userId ?? meData?.studentId ?? (typeof meData === 'string' || typeof meData === 'number' ? String(meData) : null);
-      
-      if (!sid) {
-        throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
-      }
-      
+
+      if (!sid) throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
+      setStudentId(sid);
+
       const [sRes, vRes, tRes] = await Promise.allSettled([
         api.get(`/students/${sid}`),
         api.get(`/students/${sid}/visas`),
         api.get(`/students/${sid}/topik`),
       ]);
-      
+
       if (sRes.status === 'fulfilled') {
         setStudent(sRes.value.data?.data ?? sRes.value.data);
       } else {
@@ -108,21 +198,14 @@ export default function MyProfile() {
       if (vRes.status === 'fulfilled') {
         const vData = vRes.value.data?.data ?? vRes.value.data;
         setVisas(Array.isArray(vData) ? vData : []);
-      } else {
-        console.warn('비자 정보 조회 실패 (권한 또는 404)');
-        setVisas([]);
-      }
+      } else { setVisas([]); }
 
       if (tRes.status === 'fulfilled') {
         const tData = tRes.value.data?.data ?? tRes.value.data;
         setTopik(Array.isArray(tData) ? tData : []);
-      } else {
-        console.warn('TOPIK 정보 조회 실패 (권한 또는 404)');
-        setTopik([]);
-      }
+      } else { setTopik([]); }
 
     } catch (err) {
-      console.error(err);
       setError(err.message || '프로필 정보를 불러오지 못했습니다.');
     } finally {
       setLoading(false);
@@ -131,35 +214,36 @@ export default function MyProfile() {
 
   useEffect(() => { load(); }, [load]);
 
-  const currentVisa  = visas.find(v => v.isCurrent) ?? visas[0] ?? null;
-  const latestTopik  = topik[0] ?? null;
-  
-  const statusColor  = {
-    '재학': 'pill-green', '휴학': 'pill-amber', '졸업': 'pill-gray', '제적': 'pill-red',
-  };
+  // 저장 후 로컬 student 상태 즉시 반영 + 토스트 표시
+  function handleSaved(fieldKey, newValue) {
+    setStudent(prev => ({ ...prev, [fieldKey]: newValue }));
+    showToast('✓ 변경사항이 저장되었습니다.');
+  }
 
-  const InfoItem = ({ label, value, children }) => (
-    <div>
-      <div className="info-item-lbl">{label}</div>
-      <div className="info-item-val">{children ?? value ?? '—'}</div>
-    </div>
-  );
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  const currentVisa = visas.find(v => v.isCurrent) ?? visas[0] ?? null;
+  const latestTopik = topik[0] ?? null;
+  const statusColor = { '재학': 'pill-green', '휴학': 'pill-amber', '졸업': 'pill-gray', '제적': 'pill-red' };
 
   return (
     <>
       <style>{GLOBAL_PROFILE_CSS}</style>
+      {toast && <div className="save-toast">{toast}</div>}
       <div className="sw-main">
         <TopBar title="프로필" />
         <div className="sw-content">
           {error && <ErrBanner msg={error} onRetry={load} />}
 
-          {/* 상단 프로필 히어로 카드 */}
+          {/* 상단 히어로 카드 */}
           <div className="data-card" style={styles.mb24}>
             <div className="card-body" style={styles.heroLayout}>
               <div style={styles.avatar}>
                 {loading ? '?' : (student?.korName?.charAt(0).toUpperCase() ?? 'S')}
               </div>
-
               <div style={styles.flex1}>
                 {loading ? (
                   <div style={styles.skeletonColumn}>
@@ -183,7 +267,7 @@ export default function MyProfile() {
             </div>
           </div>
 
-          {/* 인적사항 격자 배치 */}
+          {/* 인적사항 */}
           <div className="sec-label">인적사항</div>
           <div className="data-card">
             <div className="card-hd">
@@ -201,18 +285,40 @@ export default function MyProfile() {
                 </div>
               ) : (
                 <div className="info-grid">
-                  <InfoItem label="성명 (Name)"     value={student?.korName} />
-                  <InfoItem label="영문 성명 (English Name)" value={student?.engName} />
-                  <InfoItem label="성별 (Gender)"   value={student?.gender} />
-                  <InfoItem label="생년월일 (Birth)" value={student?.birthDate} />
-                  <InfoItem label="국적 (Nationality)" value={student?.nationality} />
-                  <InfoItem label="소속 학과 (Dept)"  value={student?.deptName} />
-                  <InfoItem label="학년 / 반"  value={`${student?.grade}학년 ${student?.classSec}반`} />
-                  <InfoItem label="연락처 (Phone)"   value={student?.phone} />
-                  <InfoItem label="입학 일자 (Admission)" value={student?.admissionDate} />
+                  {/* 수정 불가 */}
+                  <InfoItem label="성명 (Name)"                 value={student?.korName} />
+                  <InfoItem label="영문 성명 (English Name)"    value={student?.engName} />
+                  <InfoItem label="성별 (Gender)"               value={student?.gender} />
+                  <InfoItem label="소속 학과 (Dept)"            value={student?.deptName} />
+                  <InfoItem label="학년 / 반"                   value={`${student?.grade}학년 ${student?.classSec}반`} />
+                  <InfoItem label="입학 일자 (Admission)"       value={student?.admissionDate} />
                   <InfoItem label="학적 상태 (Status)">
                     <span className={`pill ${statusColor[student?.enrollStatus] ?? 'pill-gray'}`}>{student?.enrollStatus ?? '재학'}</span>
                   </InfoItem>
+
+                  {/* 수정 가능 3개 */}
+                  <EditableInfoItem
+                    label="연락처 (Phone)"
+                    fieldKey="phone"
+                    value={student?.phone}
+                    studentId={studentId}
+                    onSaved={handleSaved}
+                  />
+                  <EditableInfoItem
+                    label="생년월일 (Birth)"
+                    fieldKey="birthDate"
+                    value={student?.birthDate}
+                    studentId={studentId}
+                    onSaved={handleSaved}
+                  />
+                  <EditableInfoItem
+                    label="거주지 (Address)"
+                    fieldKey="address"
+                    value={student?.address}
+                    studentId={studentId}
+                    onSaved={handleSaved}
+                  />
+                  <InfoItem label="국적 (Nationality)" value={student?.nationality} />
                 </div>
               )}
             </div>
@@ -234,8 +340,8 @@ export default function MyProfile() {
                 <div className="card-body">
                   <div className="info-grid">
                     <InfoItem label="비자 종류 (Visa Type)"  value={currentVisa.visaType} />
-                    <InfoItem label="발급일 (Issue Date)"   value={currentVisa.issueDate} />
-                    <InfoItem label="만료일 (Expiry Date)"  value={currentVisa.expireDate} />
+                    <InfoItem label="발급일 (Issue Date)"    value={currentVisa.issueDate} />
+                    <InfoItem label="만료일 (Expiry Date)"   value={currentVisa.expireDate} />
                     <InfoItem label="체류 잔여일 (D-Day)">
                       {(() => {
                         const dDay = Math.ceil((new Date(currentVisa.expireDate) - Date.now()) / 86400000);
@@ -249,19 +355,13 @@ export default function MyProfile() {
                     </InfoItem>
                   </div>
                 </div>
-
                 {visas.length > 1 && (
                   <>
                     <div style={styles.historySubLabel}>VISA HISTORY</div>
                     <div className="tbl-wrap" style={styles.borderTopF1}>
                       <table className="base-tbl">
                         <thead>
-                          <tr>
-                            <th>비자 종류</th>
-                            <th>발급일</th>
-                            <th>만료일</th>
-                            <th>상태</th>
-                          </tr>
+                          <tr><th>비자 종류</th><th>발급일</th><th>만료일</th><th>상태</th></tr>
                         </thead>
                         <tbody>
                           {visas.map((v, i) => (
@@ -269,9 +369,7 @@ export default function MyProfile() {
                               <td style={styles.tblBoldText}>{v.visaType}</td>
                               <td>{v.issueDate}</td>
                               <td>{v.expireDate}</td>
-                              <td>
-                                {v.isCurrent ? <span className="pill pill-blue">현재 적용</span> : <span className="pill pill-gray">만료/이전</span>}
-                              </td>
+                              <td>{v.isCurrent ? <span className="pill pill-blue">현재 적용</span> : <span className="pill pill-gray">만료/이전</span>}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -283,7 +381,7 @@ export default function MyProfile() {
             )}
           </div>
 
-          {/* TOPIK 능력 수준 */}
+          {/* TOPIK */}
           <div className="sec-label">한국어 능력 수준 (TOPIK)</div>
           <div className="data-card">
             <div className="card-hd">
@@ -298,18 +396,12 @@ export default function MyProfile() {
               <div className="tbl-wrap">
                 <table className="base-tbl">
                   <thead>
-                    <tr>
-                      <th>인증 급수</th>
-                      <th>성적 취득일</th>
-                      <th>비고 사항</th>
-                    </tr>
+                    <tr><th>인증 급수</th><th>성적 취득일</th><th>비고 사항</th></tr>
                   </thead>
                   <tbody>
                     {topik.map((t, i) => (
                       <tr key={t.langId ?? i}>
-                        <td>
-                          <span className="pill pill-violet" style={styles.topikPill}>TOPIK {t.topikLevel}급</span>
-                        </td>
+                        <td><span className="pill pill-violet" style={styles.topikPill}>TOPIK {t.topikLevel}급</span></td>
                         <td style={styles.tblMediumText}>{t.acquiredDate}</td>
                         <td style={styles.tblNoteText}>{t.note ?? '—'}</td>
                       </tr>
@@ -326,7 +418,6 @@ export default function MyProfile() {
   );
 }
 
-// 7. 인라인 스타일 자산 일괄 격리 관리
 const styles = {
   errBanner: { padding: '1rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', fontSize: '.875rem' },
   retryBtn: { background: 'none', border: 'none', color: '#DC2626', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' },

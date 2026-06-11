@@ -230,12 +230,12 @@ export default function MyJobs() {
           {/* 대시보드 스탯 카드 섹션 */}
           <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
             <div className="stat-card">
-              <div className="stat-lbl">전체 신고 신청건</div>
+              <div className="stat-lbl">전체 신고 신청 건</div>
               <div className="stat-val">{loading ? <Skeleton h="2rem" w="40px"/> : counts.ALL}<span className="unit">건</span></div>
             </div>
             {[
-              { type: 'PENDING', label: '관할부서 심사중', color: '#F59E0B', textCol: '#B45309' },
-              { type: 'APPROVED', label: '취업 승인 허가', color: '#10B981', textCol: '#047857' },
+              { type: 'PENDING', label: '관할 부서 심사중', color: '#F59E0B', textCol: '#B45309' },
+              { type: 'APPROVED', label: '근로 승인 허가', color: '#10B981', textCol: '#047857' },
               { type: 'REJECTED', label: '서류 반려/보완', color: '#EF4444', textCol: '#B91C1C' }
             ].map(c => (
               <div key={c.type} className="stat-card" style={{ borderLeft: `4px solid ${c.color}` }}>
@@ -270,7 +270,7 @@ export default function MyJobs() {
 
             <div style={{ padding: '.625rem 1.25rem', borderBottom: '1px solid #F8FAFC' }}>
               <button className="btn-primary" style={{ fontSize: '.8125rem', padding: '.5rem 1.125rem' }} onClick={() => navigate('/student/jobs/upload')}>
-                + 새 시간제근로 허가 신청
+                + 근로 허가 신청하기
               </button>
             </div>
 
@@ -279,7 +279,7 @@ export default function MyJobs() {
                 {[...Array(3)].map((_, i) => <Skeleton key={i} h="3.5rem" />)}
               </div>
             ) : filtered.length === 0 ? (
-              <EmptyState text="작성 및 제출된 시간제 취업 원서 서류가 존재하지 않습니다." />
+              <EmptyState text="작성 및 제출된 근로 계약서가 존재하지 않습니다." />
             ) : (
               <div style={{ padding: '0 1.25rem 1rem' }}>
                 {filtered.map(job => {
