@@ -299,7 +299,7 @@ export default function Login() {
                   {/* <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/> */}
                 </svg>
               </div>
-              <div className="brand-name">KMGC<span>경민대학교 국제교육원</span></div>
+              <div className="brand-name">KGC<span>경민대학교 국제교육원</span></div>
             </div>
             <div className="brand-headline">외국인 유학생<br/>통합 관리 시스템</div>
           </div>
