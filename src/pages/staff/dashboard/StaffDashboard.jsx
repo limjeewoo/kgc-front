@@ -4,7 +4,6 @@ import useAuthStore from '../../../store/authStore';
 
 import StaffStudentList    from '../students/StaffStudentList.jsx';
 import StaffStudentDetail  from '../students/StudentDetail/StaffStudentDetail.jsx';
-import StaffAttendPage     from '../attend/StaffAttendPage.jsx';
 import StaffVisaExpirePage from '../visa/StaffVisaExpirePage.jsx';
 
 import SearchByStudent  from '../../admin/search/SearchByStudent.jsx';
@@ -279,7 +278,7 @@ export default function StaffDashboard() {
         <aside className="sw-sidebar">
           <div className="sw-logo">
             <div className="sw-logo-icon">K</div>
-            <div className="sw-logo-txt">KGC 조교 시스템<span>경민대학교 유학생 관리</span></div>
+            <div className="sw-logo-txt">KGC<span>경민대학교 유학생 관리</span></div>
           </div>
 
           <div className="sw-sec">
@@ -316,13 +315,6 @@ export default function StaffDashboard() {
               {can('MILEAGE_VIEW') && (
                 <button className={`sw-nav ${activeMenu==='마일리지'?'active':''}`} onClick={() => handleMenuClick('마일리지')}>마일리지</button>
               )}
-            </div>
-          )}
-
-          {can('ATTEND_VIEW') && (
-            <div className="sw-sec">
-              <div className="sw-lbl">출결</div>
-              <button className={`sw-nav ${activeMenu==='출결 관리'?'active':''}`} onClick={() => handleMenuClick('출결 관리')}>출결 관리</button>
             </div>
           )}
 
@@ -381,7 +373,7 @@ export default function StaffDashboard() {
                   </button>
                 )}
                 {can('ATTEND_VIEW') && (
-                  <button className="stat-card c-amber" onClick={() => handleMenuClick('출결 관리')}>
+                  <button className="stat-card c-amber" onClick={() => handleMenuClick('학과-반별 검색')}>
                     <div className="stat-icon-wrap c-amber">⚠️</div>
                     <div className="stat-lbl">출결 위험군</div>
                     <div className="stat-val" style={{ color: attendanceList.length > 0 ? '#F59E0B' : '#111827' }}>{attendanceList.length}<span className="unit">명</span></div>
@@ -401,7 +393,6 @@ export default function StaffDashboard() {
               {/* ── 빠른 이동 */}
               {(() => {
                 const quickItems = [
-                  can('ATTEND_VIEW') && { key:'attend', icon:'📅', bg:'#FFFBEB', text:'출결 관리', sub:'출결 현황 조회', menu:'출결 관리' },
                   (can('JOB_VIEW') && can('JOB_APPROVAL')) && { key:'job', icon:'📋', bg:'#F5F3FF', text:'근로 승인', sub:'승인 대기 처리', menu:'근로 승인' },
                   { key:'search', icon:'🔍', bg:'#F0FDF4', text:'개인별 검색', sub:'학번으로 통합 조회', menu:'개인별 검색' },
                 ].filter(Boolean);
@@ -466,7 +457,7 @@ export default function StaffDashboard() {
                     </div>
                     <div className="summary-body">
                       {visaList.length === 0 ? (
-                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>만료 임박 학생이 없습니다. ✅</div>
+                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>만료 임박 학생이 없습니다. </div>
                       ) : (
                         <>
                           <div className="summary-row">
@@ -494,7 +485,7 @@ export default function StaffDashboard() {
 
                 {can('ATTEND_VIEW') && (
                   <div className="data-card">
-                    <div className="card-hd" onClick={() => handleMenuClick('출결 관리')}>
+                    <div className="card-hd" onClick={() => handleMenuClick('학과-반별 검색')}>
                       <span className="card-hd-title">출결 위험군</span>
                       <div className="card-hd-right">
                         {attendDanger.length > 0 && <span className="count-pill red">위험 {attendDanger.length}명</span>}
@@ -505,7 +496,7 @@ export default function StaffDashboard() {
                     </div>
                     <div className="summary-body">
                       {attendanceList.length === 0 ? (
-                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>출결 위험군이 없습니다. ✅</div>
+                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>출결 위험군이 없습니다.</div>
                       ) : (
                         <>
                           <div className="summary-row">
@@ -524,8 +515,8 @@ export default function StaffDashboard() {
                       )}
                     </div>
                     {attendanceList.length > 0 && (
-                      <div className="card-link" onClick={() => handleMenuClick('출결 관리')}>
-                        출결 관리로 이동 →
+                      <div className="card-link" onClick={() => handleMenuClick('학과-반별 검색')}>
+                        출결 현황 보기 →
                       </div>
                     )}
                   </div>
@@ -545,7 +536,7 @@ export default function StaffDashboard() {
                       </div>
                     </div>
                     {pendingJobs.length === 0 ? (
-                      <div className="empty-box">처리 대기 중인 근로 신청이 없습니다. ✅</div>
+                      <div className="empty-box">처리 대기 중인 근로 신청이 없습니다. </div>
                     ) : pendingJobs.slice(0,5).map(job => (
                       <div key={job.jobId} className="job-row" onClick={() => handleMenuClick('근로 승인')}>
                         <div className="avatar" style={{ background:'#F5F3FF', color:'#7C3AED' }}>{job.studentName?.[0] ?? '?'}</div>
@@ -583,7 +574,6 @@ export default function StaffDashboard() {
             />
           )}
           {activeMenu === '비자 만료 현황'         && <StaffVisaExpirePage />}
-          {activeMenu === '출결 관리'              && <StaffAttendPage     permissions={permissions} />}
           {activeMenu === '근로 승인'              && <StaffJobPendingPage permissions={permissions} />}
           {activeMenu === '마일리지'               && <StaffMileagePage    permissions={permissions} />}
           {activeMenu === '개인별 검색'            && <div style={{ padding:'1.25rem 1.75rem' }}><SearchByStudent   onBack={() => setActiveMenu('대시보드')} /></div>}
