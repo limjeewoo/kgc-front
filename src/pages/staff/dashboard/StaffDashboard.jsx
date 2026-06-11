@@ -41,6 +41,18 @@ export default function StaffDashboard() {
   const [attendanceList, setAttendanceList]   = useState([]);
   const [pendingJobs, setPendingJobs]         = useState([]);
 
+  // 엑셀 업로드 모달
+  const [uploadModal, setUploadModal]   = useState(null); // 'student' | 'foreign' | 'attend'
+  const [uploadFile, setUploadFile]     = useState(null);
+  const [uploading, setUploading]       = useState(false);
+  const [currentSemesterId, setCurrentSemesterId] = useState('');
+
+  useEffect(() => {
+    api.get('/api/v1/semesters/current')
+      .then(res => { if (res.data?.success) setCurrentSemesterId(res.data.data?.semesterId || ''); })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     api.get('/api/v1/admin/role-permissions/STAFF')
       .then(res => { if (res.data?.success) setPermissions(res.data.data || []); })
@@ -71,6 +83,66 @@ export default function StaffDashboard() {
     fetchData();
   }, [activeMenu]);
 
+  const handleUploadSubmit = async () => {
+    if (!uploadFile) { alert('파일을 선택해주세요.'); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', uploadFile);
+      let res;
+      if (uploadModal === 'student') {
+        res = await api.post('/api/v1/students/bulk-upload', fd, { headers:{'Content-Type':'multipart/form-data'} });
+      } else if (uploadModal === 'foreign') {
+        res = await api.post('/api/v1/students/bulk-update-foreign', fd, { headers:{'Content-Type':'multipart/form-data'} });
+      } else if (uploadModal === 'attend') {
+        if (!currentSemesterId) { alert('현재 학기 정보를 불러올 수 없습니다.'); setUploading(false); return; }
+        res = await api.post(`/api/v1/attend/upload?semesterId=${currentSemesterId}`, fd, { headers:{'Content-Type':'multipart/form-data'}, timeout:30000 });
+      }
+      if (res?.data?.success) {
+        const msgs = { student:'학생 일괄 등록이 완료되었습니다.', foreign:'외국인현황 업데이트가 완료되었습니다.', attend:'출결 업로드가 완료되었습니다.' };
+        alert(msgs[uploadModal]);
+        setUploadModal(null); setUploadFile(null);
+      } else { alert(res?.data?.message || '업로드 실패'); }
+    } catch(e) { alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.'); }
+    finally { setUploading(false); }
+  };
+
+  const UPLOAD_META = {
+    student: {
+      title: '학생 일괄 등록',
+      notices: [
+        '1행은 헤더로 건너뛰고 2행부터 데이터를 읽습니다.',
+        '학과명은 DB에 등록된 학과명과 정확히 일치해야 합니다.',
+        '이미 등록된 학번은 스킵됩니다 (덮어쓰기 안 함).',
+        '컬럼 순서를 변경하지 마세요.',
+      ],
+      columns: '4열: 학번 / 5열: 이름 / 6열: 성별 / 7열: 연락처 / 8열: 학적상태 / 9열: 소속학과 / 11열: 학년 / 12열: 분반',
+    },
+    foreign: {
+      title: '외국인현황 업데이트',
+      notices: [
+        '1행은 헤더로 건너뛰고 2행부터 데이터를 읽습니다.',
+        '학생정보 엑셀로 학생이 먼저 등록된 상태여야 합니다 (없는 학번은 스킵).',
+        '체류자격만료일자는 YYYYMMDD 형식이어야 합니다 (예: 20260930).',
+        '주민등록번호/외국인등록번호는 저장되지 않고 비밀번호 설정에만 사용됩니다.',
+        '컬럼 순서를 변경하지 마세요.',
+      ],
+      columns: '4열: 학번 / 6열: 주민등록번호(비번설정용) / 8열: 국적 / 18열: 연락처 / 20열: 체류자격만료일 / 21열: TOPIK급수',
+    },
+    attend: {
+      title: '출결 파일 업로드',
+      notices: [
+        '파일명 형식 필수: 과목명 (학과명(N년제)과-학년-반)_attendance.xlsx',
+        '예: Java기초 (컴퓨터소프트웨어(3년제)과-2-D)_attendance.xlsx',
+        '파일명의 과목명/학과명이 DB에 등록된 것과 정확히 일치해야 합니다.',
+        '출석: O / 결석: X / 지각: ▲ / 공결: 빈칸',
+        '수강정보가 먼저 등록된 상태여야 합니다.',
+        '같은 파일 재업로드 시 기존 출결 데이터를 삭제 후 덮어씁니다.',
+      ],
+      columns: `2열: 학번 / 5~19열: 1~15주차 출결 상태 / 현재 학기: ${currentSemesterId || '불러오는 중...'}`,
+    },
+  };
+
   const handleMenuClick = (name) => {
     if (name === '통합 검색') { setSearchOpen(p => !p); return; }
     setSelectedStudentId(null); setSelectedStudentName(null); setSelectedStudentTab('basic');
@@ -96,9 +168,9 @@ export default function StaffDashboard() {
   const visaDanger  = visaList.filter(v => v.dDay <= 30);
   const visaWarning = visaList.filter(v => v.dDay > 30 && v.dDay <= 60);
 
-  // 출결 위험/주의 분류
-  const attendDanger  = attendanceList.filter(a => (a.totalAbsent ?? a.absenceCount ?? 0) >= 6);
-  const attendWarning = attendanceList.filter(a => (a.totalAbsent ?? a.absenceCount ?? 0) >= 3 && (a.totalAbsent ?? a.absenceCount ?? 0) < 6);
+  // 출결 위험/주의 분류 (백엔드 warningLevel 필드 사용)
+  const attendDanger  = attendanceList.filter(a => a.warningLevel === '위험');
+  const attendWarning = attendanceList.filter(a => a.warningLevel === '주의');
 
   return (
     <>
@@ -326,75 +398,57 @@ export default function StaffDashboard() {
                 )}
               </div>
 
-              {/* ── 빠른 이동 (학생 목록 제거, 근로 승인은 JOB_APPROVAL 있을 때만) */}
-              <div className="section-label">빠른 이동</div>
-              <div className="quick-grid">
-                {can('ATTEND_VIEW') && (
-                  <button className="qa-card" style={{ background:'#fff', border:'1px solid #F3F4F6', borderRadius:12, padding:16 }} onClick={() => handleMenuClick('출결 관리')}>
-                    <div className="qa-icon" style={{ background:'#FFFBEB' }}>📅</div>
-                    <div><div className="qa-text">출결 관리</div><div className="qa-sub">출결 현황 조회</div></div>
-                  </button>
-                )}
-                {can('JOB_VIEW') && can('JOB_APPROVAL') && (
-                  <button className="qa-card" style={{ background:'#fff', border:'1px solid #F3F4F6', borderRadius:12, padding:16 }} onClick={() => handleMenuClick('근로 승인')}>
-                    <div className="qa-icon" style={{ background:'#F5F3FF' }}>📋</div>
-                    <div><div className="qa-text">근로 승인</div><div className="qa-sub">승인 대기 처리</div></div>
-                  </button>
-                )}
-                <button className="qa-card" style={{ background:'#fff', border:'1px solid #F3F4F6', borderRadius:12, padding:16 }} onClick={() => handleMenuClick('개인별 검색')}>
-                  <div className="qa-icon" style={{ background:'#F0FDF4' }}>🔍</div>
-                  <div><div className="qa-text">개인별 검색</div><div className="qa-sub">학번으로 통합 조회</div></div>
-                </button>
-              </div>
+              {/* ── 빠른 이동 */}
+              {(() => {
+                const quickItems = [
+                  can('ATTEND_VIEW') && { key:'attend', icon:'📅', bg:'#FFFBEB', text:'출결 관리', sub:'출결 현황 조회', menu:'출결 관리' },
+                  (can('JOB_VIEW') && can('JOB_APPROVAL')) && { key:'job', icon:'📋', bg:'#F5F3FF', text:'근로 승인', sub:'승인 대기 처리', menu:'근로 승인' },
+                  { key:'search', icon:'🔍', bg:'#F0FDF4', text:'개인별 검색', sub:'학번으로 통합 조회', menu:'개인별 검색' },
+                ].filter(Boolean);
+                return (
+                  <>
+                    <div className="section-label">빠른 이동</div>
+                    <div style={{ display:'grid', gridTemplateColumns:`repeat(${quickItems.length},1fr)`, gap:10, marginBottom:28 }}>
+                      {quickItems.map(item => (
+                        <button key={item.key} style={{ background:'#fff', border:'1px solid #F3F4F6', borderRadius:12, padding:16, display:'flex', alignItems:'center', gap:12, cursor:'pointer', transition:'0.15s', fontFamily:'inherit' }}
+                          onClick={() => handleMenuClick(item.menu)}
+                          onMouseOver={e => { e.currentTarget.style.borderColor='#CBD5E1'; e.currentTarget.style.boxShadow='0 4px 12px -2px rgba(0,0,0,0.06)'; }}
+                          onMouseOut={e => { e.currentTarget.style.borderColor='#F3F4F6'; e.currentTarget.style.boxShadow='none'; }}>
+                          <div style={{ width:36, height:36, borderRadius:8, background:item.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.125rem', flexShrink:0 }}>{item.icon}</div>
+                          <div><div style={{ fontSize:'0.8125rem', fontWeight:700, color:'#111827' }}>{item.text}</div><div style={{ fontSize:'0.6875rem', color:'#9CA3AF', marginTop:2 }}>{item.sub}</div></div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* ── 엑셀 업로드 */}
-              {(can('STUDENT_UPLOAD')) && (
-                <>
-                  <div className="section-label">엑셀 업로드</div>
-                  <div className="bottom-grid" style={{ marginBottom:28 }}>
-                    {can('STUDENT_UPLOAD') && (
-                      <button className="data-card" style={{ padding:'1.25rem 1.5rem', display:'flex', alignItems:'center', gap:16, cursor:'pointer', border:'1.5px dashed #CBD5E1', background:'#fff', fontFamily:'inherit', textAlign:'left', borderRadius:14 }}
-                        onClick={() => document.getElementById('dash-student-file').click()}>
-                        <div style={{ width:44, height:44, borderRadius:10, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', flexShrink:0 }}>📥</div>
-                        <div>
-                          <div style={{ fontWeight:700, fontSize:'0.9375rem', color:'#111827' }}>학생 일괄 등록</div>
-                          <div style={{ fontSize:'0.75rem', color:'#9CA3AF', marginTop:3 }}>학생정보 엑셀 파일 업로드</div>
-                        </div>
-                        <input id="dash-student-file" type="file" hidden accept=".xlsx,.xls" onChange={async e => {
-                          const file = e.target.files[0]; if (!file) return;
-                          const fd = new FormData(); fd.append('file', file);
-                          try {
-                            const res = await api.post('/api/v1/students/bulk-upload', fd, { headers:{'Content-Type':'multipart/form-data'} });
-                            if (res.data.success) alert('학생 일괄 등록이 완료되었습니다.');
-                            else alert(res.data.message || '업로드 실패');
-                          } catch(e) { alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.'); }
-                          e.target.value = '';
-                        }} />
-                      </button>
-                    )}
-                    {can('STUDENT_UPLOAD') && (
-                      <button className="data-card" style={{ padding:'1.25rem 1.5rem', display:'flex', alignItems:'center', gap:16, cursor:'pointer', border:'1.5px dashed #CBD5E1', background:'#fff', fontFamily:'inherit', textAlign:'left', borderRadius:14 }}
-                        onClick={() => document.getElementById('dash-foreign-file').click()}>
-                        <div style={{ width:44, height:44, borderRadius:10, background:'#F0FDF4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', flexShrink:0 }}>🛂</div>
-                        <div>
-                          <div style={{ fontWeight:700, fontSize:'0.9375rem', color:'#111827' }}>외국인현황 업데이트</div>
-                          <div style={{ fontSize:'0.75rem', color:'#9CA3AF', marginTop:3 }}>외국인등록번호·여권번호 일괄 업데이트</div>
-                        </div>
-                        <input id="dash-foreign-file" type="file" hidden accept=".xlsx,.xls" onChange={async e => {
-                          const file = e.target.files[0]; if (!file) return;
-                          const fd = new FormData(); fd.append('file', file);
-                          try {
-                            const res = await api.post('/api/v1/students/bulk-update-foreign', fd, { headers:{'Content-Type':'multipart/form-data'} });
-                            if (res.data.success) alert('외국인현황 업데이트가 완료되었습니다.');
-                            else alert(res.data.message || '업로드 실패');
-                          } catch(e) { alert(e.response?.data?.message || '업로드 중 오류가 발생했습니다.'); }
-                          e.target.value = '';
-                        }} />
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
+              {(can('STUDENT_UPLOAD') || can('ATTEND_UPLOAD')) && (() => {
+                const uploadItems = [
+                  can('STUDENT_UPLOAD') && { key:'student', icon:'📥', bg:'#EFF6FF', title:'학생 일괄 등록', sub:'학생정보 엑셀 파일 업로드' },
+                  can('STUDENT_UPLOAD') && { key:'foreign', icon:'🛂', bg:'#F0FDF4', title:'외국인현황 업데이트', sub:'외국인등록번호·여권번호 일괄 업데이트' },
+                  can('ATTEND_UPLOAD')  && { key:'attend',  icon:'📅', bg:'#FFFBEB', title:'출결 파일 업로드',  sub:'출결 엑셀 파일 업로드' },
+                ].filter(Boolean);
+                return (
+                  <>
+                    <div className="section-label">엑셀 업로드</div>
+                    <div style={{ display:'grid', gridTemplateColumns:`repeat(${uploadItems.length},1fr)`, gap:14, marginBottom:28 }}>
+                      {uploadItems.map(item => (
+                        <button key={item.key}
+                          style={{ padding:'1.25rem 1.5rem', display:'flex', alignItems:'center', gap:16, cursor:'pointer', border:'1.5px dashed #CBD5E1', background:'#fff', fontFamily:'inherit', textAlign:'left', borderRadius:14 }}
+                          onClick={() => { setUploadModal(item.key); setUploadFile(null); }}>
+                          <div style={{ width:44, height:44, borderRadius:10, background:item.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', flexShrink:0 }}>{item.icon}</div>
+                          <div>
+                            <div style={{ fontWeight:700, fontSize:'0.9375rem', color:'#111827' }}>{item.title}</div>
+                            <div style={{ fontSize:'0.75rem', color:'#9CA3AF', marginTop:3 }}>{item.sub}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* ── 알림 현황 */}
               <div className="section-label">알림 현황</div>
@@ -455,11 +509,11 @@ export default function StaffDashboard() {
                       ) : (
                         <>
                           <div className="summary-row">
-                            <span className="summary-label">위험 (결석 6회+)</span>
+                            <span className="summary-label">위험 (결석 4회+)</span>
                             <span className="summary-badge badge-red">{attendDanger.length}명</span>
                           </div>
                           <div className="summary-row">
-                            <span className="summary-label">주의 (결석 3~5회)</span>
+                            <span className="summary-label">주의 (결석 2~3회)</span>
                             <span className="summary-badge badge-amber">{attendWarning.length}명</span>
                           </div>
                           <div className="summary-row">
@@ -537,6 +591,82 @@ export default function StaffDashboard() {
           {activeMenu === '학과-반별 검색'         && <SearchByClass       onBack={() => setActiveMenu('대시보드')} />}
           {activeMenu === '과목별 검색'            && <div style={{ padding:'1.25rem 1.75rem' }}><SearchByCourse    onBack={() => setActiveMenu('대시보드')} /></div>}
           {activeMenu === '온라인 30% 초과 검색'   && <div style={{ padding:'1.25rem 1.75rem' }}><OnlineViolation   onBack={() => setActiveMenu('대시보드')} /></div>}
+
+          {/* ── 엑셀 업로드 모달 ── */}
+          {uploadModal && UPLOAD_META[uploadModal] && (() => {
+            const meta = UPLOAD_META[uploadModal];
+            return (
+              <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, backdropFilter:'blur(2px)' }}
+                onClick={() => { setUploadModal(null); setUploadFile(null); }}>
+                <div style={{ background:'#fff', borderRadius:16, width:'36rem', maxWidth:'95vw', boxShadow:'0 20px 40px rgba(0,0,0,0.15)', overflow:'hidden' }}
+                  onClick={e => e.stopPropagation()}>
+
+                  {/* 헤더 */}
+                  <div style={{ padding:'1.25rem 1.5rem', borderBottom:'1px solid #F1F5F9', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <div style={{ fontWeight:700, fontSize:'1rem', color:'#0F172A' }}>{meta.title}</div>
+                    <button onClick={() => { setUploadModal(null); setUploadFile(null); }}
+                      style={{ width:28, height:28, borderRadius:'50%', border:'1px solid #E2E8F0', background:'#F8FAFC', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#64748B', fontSize:14 }}>✕</button>
+                  </div>
+
+                  {/* 유의사항 */}
+                  <div style={{ padding:'1.25rem 1.5rem 0' }}>
+                    <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:10, padding:'12px 14px', marginBottom:'1rem' }}>
+                      <div style={{ fontWeight:700, fontSize:'0.75rem', color:'#C2410C', marginBottom:8, display:'flex', alignItems:'center', gap:5 }}>
+                        ⚠️ 업로드 전 반드시 확인하세요
+                      </div>
+                      <ul style={{ paddingLeft:16, margin:0 }}>
+                        {meta.notices.map((n, i) => (
+                          <li key={i} style={{ fontSize:'0.75rem', color:'#9A3412', marginBottom:4, lineHeight:1.5 }}>{n}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div style={{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:'8px 12px', marginBottom:'1.25rem' }}>
+                      <div style={{ fontSize:'0.6875rem', fontWeight:600, color:'#64748B', marginBottom:4 }}>📋 필수 컬럼 위치</div>
+                      <div style={{ fontSize:'0.6875rem', color:'#475569', lineHeight:1.6 }}>{meta.columns}</div>
+                    </div>
+                  </div>
+
+                  {/* 드롭존 */}
+                  <div style={{ padding:'0 1.5rem 1.25rem' }}>
+                    <div
+                      style={{ border:`2px dashed ${uploadFile ? '#10B981' : '#CBD5E1'}`, borderRadius:12, padding:'2rem', textAlign:'center', cursor:'pointer', background: uploadFile ? '#F0FDF4' : '#F8FAFC', transition:'0.2s' }}
+                      onClick={() => document.getElementById('upload-modal-file').click()}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) setUploadFile(f); }}
+                    >
+                      {uploadFile ? (
+                        <>
+                          <div style={{ fontSize:'2rem', marginBottom:8 }}>📄</div>
+                          <div style={{ fontWeight:600, color:'#065F46', fontSize:'0.875rem' }}>{uploadFile.name}</div>
+                          <div style={{ fontSize:'0.75rem', color:'#6EE7B7', marginTop:4 }}>파일을 변경하려면 클릭하거나 다시 드래그하세요</div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontSize:'2.5rem', marginBottom:8 }}>📂</div>
+                          <div style={{ fontWeight:600, color:'#374151', fontSize:'0.875rem' }}>파일을 드래그하거나 클릭하여 선택하세요</div>
+                          <div style={{ fontSize:'0.75rem', color:'#9CA3AF', marginTop:4 }}>.xlsx 또는 .xls 파일 · 최대 10MB</div>
+                        </>
+                      )}
+                      <input id="upload-modal-file" type="file" hidden accept=".xlsx,.xls"
+                        onChange={e => { if (e.target.files[0]) setUploadFile(e.target.files[0]); }} />
+                    </div>
+                  </div>
+
+                  {/* 푸터 */}
+                  <div style={{ padding:'1rem 1.5rem', background:'#F8FAFC', borderTop:'1px solid #F1F5F9', display:'flex', justifyContent:'flex-end', gap:8 }}>
+                    <button onClick={() => { setUploadModal(null); setUploadFile(null); }} disabled={uploading}
+                      style={{ padding:'8px 18px', borderRadius:8, border:'1px solid #E2E8F0', background:'#fff', color:'#475569', fontSize:'0.8125rem', fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                      취소
+                    </button>
+                    <button onClick={handleUploadSubmit} disabled={uploading || !uploadFile}
+                      style={{ padding:'8px 18px', borderRadius:8, border:'none', background: (!uploadFile || uploading) ? '#94A3B8' : '#10B981', color:'#fff', fontSize:'0.8125rem', fontWeight:600, cursor: (!uploadFile || uploading) ? 'not-allowed' : 'pointer', fontFamily:'inherit' }}>
+                      {uploading ? '업로드 중...' : '업로드 시작'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </main>
       </div>
     </>
