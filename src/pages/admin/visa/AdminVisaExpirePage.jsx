@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../api/axios';
 
-export default function StaffVisaExpirePage() {
+export default function AdminVisaExpirePage() {
   const [visaList, setVisaList]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [sortKey, setSortKey]     = useState('dDay');
