@@ -32,15 +32,16 @@ export default function Login() {
       const { success, data, message } = response.data;
 
       if (success) {
-        // ⭐ 핵심 추가: 로그인 성공 직후, 앞으로 보내는 모든 api 요청 헤더에 토큰을 자동으로 붙이도록 설정!
+        // 로그인 성공 직후, 앞으로 보내는 모든 api 요청 헤더에 토큰을 자동으로 붙이도록 설정
         api.defaults.headers.common['Authorization'] = `Bearer ${data.accessToken}`;
 
-        // authStore에 저장 (PrivateRoute가 이걸 읽음)
+        // 백엔드가 넘겨준 data.name을 전역 스토어에 안전하게 저장 🚀
         setAuth({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
           role: data.role,
-          userId: data.userId,
+          userId: data.userId || username,
+          name: data.name, 
         });
 
         if (data.role === 'ADMIN') navigate('/admin/dashboard', { replace: true });
@@ -102,7 +103,7 @@ export default function Login() {
           position: relative;
           overflow: hidden;
         }
-        /*배경의 물방울 무늬*/
+        
         .brand-panel::before { 
           content: '';
           position: absolute;
@@ -117,10 +118,8 @@ export default function Login() {
           position: absolute;
           bottom: -5.625rem; 
           left: -5.625rem;   
-          
           width: 18.75rem; 
           height: 18.75rem; 
-          
           border-radius: 50%;
           background: rgba(255, 255, 255, 0.04);
           z-index: 0;
@@ -181,40 +180,6 @@ export default function Login() {
           font-weight: 700;
           color: #111827;
           margin-bottom: 4.5rem;
-        }
-
-        .form-subtitle {
-          font-size: 1.2656rem;
-          color: #9CA3AF;
-          margin-bottom: 2.625rem;
-        }
-
-        .role-tabs {
-          display: flex;
-          background: #F3F4F6;
-          border-radius: 0.9375rem;
-          padding: 0.375rem;
-          margin-bottom: 2.625rem;
-          gap: 0.1875rem;
-        }
-
-        .role-tab {
-          flex: 1;
-          padding: 0.75rem 0;
-          border: none;
-          background: transparent;
-          border-radius: 0.656rem;
-          font-size: 1.21875rem;
-          font-weight: 500;
-          color: #9CA3AF;
-          cursor: pointer;
-          transition: all 0.18s;
-        }
-
-        .role-tab.active {
-          background: #fff;
-          color: #1A3A5C;
-          box-shadow: 0 0.09375rem 0.375rem rgba(0,0,0,0.10);
         }
 
         .field-group { 
@@ -294,11 +259,7 @@ export default function Login() {
         <div className="login-wrap">
           <div className="brand-panel">
             <div className="brand-logo">
-              <div className="brand-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" width="22" height="22">
-                  {/* <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/> */}
-                </svg>
-              </div>
+              <div className="brand-icon"></div>
               <div className="brand-name">KGC<span>경민대학교 국제교육원</span></div>
             </div>
             <div className="brand-headline">외국인 유학생<br/>통합 관리 시스템</div>
