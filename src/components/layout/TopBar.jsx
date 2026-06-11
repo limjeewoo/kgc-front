@@ -6,7 +6,8 @@ import api from '../../api/axios';
 
 export default function TopBar({ title }) {
   const navigate = useNavigate();
-  const { userId, role, clearAuth } = useAuthStore();
+  // 1. 수정: Zustand 스토어에서 name도 함께 꺼내옵니다.
+  const { userId, role, name, clearAuth } = useAuthStore();
   const [semester, setSemester] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [showNotif, setShowNotif] = useState(false);
@@ -20,7 +21,6 @@ export default function TopBar({ title }) {
 
   // 알림 목록 조회 (로그인한 유저 기준)
   useEffect(() => {
-    // userId가 없으면(로그인 상태가 아니면) 호출하지 않음
     if (!userId) return;
 
     api.get('/api/v1/notifications')
@@ -39,7 +39,6 @@ export default function TopBar({ title }) {
 
   // 알림 읽음 처리
   const handleReadNotif = async (notiId) => {
-    // 이미 읽은 알림은 중복으로 API를 호출하지 않도록 처리
     const targetNoti = notifications.find(n => n.notiId === notiId);
     if (targetNoti && targetNoti.isRead) return;
 
@@ -62,9 +61,10 @@ export default function TopBar({ title }) {
     navigate('/login', { replace: true });
   };
 
-  const roleLabel = role === 'ADMIN' ? '관리자' : role === 'PROFESSOR' ? '교수' : '유학생';
+  // 2. 수정: 조교(STAFF) 역할 라벨도 누락되지 않도록 추가했습니다.
+  const roleLabel = role === 'ADMIN' ? '관리자' : role === 'STAFF' ? '조교' : role === 'PROFESSOR' ? '교수' : '유학생';
 
-  // 알림 타입 라벨 (JOB_APPROVAL 추가)
+  // 알림 타입 라벨
   const notiTypeLabel = (type) => {
     if (type === 'VISA_EXPIRE') return '비자 만료';
     if (type === 'ATTEND_WARNING') return '출결 경고';
@@ -74,13 +74,13 @@ export default function TopBar({ title }) {
     return '알림';
   };
 
-  // 알림 타입 색상 (JOB_APPROVAL 추가)
+  // 알림 타입 색상
   const notiTypeColor = (type) => {
     if (type === 'VISA_EXPIRE') return '#DC2626';
     if (type === 'ATTEND_WARNING') return '#D97706';
     if (type === 'ONLINE_LIMIT') return '#2563EB';
     if (type === 'CRISIS_ALERT') return '#DC2626';
-    if (type === 'JOB_APPROVAL') return '#059669'; // 초록색 계열
+    if (type === 'JOB_APPROVAL') return '#059669'; 
     return '#6B7280';
   };
 
@@ -89,8 +89,8 @@ export default function TopBar({ title }) {
       <style>{`
         .topbar {
           background: #fff;
-          padding: 0 1.75rem; /* 28px */
-          height: 3.625rem; /* 58px */
+          padding: 0 1.75rem; 
+          height: 3.625rem; 
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -99,7 +99,7 @@ export default function TopBar({ title }) {
           position: relative;
         }
         .topbar-title {
-          font-size: 1rem; /* 16px */
+          font-size: 1rem; 
           font-weight: 700;
           color: #111827;
           letter-spacing: -0.0125rem;
@@ -107,18 +107,18 @@ export default function TopBar({ title }) {
         .topbar-right {
           display: flex;
           align-items: center;
-          gap: 0.75rem; /* 12px */
+          gap: 0.75rem; 
         }
         .semester-badge {
           background: #EFF6FF;
           color: #1D4ED8;
-          font-size: 0.75rem; /* 12px */
+          font-size: 0.75rem; 
           font-weight: 600;
-          padding: 0.3125rem 0.75rem; /* 5px 12px */
-          border-radius: 1.25rem; /* 20px */
+          padding: 0.3125rem 0.75rem; 
+          border-radius: 1.25rem; 
         }
         .user-greeting {
-          font-size: 0.8125rem; /* 13px */
+          font-size: 0.8125rem; 
           color: #374151;
           font-weight: 500;
         }
@@ -130,9 +130,9 @@ export default function TopBar({ title }) {
         /* 알림 버튼 */
         .notif-wrap { position: relative; }
         .notif-btn {
-          width: 2.125rem; /* 34px */
+          width: 2.125rem; 
           height: 2.125rem;
-          border-radius: 0.5rem; /* 8px */
+          border-radius: 0.5rem; 
           background: #F3F4F6;
           border: none;
           cursor: pointer;
@@ -148,24 +148,24 @@ export default function TopBar({ title }) {
           height: 1rem;
         }
         .notif-dot {
-          width: 0.5rem; /* 8px */
+          width: 0.5rem; 
           height: 0.5rem;
           background: #EF4444;
           border-radius: 50%;
           position: absolute;
-          top: 0.375rem; /* 6px */
+          top: 0.375rem; 
           right: 0.375rem;
           border: 1.5px solid #fff;
         }
         .notif-count {
           position: absolute;
-          top: -0.25rem; /* -4px */
+          top: -0.25rem; 
           right: -0.25rem;
           background: #EF4444;
           color: #fff;
-          font-size: 0.625rem; /* 10px */
+          font-size: 0.625rem; 
           font-weight: 700;
-          width: 1rem; /* 16px */
+          width: 1rem; 
           height: 1rem;
           border-radius: 50%;
           display: flex; 
@@ -177,11 +177,11 @@ export default function TopBar({ title }) {
         /* 알림 드롭다운 */
         .notif-dropdown {
           position: absolute;
-          top: calc(100% + 0.5rem); /* + 8px */
+          top: calc(100% + 0.5rem); 
           right: 0;
-          width: 20rem; /* 320px */
+          width: 20rem; 
           background: #fff;
-          border-radius: 0.875rem; /* 14px */
+          border-radius: 0.875rem; 
           box-shadow: 0 0.5rem 2rem rgba(0,0,0,0.13);
           border: 1px solid #F3F4F6;
           z-index: 999;
@@ -190,23 +190,23 @@ export default function TopBar({ title }) {
           flex-direction: column;
         }
         .notif-dropdown-header {
-          padding: 0.875rem 1.125rem; /* 14px 18px */
+          padding: 0.875rem 1.125rem; 
           border-bottom: 1px solid #F3F4F6;
           display: flex;
           align-items: center;
           justify-content: space-between;
         }
         .notif-dropdown-title {
-          font-size: 0.8125rem; /* 13px */
+          font-size: 0.8125rem; 
           font-weight: 700;
           color: #111827;
         }
         .notif-unread-badge {
-          font-size: 0.6875rem; /* 11px */
+          font-size: 0.6875rem; 
           font-weight: 600;
           background: #FEF2F2;
           color: #EF4444;
-          padding: 0.125rem 0.5rem; /* 2px 8px */
+          padding: 0.125rem 0.5rem; 
           border-radius: 1.25rem;
         }
         .notif-list {
@@ -216,12 +216,12 @@ export default function TopBar({ title }) {
           overflow-y: auto;
         }
         .notif-item {
-          padding: 0.75rem 1.125rem; /* 12px 18px */
+          padding: 0.75rem 1.125rem; 
           border-bottom: 1px solid #F9FAFB;
           cursor: pointer;
           transition: background 0.1s;
           display: flex;
-          gap: 0.625rem; /* 10px */
+          gap: 0.625rem; 
           align-items: flex-start;
         }
         .notif-item:last-child { border-bottom: none; }
@@ -229,11 +229,11 @@ export default function TopBar({ title }) {
         .notif-item.unread { background: #F0F6FF; }
         .notif-item.unread:hover { background: #E8F0FE; }
         .notif-type-dot {
-          width: 0.5rem; /* 8px */
+          width: 0.5rem; 
           height: 0.5rem;
           border-radius: 50%;
           flex-shrink: 0;
-          margin-top: 0.25rem; /* 4px */
+          margin-top: 0.25rem; 
         }
         .notif-item-content { 
           flex: 1; 
@@ -241,24 +241,24 @@ export default function TopBar({ title }) {
           flex-direction: column;
         }
         .notif-type-label {
-          font-size: 0.65rem; /* ~10.5px */
+          font-size: 0.65rem; 
           font-weight: 600;
-          margin-bottom: 0.125rem; /* 2px */
+          margin-bottom: 0.125rem; 
         }
         .notif-message {
-          font-size: 0.78rem; /* ~12.5px */
+          font-size: 0.78rem; 
           color: #374151;
           line-height: 1.5;
         }
         .notif-time {
-          font-size: 0.6875rem; /* 11px */
+          font-size: 0.6875rem; 
           color: #9CA3AF;
-          margin-top: 0.1875rem; /* 3px */
+          margin-top: 0.1875rem; 
         }
         .notif-empty {
-          padding: 1.75rem; /* 28px */
+          padding: 1.75rem; 
           text-align: center;
-          font-size: 0.8125rem; /* 13px */
+          font-size: 0.8125rem; 
           color: #9CA3AF;
         }
 
@@ -266,12 +266,12 @@ export default function TopBar({ title }) {
         .logout-btn {
           display: flex;
           align-items: center;
-          gap: 0.375rem; /* 6px */
-          padding: 0.4375rem 0.875rem; /* 7px 14px */
+          gap: 0.375rem; 
+          padding: 0.4375rem 0.875rem; 
           background: #F3F4F6;
           border: none;
-          border-radius: 0.5rem; /* 8px */
-          font-size: 0.78rem; /* ~12.5px */
+          border-radius: 0.5rem; 
+          font-size: 0.78rem; 
           font-weight: 500;
           color: #6B7280;
           cursor: pointer;
@@ -279,7 +279,7 @@ export default function TopBar({ title }) {
           font-family: inherit;
         }
         .logout-btn svg {
-          width: 0.8125rem; /* 13px */
+          width: 0.8125rem; 
           height: 0.8125rem;
         }
         .logout-btn:hover {
@@ -301,7 +301,8 @@ export default function TopBar({ title }) {
 
           {/* 사용자 인사말 */}
           <div className="user-greeting">
-            <span>{userId}</span> {roleLabel}님
+            {/* 3. 수정: userId 대신 진짜 이름(name)을 띄웁니다. 만약 없으면 userId가 보입니다. */}
+            <span>{name || userId}</span> {roleLabel}님
           </div>
 
           {/* 알림 벨 */}

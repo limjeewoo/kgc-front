@@ -112,15 +112,12 @@ export default function MyDashboard() {
 
       const meData = meRes.data ?? meRes;
       const sid = meData?.userId ?? meData?.studentId ?? (typeof meData === 'string' || typeof meData === 'number' ? String(meData) : null);
-      
-      // ★ 백엔드 권한 필드 추출 (role, authority 등 상황에 맞게 매핑)
       const userRole = meData?.role ?? meData?.authority; 
 
       if (!sid) {
         throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
       }
 
-      // 1. 학생 권한에서 접근 가능한 기본 데이터 병렬 호출
       const [visaRes, enrollRes, mileRes] = await Promise.allSettled([
         apiFetch(`/students/${sid}/visas`),
         apiFetch(`/students/${sid}/enrollments`),
@@ -137,7 +134,6 @@ export default function MyDashboard() {
         setMileage(mileRes.value.data);
       }
       
-      // 2. 권한(Role) 확인 후 관리자일 경우에만 스케줄러 API 호출
       const isAdmin = userRole === 'ADMIN' || userRole === 'ROLE_ADMIN';
       
       if (isAdmin) {
@@ -157,7 +153,6 @@ export default function MyDashboard() {
           setOnlineLimit(30);
         }
       } else {
-        // 학생 계정인 경우 API를 찌르지 않고 바로 기본값 설정 (403 에러 방지)
         setOnlineLimit(30);
       }
 
@@ -190,7 +185,8 @@ export default function MyDashboard() {
         @keyframes fadeUp  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         @keyframes shimmer { from{background-position:200% 0} to{background-position:-200% 0} }
 
-        .db-wrap{animation:fadeUp .28s ease;width:100%;font-family:'DM Sans','Noto Sans KR',sans-serif;color:#111827;padding:4px 4px 24px}
+        /* 🛠️ 레이아웃 일관성 유지: 박스 모델 규격 교정 및 여백 조정 */
+        .db-wrap{animation:fadeUp .28s ease;width:100%;box-sizing:border-box;font-family:'DM Sans','Noto Sans KR',sans-serif;color:#111827;padding:4px 22px 24px}
         .sec-lbl{font-size:.6875rem;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem}
 
         .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-bottom:1.75rem}
@@ -254,7 +250,7 @@ export default function MyDashboard() {
           </div>
         )}
 
-        <div className="sec-lbl">Overview</div>
+        <div className="sec-lbl">주요 현황</div>
         <div className="stat-grid">
           <div className="stat-card c-blue">
             <div className="stat-lbl">체류 비자 만료</div>
@@ -263,7 +259,7 @@ export default function MyDashboard() {
                 <Skeleton h="1.5rem" w="60%"/><Skeleton h="1rem" w="80%"/>
               </div>
             ) : currentVisa ? (
-              <VisaCountdown dDay={dDay} expireDate={currentVisa.expireDate} visaType={currentVisa.visaType ?? 'D-2'} />
+              <VisaCountdown dDay={dDay} expireDate={currentVisa.expireDate} visaType={currentVisa.visaType ?? '일반유학(D-2)'} />
             ) : (
               <div style={{ fontSize:'.875rem', color:'#94A3B8' }}>비자 정보 없음</div>
             )}
@@ -302,7 +298,7 @@ export default function MyDashboard() {
           </div>
         </div>
 
-        <div className="sec-lbl">Academic Status</div>
+        <div className="sec-lbl">학사 정보 및 상태</div>
 
         <div className="data-card">
           <div className="card-hd">
