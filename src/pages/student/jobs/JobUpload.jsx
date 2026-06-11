@@ -107,7 +107,14 @@ export default function JobUpload() {
   }, [init]);
 
   function set(field, value) {
-    setForm(prev => ({ ...prev, [field]: value }));
+    setForm(prev => {
+      const next = { ...prev, [field]: value };
+      // 시작일이 바뀔 때 종료일이 새 시작일보다 이전이면 초기화
+      if (field === 'startDate' && next.endDate && next.endDate < value) {
+        next.endDate = '';
+      }
+      return next;
+    });
   }
 
   function handleFile(f) {
@@ -133,6 +140,10 @@ export default function JobUpload() {
     
     if (!form.industry?.trim() || !form.startDate || isNaN(hoursNum) || hoursNum <= 0 || isNaN(wageNum) || wageNum <= 0) {
       setError('필수 항목(업종, 시급, 시작일, 근무시간)을 모두 정확하게 입력해주세요.');
+      return;
+    }
+    if (form.endDate && form.endDate < form.startDate) {
+      setError('근로 계약 종료일은 시작일 이후여야 합니다.');
       return;
     }
     if (maxHours !== null && hoursNum > maxHours) {
@@ -220,6 +231,7 @@ export default function JobUpload() {
 
   const weeklyNum = Number(form.workHoursPerWeek);
   const hoursOver = maxHours !== null && weeklyNum > maxHours && weeklyNum > 0;
+  const endDateInvalid = !!form.endDate && !!form.startDate && form.endDate < form.startDate;
 
   return (
     <>
@@ -283,8 +295,19 @@ export default function JobUpload() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">근로 계약 종료일</label>
-                  <input type="date" className="form-input" value={form.endDate}
-                    onChange={e => set('endDate', e.target.value)} />
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={form.endDate}
+                    min={form.startDate || undefined}
+                    style={{ borderColor: endDateInvalid ? '#EF4444' : undefined }}
+                    onChange={e => set('endDate', e.target.value)}
+                  />
+                  {endDateInvalid && (
+                    <div className="form-hint" style={{ color: '#DC2626', fontWeight: 600 }}>
+                      ⚠️ 종료일은 시작일 이후여야 합니다.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -347,7 +370,7 @@ export default function JobUpload() {
 
             <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'flex-end', gap: '.75rem', background: '#F8FAFC' }}>
               <button className="btn-outline" type="button" onClick={() => navigate('/student/jobs')}>취소</button>
-              <button className="btn-primary" type="button" onClick={handleSubmit} disabled={submitting || hoursOver}>
+              <button className="btn-primary" type="button" onClick={handleSubmit} disabled={submitting || hoursOver || endDateInvalid}>
                 {submitting && (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
                     style={{ animation: 'spin 1s linear infinite' }}>
