@@ -211,7 +211,7 @@ export default function AdminDashboard() {
         <div className="sidebar">
           <div className="sidebar-logo" onClick={() => setActiveMenu('대시보드')}>
             <img src="/logo-fff.png" alt="Logo" className="logo-img" />
-            <div className="logo-text">KMGC <span>경민대학교 국제교육원</span></div>
+            <div className="logo-text">KGC <span>경민대학교 국제교육원</span></div>
           </div>
 
           <div className="sb-sec">

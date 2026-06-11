@@ -1,7 +1,3 @@
-/**
- * MyEnroll.jsx
- * 학기별 수강 과목 + 취득 성적(GPA) 조회
- */
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
@@ -28,7 +24,10 @@ function toArray(val) {
 // ── CSS ───────────────────────────────────────────────────
 const CSS = `
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-  .en-wrap { padding: 4px 4px 24px; }
+  
+  /* 🛠️ 대시보드와 동일하게 좌우 여백 22px 조정 및 화면 밖 탈출(잘림) 방지 속성 적용 */
+  .en-wrap { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; }
+  
   .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-bottom:1.25rem; }
   .stat-card { padding:1.25rem; background:#fff; border-radius:12px; border:1px solid #E2E8F0; }
   .stat-lbl  { font-size:.8125rem; color:#64748B; font-weight:600; margin-bottom:.5rem; }
@@ -116,7 +115,6 @@ export default function MyEnroll() {
     try {
       const me = await apiFetch('/auth/me');
       
-      // ★ 대시보드/프로필과 동일한 견고한 식별자(학번) 추출 로직
       const sid = me?.userId ?? me?.studentId ?? (typeof me === 'string' || typeof me === 'number' ? String(me) : null);
       
       if (!sid) {
@@ -124,8 +122,6 @@ export default function MyEnroll() {
       }
       setStudentId(sid);
 
-      // 학생 role은 /semesters, /semesters/current 403 에러가 뜰 수 있으므로
-      // Promise.allSettled를 통해 에러 발생 시 빈 배열로 조용히 넘어가도록 방어
       const [semRes, curRes] = await Promise.allSettled([
         apiFetch('/semesters'),
         apiFetch('/semesters/current'),
@@ -156,7 +152,6 @@ export default function MyEnroll() {
       setLoading(true);
       setError(null);
       try {
-        // selSem(선택 학기)가 없으면 전체 수강 내역을 가져오거나 현재 기준으로 백엔드가 처리하도록 구성
         const query = selSem ? `?semesterId=${selSem}` : '';
         const data  = await apiFetch(`/students/${studentId}/enrollments${query}`);
         setEnrollments(toArray(data));
@@ -198,7 +193,7 @@ export default function MyEnroll() {
             <div className="stat-val">{loading ? <Skeleton h="2rem" w="50px"/> : totalCredits}<span className="unit">학점</span></div>
           </div>
           <div className="stat-card">
-            <div className="stat-lbl">학기 GPA</div>
+            <div className="stat-lbl">학기 평균 학점</div>
             {loading
               ? <Skeleton h="2rem" w="80px"/>
               : semGpa !== null
@@ -251,7 +246,7 @@ export default function MyEnroll() {
                     <th style={{ textAlign:'center' }}>학점</th>
                     <th style={{ textAlign:'center' }}>수업 유형</th>
                     <th style={{ textAlign:'center' }}>성적</th>
-                    <th style={{ textAlign:'right', paddingRight:'2.5rem' }}>GPA</th>
+                    <th style={{ textAlign:'right', paddingRight:'2.5rem' }}>평균 학점</th>
                   </tr>
                 </thead>
                 <tbody>

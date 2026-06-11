@@ -22,7 +22,9 @@ api.interceptors.request.use((config) => {
 
 // 2. 전역 CSS 스타일
 const GLOBAL_STYLE_CSS = `
-  .sw-content { padding: 4px 4px 24px; animation: jobsFadeUp 0.28s ease; }
+  /* 🛠️ 대시보드 시리즈와 레이아웃 통일: 좌우 패딩 22px 확장 및 박스 크기 산정 방식 교정 */
+  .sw-content { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; animation: jobsFadeUp 0.28s ease; }
+  
   @keyframes jobsFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
   .stat-card { padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #E2E8F0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
@@ -176,7 +178,6 @@ export default function MyJobs() {
     setLoading(true); 
     setError(null);
     try {
-      // 1. 내 정보 가져오기 및 식별 번호 파싱
       const meRes = await api.get('/auth/me');
       const meData = meRes.data?.data ?? meRes.data;
       
@@ -186,12 +187,9 @@ export default function MyJobs() {
         throw new Error('사용자 식별 번호(학번)를 식별할 수 없습니다.');
       }
 
-      // 2. 403 Forbidden 우회조치: 학생 전용 URL(/students/{studentId}/jobs) 호출로 복구
-      // 관리자용 /search/student/* API는 학생 권한으로 접근 시 403 차단됨 확인
       const jobsRes = await api.get(`/students/${sid}/jobs`);
       const jobsData = jobsRes.data?.data ?? jobsRes.data;
       
-      // 응답 데이터 배열 가공 및 안전장치
       let jobsList = [];
       if (Array.isArray(jobsData)) {
         jobsList = jobsData;
@@ -232,12 +230,12 @@ export default function MyJobs() {
           {/* 대시보드 스탯 카드 섹션 */}
           <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
             <div className="stat-card">
-              <div className="stat-lbl">전체 신고 신청건</div>
+              <div className="stat-lbl">전체 신고 신청 건</div>
               <div className="stat-val">{loading ? <Skeleton h="2rem" w="40px"/> : counts.ALL}<span className="unit">건</span></div>
             </div>
             {[
-              { type: 'PENDING', label: '관할부서 심사중', color: '#F59E0B', textCol: '#B45309' },
-              { type: 'APPROVED', label: '취업 승인 허가', color: '#10B981', textCol: '#047857' },
+              { type: 'PENDING', label: '관할 부서 심사중', color: '#F59E0B', textCol: '#B45309' },
+              { type: 'APPROVED', label: '근로 승인 허가', color: '#10B981', textCol: '#047857' },
               { type: 'REJECTED', label: '서류 반려/보완', color: '#EF4444', textCol: '#B91C1C' }
             ].map(c => (
               <div key={c.type} className="stat-card" style={{ borderLeft: `4px solid ${c.color}` }}>
@@ -272,7 +270,7 @@ export default function MyJobs() {
 
             <div style={{ padding: '.625rem 1.25rem', borderBottom: '1px solid #F8FAFC' }}>
               <button className="btn-primary" style={{ fontSize: '.8125rem', padding: '.5rem 1.125rem' }} onClick={() => navigate('/student/jobs/upload')}>
-                + 새 시간제근로 허가 신청
+                + 근로 허가 신청하기
               </button>
             </div>
 
@@ -281,7 +279,7 @@ export default function MyJobs() {
                 {[...Array(3)].map((_, i) => <Skeleton key={i} h="3.5rem" />)}
               </div>
             ) : filtered.length === 0 ? (
-              <EmptyState text="작성 및 제출된 시간제 취업 원서 서류가 존재하지 않습니다." />
+              <EmptyState text="작성 및 제출된 근로 계약서가 존재하지 않습니다." />
             ) : (
               <div style={{ padding: '0 1.25rem 1rem' }}>
                 {filtered.map(job => {
@@ -327,7 +325,7 @@ export default function MyJobs() {
 }
 
 const styles = {
-  errBanner: { padding: '1rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', justifycontent: 'space-between', marginBottom: '1rem', fontSize: '.875rem' },
+  errBanner: { padding: '1rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', fontSize: '.875rem' },
   retryBtn: { background: 'none', border: 'none', color: '#DC2626', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' },
   emptyState: { padding: '3rem 1.5rem', textAlign: 'center', color: '#94A3B8', fontSize: '.875rem' },
   stepWrapper: { display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '5rem' },

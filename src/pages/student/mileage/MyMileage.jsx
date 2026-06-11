@@ -24,7 +24,9 @@ api.interceptors.request.use(
 
 // 2. 전역 CSS 스타일 가이드
 const GLOBAL_MILEAGE_CSS = `
-  .sw-content { padding: 4px 4px 24px; animation: mileageFadeUp 0.28s ease; }
+  /* 🛠️ 레이아웃 일관성 유지: 박스 모델 규격 교정 및 좌우 여백 22px 조정 */
+  .sw-content { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; animation: mileageFadeUp 0.28s ease; }
+  
   @keyframes mileageFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
   .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin-bottom: 1.75rem; }
@@ -87,7 +89,6 @@ export default function MyMileage() {
       try {
         setIsLoading(true);
         
-        // Step 1: 현재 로그인한 학생의 ID 식별하기 (/auth/me 호출)
         const meRes = await api.get('/auth/me');
         const meData = meRes.data?.data ?? meRes.data;
         const studentId = meData?.userId ?? meData?.studentId ?? (typeof meData === 'string' || typeof meData === 'number' ? String(meData) : null);
@@ -96,8 +97,6 @@ export default function MyMileage() {
           throw new Error('사용자 정보를 조회할 수 없습니다.');
         }
 
-        // Step 2: 식별된 ID 기반 혹은 백엔드가 새로 열어준 마일리지 엔드포인트 호출
-        // 💡 만약 백엔드 주소가 다르면 아래 주소만 변경하면 됩니다! (예: `/students/mileage/me` 등)
         const res = await api.get(`/students/${studentId}/mileage`);
         
         setMileageData({
@@ -107,7 +106,7 @@ export default function MyMileage() {
         });
       } catch (error) {
         console.error('API Error:', error);
-        // 폴백 데이터 매핑 (404 상태여도 화면 컴포넌트가 깨지지 않고 목데이터를 보여주도록 유지)
+        // 백엔드 연동 장애 대비 안전용 폴백 데이터 유지
         setMileageData({
           totalMileage: 250,
           semesterMileage: 100,

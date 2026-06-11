@@ -23,7 +23,7 @@ function toArray(val) {
 // ── CSS ───────────────────────────────────────────────────
 const CSS = `
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-  .at-wrap { padding: 4px 4px 24px; }
+  .at-wrap { padding: 4px 22px 24px; } /* 👈 이 부분을 수정했습니다 */
   .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1.5rem; }
   .stat-card { padding:1.25rem; background:#fff; border-radius:12px; border:1px solid #E2E8F0; }
   .stat-lbl  { font-size:.8125rem; color:#64748B; font-weight:600; margin-bottom:.5rem; }
@@ -75,9 +75,9 @@ function ErrBanner({ msg, onRetry }) {
 }
 
 const STATUS_MAP = {
-  1: { label:'출', cls:'wc-present',  full:'출석' },
-  2: { label:'결', cls:'wc-absent',   full:'결석' },
-  3: { label:'지', cls:'wc-late',     full:'지각' },
+  1: { label:'출', cls:'wc-present',   full:'출석' },
+  2: { label:'결', cls:'wc-absent',    full:'결석' },
+  3: { label:'지', cls:'wc-late',      full:'지각' },
   4: { label:'공', cls:'wc-official', full:'공결' },
 };
 
@@ -122,30 +122,25 @@ export default function MyAttendance() {
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
   const [studentId,    setStudentId]    = useState(null);
-  const [semesters,    setSemesters]    = useState([]); // 서버에서 받아온 전체 학기 목록
-  const [selSem,       setSelSem]       = useState(''); // 선택된 학기 ID
-  const [allEnrollments, setAllEnrollments] = useState([]); // 내 전체 수강 목록
-  const [enrollments,  setEnrollments]  = useState([]); // 필터링된 현재 학기 수강 목록
+  const [semesters,    setSemesters]    = useState([]);
+  const [selSem,       setSelSem]       = useState('');
+  const [allEnrollments, setAllEnrollments] = useState([]);
+  const [enrollments,  setEnrollments]  = useState([]);
   const [attendMap,    setAttendMap]    = useState({});
   
-  // 관리자 스케줄러 API 호출 삭제 후 기본값 고정 사용
-  const [dangerCount]  = useState(4); // 결석 위험 기준치
-  const [warningCount] = useState(2); // 결석 주의 기준치
+  const [dangerCount]  = useState(4);
+  const [warningCount] = useState(2);
   const [totalWeeks,   setTotalWeeks]   = useState(15);
 
   async function init() {
     setLoading(true);
     setError(null);
     try {
-      // 1. 내 정보 가져오기
       const me = await apiFetch('/auth/me');
       const sid = me?.userId ?? me?.studentId ?? (typeof me === 'string' || typeof me === 'number' ? String(me) : null);
       if (!sid) throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
       setStudentId(sid);
 
-      // 🚨 403 에러를 발생시키던 /admin/scheduler 조회 로직은 완전히 삭제했습니다.
-
-      // 2. [수정됨] 권한이 열린 학기 API를 직접 호출하여 리스트 세팅
       let fetchedSemesters = [];
       try {
         const semData = await apiFetch('/semesters');
@@ -155,16 +150,13 @@ export default function MyAttendance() {
         console.warn('학기 목록을 불러오지 못했습니다.', e);
       }
 
-      // 3. 내 전체 수강 내역 가져오기
       const enrollData = await apiFetch(`/students/${sid}/enrollments`);
       const list = toArray(enrollData);
       setAllEnrollments(list);
 
-      // 4. 초기 학기 셀렉터 세팅
       if (fetchedSemesters.length > 0) {
         setSelSem(String(fetchedSemesters[0].semesterId));
       } else if (list.length > 0) {
-        // 학기 API 실패 시 수강 내역의 첫 번째 과목 학기로 폴백
         const fallbackSemId = list[0].semesterId ?? list[0].semester?.semesterId;
         if (fallbackSemId) setSelSem(String(fallbackSemId));
       } else {
@@ -178,15 +170,12 @@ export default function MyAttendance() {
 
   useEffect(() => { init(); }, []);
 
-  // 선택 학기가 변경될 때마다 해당 학기의 수강 목록 필터링 및 출결 로드
   useEffect(() => {
     if (!selSem && allEnrollments.length === 0) return;
 
-    // 선택된 학기의 총 주차 갱신
     const curSemObj = semesters.find(s => String(s.semesterId) === selSem);
     setTotalWeeks(curSemObj?.totalWeeks ?? 15);
 
-    // 수강 내역 필터링
     const currentList = selSem 
       ? allEnrollments.filter(e => String(e.semesterId ?? e.semester?.semesterId) === selSem)
       : allEnrollments;
@@ -202,7 +191,6 @@ export default function MyAttendance() {
       setLoading(true);
       setError(null);
       try {
-        // [수정됨] 권한이 열린 학생 본인의 출결 API 정상 호출
         const results = await Promise.allSettled(
           currentList.map(e => apiFetch(`/enrollments/${e.enrollId}/attendances`))
         );
@@ -241,7 +229,6 @@ export default function MyAttendance() {
       <div className="at-wrap">
         {error && <ErrBanner msg={error} onRetry={init} />}
 
-        {/* 상단 요약 */}
         <div className="stat-grid">
           <div className="stat-card">
             <div className="stat-lbl">수강 과목 수</div>
@@ -259,7 +246,6 @@ export default function MyAttendance() {
           </div>
         </div>
 
-        {/* 학기 셀렉터 + 범례 */}
         <div className="data-card" style={{ marginBottom:'1.25rem' }}>
           <div className="card-hd">
             <div>
@@ -288,7 +274,6 @@ export default function MyAttendance() {
           </div>
         </div>
 
-        {/* 과목별 카드 */}
         {loading ? (
           [...Array(3)].map((_, i) => (
             <div key={i} className="cac">

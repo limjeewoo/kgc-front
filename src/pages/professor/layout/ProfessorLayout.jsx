@@ -42,7 +42,7 @@ export default function ProfessorLayout() {
       <div className="pl-sidebar">
         <div className="pl-logo" onClick={() => navigate('/professor/dashboard')}>
           <img src="/logo-fff.png" alt="Logo" className="pl-logo-img" onError={(e) => e.target.style.display='none'} />
-          <div className="pl-logo-text">KMGC <span>경민대학교 국제교육원</span></div>
+          <div className="pl-logo-text">KGC <span>경민대학교 국제교육원</span></div>
         </div>
 
         <div className="pl-sec">
