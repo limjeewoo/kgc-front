@@ -24,20 +24,61 @@ export default function ProfStudentDetail() {
   const [student, setStudent]     = useState(null);
   const [loading, setLoading]     = useState(true);
 
-  // 교수 권한 = 읽기 전용
-  const readOnly = true;
+  const currentUserRole = (() => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const parsed = JSON.parse(userStr);
+        return parsed.role || '';
+      }
+      return localStorage.getItem('role') || '';
+    } catch (e) {
+      return '';
+    }
+  })();
+
+  const [hasEditPermission, setHasEditPermission] = useState(false);
 
   useEffect(() => {
     if (!studentId) return;
-    setLoading(true);
-    api.get(`/api/v1/students/${studentId}`)
-      .then(res => { if (res.data.success) setStudent(res.data.data); })
-      .catch(e => console.error('학생 조회 실패:', e))
-      .finally(() => setLoading(false));
-  }, [studentId]);
+
+    const fetchPermissionsAndStudent = async () => {
+      setLoading(true);
+
+      if (currentUserRole) {
+        try {
+          const roleRes = await api.get(`/api/v1/admin/role-permissions/${currentUserRole}`);
+          if (roleRes.data?.success && Array.isArray(roleRes.data.data)) {
+            const canEdit = roleRes.data.data.some(
+              p => p.permissionKey === 'STUDENT_EDIT' && p.isEnabled
+            );
+            setHasEditPermission(canEdit);
+          }
+        } catch (e) {
+          console.warn('권한 확인 실패:', e);
+          setHasEditPermission(false);
+        }
+      }
+
+      try {
+        const studentRes = await api.get(`/api/v1/students/${studentId}`);
+        if (studentRes.data.success) {
+          setStudent(studentRes.data.data);
+        }
+      } catch (e) {
+        console.error('학생 조회 실패:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPermissionsAndStudent();
+  }, [studentId, currentUserRole]);
+
+  const readOnly = !hasEditPermission;
 
   if (loading) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'60vh', color:'#94A3B8', fontSize:13 }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContext:'center', height:'60vh', color:'#94A3B8', fontSize:13 }}>
       학생 정보를 불러오는 중...
     </div>
   );
@@ -49,7 +90,12 @@ export default function ProfStudentDetail() {
   );
 
   return (
-    <div style={{ fontFamily:"'DM Sans','Noto Sans KR',sans-serif", color:'#111827' }}>
+    <div style={{ 
+      fontFamily: "'DM Sans','Noto Sans KR',sans-serif", 
+      color: '#111827',
+      /* 💾 요구사항 반영: 메인 레이아웃의 좌우 패딩을 22px로 동일하게 설정했습니다. */
+      padding: '0 22px' 
+    }}>
       <style>{`
         @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
 
@@ -62,10 +108,8 @@ export default function ProfStudentDetail() {
         .psd-name { font-size:17px; font-weight:700; color:#0F172A; }
         .psd-meta { font-size:12px; color:#94A3B8; margin-top:3px; }
 
-        /* 읽기 전용 배지 */
         .psd-readonly-badge { display:inline-flex; align-items:center; gap:5px; padding:5px 12px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:20px; font-size:11px; font-weight:700; color:#D97706; margin-left:auto; }
 
-        /* 탭 */
         .psd-tabs { display:flex; gap:4px; margin-bottom:1rem; border-bottom:2px solid #F1F5F9; padding-bottom:0; }
         .psd-tab { padding:9px 18px; font-size:13px; font-weight:600; color:#94A3B8; cursor:pointer; border:none; background:none; font-family:inherit; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .15s; }
         .psd-tab:hover { color:#374151; }
@@ -74,12 +118,10 @@ export default function ProfStudentDetail() {
         .psd-body { animation:fadeUp .25s ease; }
       `}</style>
 
-      {/* 헤더 */}
       <div className="psd-header">
         <button className="psd-back" onClick={() => navigate(-1)}>← 목록으로</button>
       </div>
 
-      {/* 학생 프로필 요약 */}
       <div className="psd-profile">
         <div className="psd-avatar">{(student.korName || student.engName || '?')[0]}</div>
         <div>
@@ -88,13 +130,13 @@ export default function ProfStudentDetail() {
             {student.studentId} · {student.deptName} · {student.grade}학년 {student.classSec}반 · {student.nationality}
           </div>
         </div>
-        {/* 교수 권한 = 읽기 전용 표시 */}
-        <div className="psd-readonly-badge">
-          🔒 읽기 전용 (교수 권한)
-        </div>
+        {!hasEditPermission && (
+          <div className="psd-readonly-badge">
+            🔒 읽기 전용 (교수 권한)
+          </div>
+        )}
       </div>
 
-      {/* 탭 */}
       <div className="psd-tabs">
         {TABS.map(t => (
           <button
@@ -107,7 +149,6 @@ export default function ProfStudentDetail() {
         ))}
       </div>
 
-      {/* 탭 컨텐츠 — readOnly 전달 */}
       <div className="psd-body">
         {activeTab === 'basic'  && <BasicTab  studentId={studentId} readOnly={readOnly} />}
         {activeTab === 'visa'   && <VisaTab   studentId={studentId} readOnly={readOnly} />}

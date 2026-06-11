@@ -25,19 +25,56 @@ export default function EnrollTab({ studentId: propsStudentId }) {
       try {
         setIsLoading(true);
 
-        // 명세서 11번(수강 목록)과 12번(학업 요약) 병렬 호출
-        const [enrollRes, summaryRes] = await Promise.all([
+        // 1. 수강 목록과 현재 학기 정보를 병렬로 가져옵니다. (academic-summary API 제거)
+        const [enrollRes, semesterRes] = await Promise.all([
           api.get(`/api/v1/students/${studentId}/enrollments`),
-          api.get(`/api/v1/students/${studentId}/academic-summary`).catch(() => ({ data: { data: {} } }))
+          api.get(`/api/v1/semesters/current`).catch(() => ({ data: { data: { name: '알 수 없음' } } }))
         ]);
 
+        let fetchedEnrollments = [];
         if (enrollRes.data.success) {
-          setEnrollments(enrollRes.data.data || []);
+          fetchedEnrollments = enrollRes.data.data || [];
+          setEnrollments(fetchedEnrollments);
         }
         
-        if (summaryRes.data && summaryRes.data.success) {
-          setSummary(summaryRes.data.data);
-        }
+        // 2. 프론트엔드에서 요약 데이터(GPA, 취득 학점) 직접 계산
+        let totalCredits = 0;
+        let totalGradePoints = 0;
+        let gradedCredits = 0;
+
+        // 학점 변환표 (필요에 따라 학교 규정에 맞게 수정)
+        const gradeScale = {
+          'A+': 4.5, 'A0': 4.0, 'B+': 3.5, 'B0': 3.0,
+          'C+': 2.5, 'C0': 2.0, 'D+': 1.5, 'D0': 1.0, 'F': 0.0
+        };
+
+        fetchedEnrollments.forEach(course => {
+          const credits = course.credits || 0;
+          
+          // 취득 학점 누적 (F가 아닌 이수 완료 과목)
+          if (course.isCompleted || (course.grade && course.grade !== 'F')) {
+            totalCredits += credits;
+          }
+          
+          // GPA 계산용 평점 누적 (성적이 부여된 과목만 계산)
+          if (course.grade && gradeScale[course.grade] !== undefined) {
+            gradedCredits += credits;
+            totalGradePoints += (gradeScale[course.grade] * credits);
+          }
+        });
+
+        const calculatedGpa = gradedCredits > 0 ? (totalGradePoints / gradedCredits) : 0;
+        
+        // 현재 학기 이름 추출 (API 응답 필드명에 맞게 조정: name 또는 semesterId 등)
+        const currentSemesterStr = semesterRes.data?.data?.name || semesterRes.data?.data?.semesterId || '-';
+
+        // 계산된 데이터 상태에 저장
+        setSummary({
+          semesterId: currentSemesterStr,
+          totalGpa: calculatedGpa,
+          totalCredits: totalCredits,
+          graduationCredits: 110 // 졸업 학점 하드코딩 유지
+        });
         
       } catch (error) {
         console.error("수강 및 성적 데이터 로드 실패:", error);
@@ -69,7 +106,9 @@ export default function EnrollTab({ studentId: propsStudentId }) {
       fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", 
       fontSize: '0.875rem', 
       color: '#111827',
-      animation: 'fadeUp 0.28s ease' // 자연스러운 전환 애니메이션
+      animation: 'fadeUp 0.28s ease',
+      /* 💾 요구사항 반영: 최상위 레이아웃 양옆에 22px 패딩을 명시했습니다. */
+      padding: '0 22px'
     }}>
       <style>{`
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }

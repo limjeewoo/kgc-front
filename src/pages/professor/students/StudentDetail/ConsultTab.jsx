@@ -7,11 +7,12 @@ function ConsultTab() {
   const [loading, setLoading] = useState(false);
   const [searchStudentId, setSearchStudentId] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
+  const [studentName, setStudentName] = useState('');
 
   // 모달 및 폼 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
-  const [currentConsultId, setCurrentConsultId] = useState(null); // 수정 시 사용할 ID
+  const [modalMode, setModalMode] = useState('create');
+  const [currentConsultId, setCurrentConsultId] = useState(null);
   const [targetStudentId, setTargetStudentId] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -27,6 +28,16 @@ function ConsultTab() {
     }
     try {
       setLoading(true);
+
+      // 학생 이름 조회
+      try {
+        const studentRes = await api.get(`/api/v1/students/${activeId}`);
+        const studentData = studentRes.data?.data ?? studentRes.data;
+        setStudentName(studentData?.korName ?? '');
+      } catch {
+        setStudentName('');
+      }
+
       const response = await api.get(`/api/v1/students/${activeId}/consultations`);
       setHasSearched(true);
       const raw = response.data;
@@ -66,13 +77,12 @@ function ConsultTab() {
     setTargetStudentId(searchStudentId);
     setConsultDate(item.consultDate || new Date().toISOString().split('T')[0]);
 
-    // 합쳐진 rawContent에서 제목과 내용 분리
     let parsedTitle = '';
     let parsedContent = item.rawContent || '';
     if (parsedContent.startsWith('[') && parsedContent.includes(']\n')) {
       const splitIndex = parsedContent.indexOf(']\n');
       parsedTitle = parsedContent.substring(1, splitIndex);
-      parsedContent = parsedContent.substring(splitIndex + 2); // ']\n' 이후의 내용
+      parsedContent = parsedContent.substring(splitIndex + 2);
     }
 
     setTitle(parsedTitle);
@@ -99,10 +109,8 @@ function ConsultTab() {
       let response;
 
       if (modalMode === 'create') {
-        // 등록 POST
         response = await api.post(`/api/v1/students/${cleanTargetId}/consultations`, requestBody);
       } else {
-        // 수정 PATCH (이전 에러 로그 기반의 URL 매핑 적용)
         response = await api.patch(`/api/v1/consultations/${currentConsultId}`, requestBody);
       }
 
@@ -110,7 +118,7 @@ function ConsultTab() {
         alert(modalMode === 'create' ? '새로운 상담 일지가 등록되었습니다.' : '상담 일지가 수정되었습니다.');
         setIsModalOpen(false);
         setSearchStudentId(cleanTargetId);
-        fetchConsultations(cleanTargetId); // 목록 새로고침
+        fetchConsultations(cleanTargetId);
       } else {
         alert(response.data?.message || '처리에 실패했습니다.');
       }
@@ -131,7 +139,8 @@ function ConsultTab() {
       <TopBar title="상담 이력 관리" />
       <div className="consult-tab-container">
         <style>{`
-          .consult-tab-container { animation: fadeIn 0.25s ease; padding: 0.5rem 1.5rem 24px; }
+          /* 💾 요구사항 반영: .consult-tab-container의 양옆 패딩을 22px로 조정했습니다. */
+          .consult-tab-container { animation: fadeIn 0.25s ease; padding: 0.5rem 22px 24px; }
           .consult-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 30vh; color: #64748B; font-size: 0.8125rem; }
           .spinner { width: 32px; height: 32px; border: 3px solid #E2E8F0; border-top-color: #10B981; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 8px; }
           .tab-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -150,12 +159,9 @@ function ConsultTab() {
           .item-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.625rem; border-bottom: 1px dashed #F1F5F9; padding-bottom: 0.625rem; }
           .prof-info { font-size: 0.8125rem; font-weight: 600; color: #334155; display: flex; align-items: center; gap: 6px; }
           .prof-badge { background: #E0F2FE; color: #0369A1; font-size: 0.6875rem; font-weight: 700; padding: 0.125rem 0.375rem; border-radius: 0.25rem; }
-          
-          /* 아이콘 버튼 스타일 (수정 전용으로 유지) */
           .action-group { display: flex; align-items: center; gap: 0.5rem; }
-          .btn-icon { background: none; border: none; font-size: 1rem; cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0.6; transition: 0.2s; }
-          .btn-icon:hover { opacity: 1; background: #F1F5F9; }
-          
+          .btn-edit { background: #F1F5F9; color: #475569; border: none; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: 0.15s; }
+          .btn-edit:hover { background: #E2E8F0; color: #1E293B; }
           .consult-date { font-size: 0.75rem; color: #94A3B8; font-weight: 600; margin-right: 0.5rem; }
           .item-body .item-text { font-size: 0.8125rem; color: #475569; line-height: 1.6; white-space: pre-wrap; margin-top: 0.5rem; }
           .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.3); display: flex; align-items: center; justify-content: center; z-index: 999; backdrop-filter: blur(2px); }
@@ -214,12 +220,11 @@ function ConsultTab() {
               <div className="consult-item" key={item.consultId || index}>
                 <div className="item-meta">
                   <div className="prof-info">
-                    학생 <span className="prof-badge">{searchStudentId}</span>
+                    학생 <span className="prof-badge">{studentName || searchStudentId}</span>
                   </div>
                   <div className="action-group">
                     <span className="consult-date">{item.consultDate}</span>
-                    <button className="btn-icon" onClick={() => openEditModal(item)} title="수정">✏️</button>
-                    {/* 🗑️ 삭제 버튼이 있던 자리를 지웠습니다. */}
+                    <button className="btn-edit" onClick={() => openEditModal(item)}>수정</button>
                   </div>
                 </div>
                 <div className="item-body">

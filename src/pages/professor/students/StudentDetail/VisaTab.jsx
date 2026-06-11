@@ -14,7 +14,6 @@ export default function VisaTab() {
   const [visaData, setVisaData] = useState({ currentVisa: null, history: [] });
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🎯 [수정] 정의되지 않았던 API_BASE_URL을 상단에 선언한 BASE_URL로 변경했습니다.
   const api = axios.create({
     baseURL: BASE_URL,
     headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
@@ -83,7 +82,6 @@ export default function VisaTab() {
     return { chipClass: 'vt-chip-green', barColor: '#22C55E', label: '체류 기간 넉넉함', textColor: '#16A34A' };
   };
 
-  // 🎯 [방어 코드] currentVisa가 없을 때의 기본 fallback 상태를 명시적으로 선언합니다.
   const status = currentVisa 
     ? getStatus(currentVisa.dDay) 
     : { chipClass: 'vt-chip-blue', barColor: '#E5E7EB', label: '정보 없음', textColor: '#6B7280' };
@@ -91,7 +89,7 @@ export default function VisaTab() {
   const progress = currentVisa ? Math.max(0, Math.min(100, (currentVisa.dDay / 365) * 100)) : 0;
 
   return (
-    <div style={{ fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", fontSize: '14px', color: '#111827' }}>
+    <div style={{ fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", fontSize: '14px', color: '#111827', padding: '0 22px' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
@@ -109,10 +107,10 @@ export default function VisaTab() {
         .vt-btn-primary:hover { background: #153150; }
 
         .vt-chip { font-size: 11.5px; font-weight: 500; padding: 4px 10px; border-radius: 20px; }
-        .vt-chip-blue  { background: #EFF6FF; color: #1D4ED8; }
+        .vt-chip-blue   { background: #EFF6FF; color: #1D4ED8; }
         .vt-chip-green { background: #F0FDF4; color: #16A34A; }
         .vt-chip-amber { background: #FFFBEB; color: #D97706; }
-        .vt-chip-red   { background: #FEF2F2; color: #DC2626; }
+        .vt-chip-red    { background: #FEF2F2; color: #DC2626; }
 
         .vt-card { background: #fff; border-radius: 14px; border: 1px solid #F3F4F6; padding: 20px 22px; }
         .vt-card-title { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #F3F4F6; display: flex; align-items: center; justify-content: space-between; }

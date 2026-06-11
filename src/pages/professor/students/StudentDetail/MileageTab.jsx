@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom'; // 🎯 useParams 추가
+import { useParams } from 'react-router-dom';
 import api from "../../../../api/axios";
 
 /**
@@ -65,7 +65,6 @@ function DonutChart({ segments, total }) {
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────
 export default function MileageTab({ studentId: propsStudentId }) {
-  // 🎯 [수정] props로 오지 않더라도 라우터 URL(:studentId)에서 안전하게 id를 획득하도록 보완합니다.
   const { studentId: urlStudentId } = useParams();
   const studentId = propsStudentId || urlStudentId;
 
@@ -108,7 +107,7 @@ export default function MileageTab({ studentId: propsStudentId }) {
   const categories = Object.keys(CATEGORY_META);
 
   return (
-    <div style={{ fontFamily: "'DM Sans','Noto Sans KR',sans-serif", color: '#111827' }}>
+    <div style={{ fontFamily: "'DM Sans','Noto Sans KR',sans-serif", color: '#111827', padding: '0 22px' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&display=swap');
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
@@ -158,7 +157,7 @@ export default function MileageTab({ studentId: propsStudentId }) {
 
         .mt-cat-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:6px; font-size:10px; font-weight:700; border:1px solid transparent; white-space:nowrap; }
         .mt-score-cell { font-size:13px; font-weight:800; }
-        .mt-score-plus  { color:#059669; }
+        .mt-score-plus   { color:#059669; }
         .mt-score-minus { color:#DC2626; }
         .mt-desc { color:#374151; font-weight:500; }
         .mt-date { color:#94A3B8; font-size:11px; white-space:nowrap; }

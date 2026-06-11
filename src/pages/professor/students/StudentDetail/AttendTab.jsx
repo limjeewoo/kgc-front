@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../../../api/axios';
 
-// ─── 환경 설정 ─────────────────────────────────────────
-// const BASE_URL = 'https://api.kmgc.world'; // 배포용
-const BASE_URL = 'http://localhost:8080'; // 개발용
-
-// API 상태 코드 -> UI 클래스/라벨 매핑
 const LABELS = { ok: '출', abs: '결', late: '지', pub: '공', none: '-' };
 const getStatusKey = (code) => {
   if (code === 1) return 'ok';
@@ -20,36 +15,27 @@ export default function AttendTab({ studentId: propsStudentId }) {
   const { id: urlStudentId } = useParams();
   const studentId = propsStudentId || urlStudentId;
 
-  // 상태 관리
   const [attendData, setAttendData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const api = axios.create({
-    baseURL: BASE_URL,
-    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
-  });
 
   useEffect(() => {
     const fetchAttendanceData = async () => {
       try {
         setIsLoading(true);
 
-        // 1. 학생의 수강 목록 조회 (명세서 11번)
         const enrollRes = await api.get(`/api/v1/students/${studentId}/enrollments`);
         const enrollments = enrollRes.data.success ? enrollRes.data.data : [];
 
-        // 2. 각 수강 과목의 상세 출결 조회 (명세서 13번)
         const courseAttendances = await Promise.all(
           enrollments.map(async (enroll) => {
             try {
               const attRes = await api.get(`/api/v1/enrollments/${enroll.enrollId}/attendances`);
               if (attRes.data.success) {
                 const attData = attRes.data.data;
-                
-                // 1~15주차 배열 초기화 (기본값 null)
                 const attendArray = Array(15).fill(null); 
+                
                 (attData.attendances || []).forEach(att => {
-                  attendArray[att.weekNo - 1] = att.status; // weekNo는 1부터 시작하므로 -1
+                  attendArray[att.weekNo - 1] = att.status;
                 });
 
                 return {
@@ -63,10 +49,9 @@ export default function AttendTab({ studentId: propsStudentId }) {
                 };
               }
             } catch (err) {
-              console.warn(`[${enroll.courseId}] 출결 로드 실패 (미구현 예상)`, err);
+              console.warn(`[${enroll.courseId}] 출결 로드 실패`, err);
             }
             
-            // API 호출 실패 또는 에러 시 빈 데이터 반환
             return {
               id: enroll.enrollId,
               name: enroll.courseName,
@@ -77,7 +62,6 @@ export default function AttendTab({ studentId: propsStudentId }) {
           })
         );
 
-        // 3. 전체 통합 출석률 계산
         let sumAttend = 0;
         let sumAbsent = 0;
         let sumLate = 0;
@@ -94,7 +78,7 @@ export default function AttendTab({ studentId: propsStudentId }) {
           currentRate,
           totalRequiredHours: totalHours,
           currentAttendedHours: sumAttend,
-          visaThreshold: 70, // 비자 연장 기준
+          visaThreshold: 70,
           courses: courseAttendances
         });
 
@@ -106,7 +90,6 @@ export default function AttendTab({ studentId: propsStudentId }) {
     };
 
     if (studentId) fetchAttendanceData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   if (isLoading) return <div style={{ padding: '4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.875rem' }}>데이터 로딩 중...</div>;
@@ -125,17 +108,16 @@ export default function AttendTab({ studentId: propsStudentId }) {
       fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", 
       fontSize: '0.875rem', 
       color: '#111827',
-      animation: 'fadeUp 0.28s ease' // 깔끔한 페이드 트랜지션 추가
+      animation: 'fadeUp 0.28s ease',
+      padding: '0 22px' // 💾 요청하신 양옆 패딩 22px를 적용했습니다.
     }}>
       <style>{`
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 
-        /* 요약 컨테이너 */
         .at-summary-container { display: flex; gap: 1rem; margin-bottom: 1.25rem; }
         .at-rate-card { flex: 1; background: #fff; border-radius: 0.875rem; border: 1px solid #E5E7EB; padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.01); }
         .at-visa-banner { flex: 2; display: flex; align-items: center; gap: 1rem; padding: 1.5rem; border-radius: 0.875rem; background: ${isVisaSafe ? '#F0FDF4' : '#FEF2F2'}; border: 1px solid ${isVisaSafe ? '#DCFCE7' : '#FEE2E2'}; color: ${isVisaSafe ? '#16A34A' : '#DC2626'}; }
 
-        /* 범례 */
         .legend-bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; padding: 0 0.25rem; }
         .legend-item { display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: #6B7280; white-space: nowrap; }
         .legend-cell { width: 1.375rem; height: 1.375rem; border-radius: 0.3125rem; display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 700; }
@@ -146,7 +128,6 @@ export default function AttendTab({ studentId: propsStudentId }) {
         .lc-pub { background: #F0FDF4; color: #16A34A; }
         .lc-none { background: #F3F4F6; color: #9CA3AF; }
 
-        /* 테이블 구조 */
         .attend-table-wrap { background: #fff; border-radius: 0.875rem; border: 1px solid #E5E7EB; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.01); }
         .attend-table-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid #F3F4F6; display: flex; justify-content: space-between; align-items: center; }
         .att-title { font-size: 0.9375rem; font-weight: 700; color: #111827; }
@@ -162,7 +143,6 @@ export default function AttendTab({ studentId: propsStudentId }) {
         .course-name { font-size: 0.8125rem; font-weight: 600; color: #0F172A; margin-bottom: 0.25rem; }
         .course-code { font-size: 0.6875rem; color: #9CA3AF; fontFamily: 'monospace'; }
 
-        /* 주차별 셀 스타일 */
         .week-cell { width: 2rem; height: 1.75rem; border-radius: 0.375rem; display: flex; align-items: center; justify-content: center; font-size: 0.6875rem; font-weight: 700; margin: 0 auto; border: 1px solid transparent; transition: 0.15s; }
         .week-cell:hover { transform: scale(1.08); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         
@@ -180,7 +160,6 @@ export default function AttendTab({ studentId: propsStudentId }) {
         .ab-ok { background: #F0FDF4; color: #16A34A; }
       `}</style>
 
-      {/* ── 요약 정보 카드 ── */}
       <div className="at-summary-container">
         <div className="at-rate-card">
           <div style={{ fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '0.5rem', fontWeight: 500 }}>현재 통합 출석률</div>
@@ -198,7 +177,6 @@ export default function AttendTab({ studentId: propsStudentId }) {
         </div>
       </div>
 
-      {/* ── 출결 범례(Legend) ── */}
       <div className="legend-bar">
         <div className="legend-item"><div className="legend-cell lc-ok">출</div>출석</div>
         <div className="legend-item"><div className="legend-cell lc-abs">결</div>결석</div>
@@ -207,7 +185,6 @@ export default function AttendTab({ studentId: propsStudentId }) {
         <div className="legend-item"><div className="legend-cell lc-none">-</div>미입력</div>
       </div>
 
-      {/* ── 주차별 출결 매트릭스 ── */}
       <div className="attend-table-wrap">
         <div className="attend-table-header">
           <div>
@@ -241,7 +218,7 @@ export default function AttendTab({ studentId: propsStudentId }) {
                     </td>
                     {course.attend.map((statusCode, weekIdx) => {
                       const statusKey = getStatusKey(statusCode);
-                      const isFutureWeek = weekIdx >= 13; // 미래 주차 흐림 처리 기준
+                      const isFutureWeek = weekIdx >= 13;
                       return (
                         <td key={weekIdx}>
                           <div 

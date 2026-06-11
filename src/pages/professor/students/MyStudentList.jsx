@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
 export default function MyStudentList() {
-  const navigate    = useNavigate();
+  const navigate = useNavigate();
 
-  const token       = localStorage.getItem('accessToken');
-  const professorId = localStorage.getItem('userId');
+  const token = localStorage.getItem('accessToken');
 
   const [loading, setLoading]                   = useState(true);
   const [students, setStudents]                 = useState([]);
@@ -18,7 +17,7 @@ export default function MyStudentList() {
   const [searchTerm, setSearchTerm]             = useState('');
 
   useEffect(() => {
-    if (!token || !professorId) {
+    if (!token) {
       navigate('/login');
       return;
     }
@@ -26,34 +25,40 @@ export default function MyStudentList() {
     setLoading(true);
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
     
-    fetch(`http://localhost:8080/api/v1/advisors/professor/${professorId}`, { headers })
+    // 명세서 2번 라우트: 학과별 검색 API 주소로 변경
+    fetch(`http://localhost:8080/api/v1/search/dept`, { headers })
       .then(r => r.json())
-      .then(studentsRes => {
-        const data = studentsRes.data || [];
+      .then(res => {
+        // 백엔드 공통 포맷(res.data) 또는 직렬 배열 대응
+        const data = Array.isArray(res) ? res : (res.data || []);
+        
         setStudents(data);
         setFilteredStudents(data);
+        
+        // 명세서 표준 필드명인 deptName과 classSec 기반으로 필터 목록 생성
         setDeptList([...new Set(data.map(s => s.deptName).filter(Boolean))]);
-        setClassList([...new Set(data.map(s => s.className).filter(Boolean))]);
+        setClassList([...new Set(data.map(s => s.classSec).filter(Boolean))]);
       })
-      .catch(e => console.error('데이터 조회 오류:', e))
+      .catch(e => console.error('학과별 검색 데이터 조회 오류:', e))
       .finally(() => setLoading(false));
-  }, [professorId, token, navigate]);
+  }, [token, navigate]);
 
   useEffect(() => {
     let result = [...students];
-    if (selectedDept !== 'all')  result = result.filter(s => s.deptName  === selectedDept);
-    if (selectedClass !== 'all') result = result.filter(s => s.className === selectedClass);
+    if (selectedDept !== 'all')  result = result.filter(s => s.deptName === selectedDept);
+    if (selectedClass !== 'all') result = result.filter(s => s.classSec === selectedClass);
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
       result = result.filter(s =>
-        s.studentName?.toLowerCase().includes(q) ||
+        s.korName?.toLowerCase().includes(q) ||
+        s.engName?.toLowerCase().includes(q) ||
         s.studentId?.toLowerCase().includes(q)
       );
     }
     setFilteredStudents(result);
   }, [selectedDept, selectedClass, searchTerm, students]);
 
-  if (!token || !professorId) return (
+  if (!token) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#F0F2F7' }}>
       <div style={{ textAlign: 'center', color: '#1A3A5C', fontSize: 14 }}>인증 정보를 확인 중입니다...</div>
     </div>
@@ -91,12 +96,14 @@ export default function MyStudentList() {
         .msl-table td { padding:13px 18px; border-bottom:1px solid #F8FAFC; color:#374151; vertical-align:middle; }
 
         .msl-avatar { width:30px; height:30px; border-radius:50%; background:#EFF6FF; color:#1D4ED8; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
-        .msl-student-cell { display:flex; align-items:center; gap:10px; }
-        .msl-name { font-weight:600; color:#0F172A; }
-        .msl-sid  { font-size:11px; color:#94A3B8; margin-top:2px; font-family:monospace; }
+        .msl-student-cell { display:flex; align-items:center; gap:12px; }
+        
+        .msl-student-info { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .msl-name-ko { font-weight:600; color:#0F172A; font-size:14px; }
+        .msl-name-en { color:#64748B; font-size:13px; }
+        .msl-sid-inline { font-size:11px; color:#64748B; font-family:monospace; background:#F1F5F9; padding:3px 8px; border-radius:6px; letter-spacing:0.02em; }
 
         .msl-visa-badge { display:inline-block; padding:2px 9px; border-radius:6px; font-size:11px; font-weight:700; background:#EFF6FF; color:#1D4ED8; }
-        .msl-visa-badge.warn { background:#FEF2F2; color:#DC2626; }
 
         .msl-btn-detail { padding:6px 13px; background:#1A3A5C; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; transition:background .15s; }
         .msl-btn-detail:hover { background:#2563EB; }
@@ -155,13 +162,21 @@ export default function MyStudentList() {
                     <th>소속 학과</th>
                     <th>분반</th>
                     <th>학년</th>
-                    <th>비자 상태</th>
+                    <th>국적 / 비자</th>
                     <th style={{ textAlign:'right' }}>상세</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredStudents.map(s => {
-                    const visaWarn = s.visaDDay != null && s.visaDDay <= 30;
+                    // 명세서 매핑: 한글명(korName), 영문명(engName), 분반(classSec), 학년(grade)
+                    const nameKo = s.korName;
+                    const nameEn = s.engName;
+                    const classSec = s.classSec;
+                    const grade = s.grade;
+                    
+                    // 명세서 2번 응답 데이터에 비자가 없을 경우 nationality(국적) 표시용 예외 처리
+                    const visaOrNation = s.visaType || s.visaStatus || s.nationality;
+
                     return (
                       <tr
                         key={s.studentId}
@@ -172,22 +187,27 @@ export default function MyStudentList() {
                         <td>
                           <div className="msl-student-cell">
                             <div className="msl-avatar">
-                              {(s.studentName || '?')[0]}
+                              {(nameKo || '')[0] || '?'}
                             </div>
-                            <div>
-                              <div className="msl-name">{s.studentName || '이름 없음'}</div>
-                              <div className="msl-sid">{s.studentId}</div>
+                            <div className="msl-student-info">
+                              <span className="msl-name-ko">{nameKo || '이름 없음'}</span>
+                              {nameEn && <span className="msl-name-en">{nameEn}</span>}
+                              <span className="msl-sid-inline">{s.studentId}</span>
                             </div>
                           </div>
                         </td>
+                        
                         <td>{s.deptName || '–'}</td>
-                        <td>{s.className || '–'}</td>
-                        <td>{s.grade ? `${s.grade}학년` : '–'}</td>
+                        <td>{classSec || '–'}</td>
+                        <td>{grade ? `${grade}학년` : '–'}</td>
                         <td>
-                          <span className={`msl-visa-badge ${visaWarn ? 'warn' : ''}`}>
-                            {visaWarn ? `D-${s.visaDDay}` : (s.visaStatus || 'D-2')}
-                          </span>
+                          {visaOrNation ? (
+                            <span className="msl-visa-badge">
+                              {visaOrNation}
+                            </span>
+                          ) : '–'}
                         </td>
+                        
                         <td style={{ textAlign:'right' }}>
                           <button
                             className="msl-btn-detail"
@@ -209,7 +229,6 @@ export default function MyStudentList() {
             )}
           </div>
         </div>
-
       </div>
     </>
   );

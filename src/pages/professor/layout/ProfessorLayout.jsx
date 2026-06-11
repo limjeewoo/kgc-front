@@ -77,10 +77,7 @@ export default function ProfessorLayout() {
                 출결 입력
               </div>
               <div className={`pl-sub-ni ${isActive('/professor/consult') ? 'active' : ''}`} onClick={() => navigate('/professor/consult')}>
-                상담 목록
-              </div>
-              <div className={`pl-sub-ni ${isActive('/professor/consult/write') ? 'active' : ''}`} onClick={() => navigate('/professor/consult/write')}>
-                상담 일지 작성
+                상담 이력 관리
               </div>
             </div>
           )}
