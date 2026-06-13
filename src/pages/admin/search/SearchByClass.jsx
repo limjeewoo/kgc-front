@@ -113,6 +113,13 @@ export default function SearchByClass({ onBack }) {
     }
   };
 
+  // warningStatus에 따른 칩 색상 반환
+  const getWarningChipClass = (warningStatus) => {
+    if (warningStatus === '위험') return 'sc-chip-red';
+    if (warningStatus === '주의') return 'sc-chip-amber';
+    return 'sc-chip-green'; // 정상
+  };
+
   if (showCourse) {
     return (
       <SearchByCourse
@@ -143,10 +150,10 @@ export default function SearchByClass({ onBack }) {
         .sc-drilldown-btn:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(37,99,235,0.35); }
         .sc-chip { font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; }
         .sc-chip-blue   { background:#EFF6FF; color:#1D4ED8; }
-        .sc-chip-green { background:#F0FDF4; color:#16A34A; }
-        .sc-chip-amber { background:#FFFBEB; color:#D97706; }
-        .sc-chip-red   { background:#FEF2F2; color:#DC2626; }
-        .sc-chip-gray  { background:#F3F4F6; color:#6B7280; }
+        .sc-chip-green  { background:#F0FDF4; color:#16A34A; }
+        .sc-chip-amber  { background:#FFFBEB; color:#D97706; }
+        .sc-chip-red    { background:#FEF2F2; color:#DC2626; }
+        .sc-chip-gray   { background:#F3F4F6; color:#6B7280; }
         
         .sc-card { background:#fff; border-radius:12px; border:1px solid #F3F4F6; padding:18px 20px; }
         .sc-card-title { font-size:13px; font-weight:700; color:#111827; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid #F3F4F6; display:flex; align-items:center; gap:8px; }
@@ -179,21 +186,19 @@ export default function SearchByClass({ onBack }) {
         .sc-grid tr.warning-row td { background:#FFFBEB; }
         .sc-grid tr:hover td { background:#F8FAFC !important; }
 
-        /* 과목별 뱃지 및 주차별 출결 미니 타임라인 스타일 */
         .sc-course-list { display: flex; flex-wrap: wrap; gap: 8px; }
         .sc-course-badge { display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid #E5E7EB; padding: 8px 10px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
         .sc-course-info { display: flex; align-items: center; gap: 6px; }
         .sc-course-name { font-weight: 600; color: #374151; font-size: 11.5px; }
         .sc-course-stat { font-size: 11px; color: #6B7280; border-left: 1px solid #E5E7EB; padding-left: 6px; }
         
-        /* 미니 타임라인 */
         .sc-week-timeline { display: flex; gap: 2px; align-items: center; }
         .sc-week-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-        .sc-week-dot.st-0 { background: #E5E7EB; } /* 미입력 */
-        .sc-week-dot.st-1 { background: #10B981; } /* 출석 */
-        .sc-week-dot.st-2 { background: #EF4444; } /* 결석 */
-        .sc-week-dot.st-3 { background: #F59E0B; } /* 지각 */
-        .sc-week-dot.st-4 { background: #3B82F6; } /* 공결 */
+        .sc-week-dot.st-0 { background: #E5E7EB; }
+        .sc-week-dot.st-1 { background: #10B981; }
+        .sc-week-dot.st-2 { background: #EF4444; }
+        .sc-week-dot.st-3 { background: #F59E0B; }
+        .sc-week-dot.st-4 { background: #3B82F6; }
 
         .sc-side { display:flex; flex-direction:column; gap:14px; min-width:0; }
         .sc-prof-list { display:flex; flex-direction:column; gap:8px; }
@@ -302,7 +307,6 @@ export default function SearchByClass({ onBack }) {
                       <tr key={s.studentId} className={isDanger ? 'danger-row' : isWarning ? 'warning-row' : ''}>
                         <td className="left">
                           <div style={{ fontWeight: 700, fontSize: '13.5px' }}>{s.engName}</div>
-                          {/* 한국어 이름 추가 표시 */}
                           {s.korName && <div style={{ fontSize: '12px', color: '#4B5563', marginTop: '2px' }}>{s.korName}</div>}
                           <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: '2px' }}>{s.studentId}</div>
                         </td>
@@ -315,12 +319,14 @@ export default function SearchByClass({ onBack }) {
                                   <span className="sc-course-name">{c.courseName}</span>
                                   <span className="sc-course-stat">결석 {c.totalAbsent}</span>
                                   {c.warningStatus && (
-                                    <span className={`sc-chip ${c.warningStatus === '위험' ? 'sc-chip-red' : 'sc-chip-amber'}`} style={{ padding: '2px 6px', fontSize: '10px' }}>
+                                    <span
+                                      className={`sc-chip ${getWarningChipClass(c.warningStatus)}`}
+                                      style={{ padding: '2px 6px', fontSize: '10px' }}
+                                    >
                                       {c.warningStatus}
                                     </span>
                                   )}
                                 </div>
-                                {/* 주차별 미니 타임라인 추가 */}
                                 {c.weeklyAttend && c.weeklyAttend.length > 0 && (
                                   <div className="sc-week-timeline">
                                     {c.weeklyAttend.map((status, idx) => (

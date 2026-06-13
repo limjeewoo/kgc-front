@@ -5,25 +5,25 @@ import api from '../../../../api/axios';
 export default function BasicTab({ readOnly = false, onTabChange, studentId: studentIdProp }) {
   const params = useParams();
   const navigate = useNavigate();
-  
+
   const id = studentIdProp || params.studentId || params.id;
   const isNewMode = id === 'new';
 
   const EMPTY_STUDENT = {
     studentId:'', korName:'', engName:'', deptId:'', deptName:'',
-    gender:'MALE', nationality:'', birthDate:'', phone:'', address:'',
+    gender:'남', nationality:'', birthDate:'', phone:'', address:'',
     classSec:'', grade:'1', admissionDate:'', enrollStatus:'재학',
     foreignRegNo:'', visaType:'정보없음', topikLevel:'정보없음',
-    maxWorkHours:'정보없음', attendance:'-', gpa:'0.0', photoUrl:null,
+    maxWorkHours:'정보없음', gpa:null, totalCredits:null, photoUrl:null,
   };
 
-  const [isLoading, setIsLoading]         = useState(true);
-  const [student, setStudent]             = useState(EMPTY_STUDENT);
+  const [isLoading, setIsLoading]             = useState(true);
+  const [student, setStudent]                 = useState(EMPTY_STUDENT);
   const [originalStudent, setOriginalStudent] = useState(EMPTY_STUDENT);
-  const [departments, setDepartments]     = useState([]);
-  const [nationalities, setNationalities] = useState([]);
-  const [isEditMode, setIsEditMode]       = useState(false);
-  const [isSaving, setIsSaving]           = useState(false);
+  const [departments, setDepartments]         = useState([]);
+  const [nationalities, setNationalities]     = useState([]);
+  const [isEditMode, setIsEditMode]           = useState(false);
+  const [isSaving, setIsSaving]               = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
@@ -46,7 +46,7 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
     }
 
     if (!id || id === 'undefined') {
-      console.warn('유효하지 않은 학생 ID입니다. URL 파라미터나 props를 확인하세요:', params);
+      console.warn('유효하지 않은 학생 ID:', params);
       setIsLoading(false);
       return;
     }
@@ -56,12 +56,13 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         if (res.data.success) {
           const s = res.data.data;
           const mapped = {
-            studentId:     s.studentId || id,
+            studentId:    s.studentId || id,
             deptId:       s.deptId || '',
             deptName:     s.deptName || '소속 정보 없음',
             engName:      s.engName || '',
             korName:      s.korName || '이름 없음',
-            gender:       s.gender || 'MALE',
+            // 백엔드: "남" / "여"
+            gender:       s.gender || '남',
             nationality:  s.nationality || '-',
             birthDate:    s.birthDate || '',
             phone:        s.phone || '',
@@ -71,11 +72,14 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
             admissionDate: s.admissionDate || '',
             enrollStatus: s.enrollStatus || '재학',
             foreignRegNo: s.foreignRegNo || '',
-            visaType:     s.visaType || s.currentVisa?.visaType || '정보없음',
-            topikLevel:   s.topikLevel || '정보없음',
-            maxWorkHours: s.maxWorkHoursPerWeek ? `주 ${s.maxWorkHoursPerWeek}시간` : '정보없음',
-            attendance:   s.totalAttendRate ? `${s.totalAttendRate}%` : '-',
-            gpa:          s.totalGpa || s.gpa || '0.0',
+            // 아래 세 필드는 /api/v1/students/{id} 응답에 없음
+            // → 비자/TOPIK 탭 또는 별도 API에서 관리
+            visaType:     '정보없음',
+            topikLevel:   '정보없음',
+            maxWorkHours: '정보없음',
+            // 명세서 기준 필드명
+            gpa:          s.gpa ?? null,
+            totalCredits: s.totalCredits ?? null,
             photoUrl:     s.photoUrl || null,
           };
           setStudent(mapped);
@@ -101,7 +105,7 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         deptId:        student.deptId,
         grade:         parseInt(student.grade) || 1,
         classSec:      student.classSec || null,
-        gender:        student.gender,
+        gender:        student.gender,       // "남" / "여"
         nationality:   student.nationality,
         birthDate:     student.birthDate || null,
         phone:         student.phone || null,
@@ -129,13 +133,13 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
     try {
       setIsSaving(true);
       const res = await api.put(`/api/v1/students/${id}`, {
-        studentId:     id, // 💡 학번 수정은 불가능하지만, 백엔드 DTO 검증 통과를 위해 필수로 포함해야 합니다!
+        studentId:     id,
         korName:       student.korName,
         engName:       student.engName || null,
         deptId:        student.deptId,
         grade:         parseInt(student.grade) || 1,
         classSec:      student.classSec || null,
-        gender:        student.gender,
+        gender:        student.gender,       // "남" / "여"
         nationality:   student.nationality,
         birthDate:     student.birthDate || null,
         phone:         student.phone || null,
@@ -227,7 +231,6 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
             학생 관리 › <strong>{isNewMode ? '신규 학생 등록' : `${student.korName} 정보`}</strong>
           </div>
         </div>
-
         <div style={{ display:'flex', gap:'8px' }}>
           {isNewMode && !readOnly && (
             <button className="bt-submit-btn" onClick={handleRegisterSubmit}>등록 완료</button>
@@ -235,7 +238,6 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
           {!isNewMode && !readOnly && !isEditMode && (
             <button className="bt-edit-btn" onClick={() => setIsEditMode(true)}>✏️ 정보 수정</button>
           )}
-          {/* 💡 상단 탑바의 [취소], [저장] 버튼 그룹은 기획에 맞춰 완전 삭제했습니다. */}
         </div>
       </div>
 
@@ -250,6 +252,7 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         </div>
       )}
 
+      {/* 프로필 헤더 */}
       <div className="bt-profile-header">
         <div className="bt-profile-photo">{initials}</div>
         <div style={{ flex:1 }}>
@@ -270,7 +273,7 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
               <div>
                 <span className="bt-chip bt-chip-green">{student.enrollStatus}</span>
                 <span className="bt-chip bt-chip-blue">{student.visaType}</span>
-                <span className="bt-chip" style={{ background: '#F3F4F6', color: '#374151' }}>{student.nationality}</span>
+                <span className="bt-chip" style={{ background:'#F3F4F6', color:'#374151' }}>{student.nationality}</span>
               </div>
             </>
           )}
@@ -278,11 +281,17 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         {!isNewMode && (
           <div style={{ display:'flex', gap:'2rem', textAlign:'center' }}>
             <div>
-              <div style={{ fontSize:'1.3rem', fontWeight:700, color:'#3B82F6' }}>{student.attendance}</div>
-              <div style={{ fontSize:'0.7rem', color:'#9CA3AF' }}>출석현황</div>
+              {/* totalCredits: 명세서 기준 필드 */}
+              <div style={{ fontSize:'1.3rem', fontWeight:700, color:'#3B82F6' }}>
+                {student.totalCredits ?? '-'}
+              </div>
+              <div style={{ fontSize:'0.7rem', color:'#9CA3AF' }}>총이수학점</div>
             </div>
             <div>
-              <div style={{ fontSize:'1.3rem', fontWeight:700, color:'#0F172A' }}>{student.gpa}</div>
+              {/* gpa: 명세서 기준 필드 */}
+              <div style={{ fontSize:'1.3rem', fontWeight:700, color:'#0F172A' }}>
+                {student.gpa?.toFixed(2) ?? '-'}
+              </div>
               <div style={{ fontSize:'0.7rem', color:'#9CA3AF' }}>누적평점</div>
             </div>
           </div>
@@ -290,11 +299,12 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
       </div>
 
       <div className="bt-info-grid">
+        {/* 인적 사항 */}
         <div className="bt-info-card">
           <div className="bt-info-card-title">인적 사항</div>
           {[
             { key:'생년월일',      field:'birthDate',    type:'date' },
-            { key:'연락처',        field:'phone',        type:'tel',   ph:'010-0000-0000' },
+            { key:'연락처',        field:'phone',        type:'tel',  ph:'010-0000-0000' },
             { key:'주소',          field:'address',      type:'text', ph:'거주 주소 입력' },
             { key:'외국인등록번호',  field:'foreignRegNo', type:'text', ph:'비밀번호 초기화용' },
           ].map(({ key, field, type, ph }) => (
@@ -303,18 +313,20 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
               {renderInput(field, type, ph)}
             </div>
           ))}
+          {/* 성별: 백엔드 "남" / "여" 기준 */}
           <div className="bt-info-row">
             <span className="bt-info-key">성별</span>
             {isViewOnly
-              ? <span className="bt-info-val">{student.gender === 'MALE' ? '남성' : '여성'}</span>
+              ? <span className="bt-info-val">{student.gender}</span>
               : <select className="bt-form-select" value={student.gender} onChange={set('gender')}>
-                  <option value="MALE">남성 (MALE)</option>
-                  <option value="FEMALE">여성 (FEMALE)</option>
+                  <option value="남">남성</option>
+                  <option value="여">여성</option>
                 </select>
             }
           </div>
         </div>
 
+        {/* 학적 상세 */}
         <div className="bt-info-card">
           <div className="bt-info-card-title" style={{ display:'flex', justifyContent:'space-between' }}>
             학적 상세
@@ -365,6 +377,7 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
           </div>
         </div>
 
+        {/* 비자 및 국적 */}
         <div className="bt-info-card">
           <div className="bt-info-card-title">비자 및 국적</div>
           <div className="bt-info-row">
@@ -407,7 +420,6 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         </div>
       )}
 
-      {/* 💡 하단의 취소 및 저장 버튼 활성화 레이아웃 */}
       {isEditMode && (
         <div style={{ textAlign:'center', marginTop:'1.5rem' }}>
           <button className="bt-cancel-btn" onClick={handleEditCancel}>취소</button>

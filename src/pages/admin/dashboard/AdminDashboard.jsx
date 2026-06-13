@@ -20,6 +20,7 @@ import SemesterManagement from "../semesters/SemestersManagement.jsx";
 import JobPending from "../jobs/JobPending.jsx";
 import MileageManage from "../jobs/MileageManage.jsx";
 import SystemConfig from  "../Config/SystemConfig.jsx";
+import DeptManagement from "../Dept/DeptManagemen.jsx";
 
 const NOT_IMPLEMENTED = new Set(['상담 내역']);
 const SEARCH_SUB_MENUS = ['개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색'];
@@ -248,6 +249,7 @@ export default function AdminDashboard() {
             <div className="sb-lbl">학사</div>
             <button className={`nav-btn ${activeMenu === '출결 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('출결 관리')}>출결 관리</button>
             <button className={`nav-btn ${activeMenu === '과목 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('과목 관리')}>과목 관리</button>
+            <button className={`nav-btn ${activeMenu === '학과 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('학과 관리')}>학과 관리</button>
           </div>
 
           <div className="sb-sec">
@@ -263,7 +265,7 @@ export default function AdminDashboard() {
                 <button key={sub} className={`sub-nav-btn ${activeMenu === sub ? 'active' : ''}`} onClick={() => setActiveMenu(sub)}>{sub}</button>
               ))}
             </div>
-            <button className={`nav-btn ${activeMenu === '학과/학기 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('학과/학기 관리')}>학과/학기 관리</button>
+            <button className={`nav-btn ${activeMenu === '학과/학기 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('학과/학기 관리')}>학기 관리</button>
           </div>
 
           {/* 권한 관리 별도 카테고리 */}
@@ -435,6 +437,7 @@ export default function AdminDashboard() {
             {activeMenu === '학생 근로 현황'           && <JobTab          onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '출결 관리'                && <SearchByClass   onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '과목 관리'                && <CourseList      key={courseListRefreshKey} onBack={() => setActiveMenu('대시보드')} />}
+            {activeMenu === '학과 관리'                && <DeptManagement />}
             {activeMenu === '전체 교수 목록'           && <ProfessorList   onRegisterClick={() => setActiveMenu('교수 등록')} />}
             {activeMenu === '학생-지도교수 배정 관리'  && <AdvisorAssign />}
             {activeMenu === '교수 등록'                && <ProfessorRegister onComplete={() => setActiveMenu('전체 교수 목록')} onCancel={() => setActiveMenu('전체 교수 목록')} />}
