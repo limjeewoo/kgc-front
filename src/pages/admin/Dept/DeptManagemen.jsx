@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../../api/axios';
 
 export default function DeptManagement() {
   const [depts, setDepts]         = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [modal, setModal]         = useState(null); // null | { mode: 'add' | 'edit', dept?: {} }
-  const [deleteTarget, setDeleteTarget] = useState(null); // dept 객체
+  const [modal, setModal]         = useState(null); // 형식: null | { mode: 'add' | 'edit', dept?: {} }
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
-  // ── 전체 목록 조회 ──────────────────────────────────────────
   const fetchDepts = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -22,7 +21,22 @@ export default function DeptManagement() {
 
   useEffect(() => { fetchDepts(); }, [fetchDepts]);
 
-  // ── 등록 / 수정 저장 ────────────────────────────────────────
+  // 프론트엔드 자체 정렬: 계열 오름차순 -> 같으면 학과명 오름차순
+  const sortedDepts = useMemo(() => {
+    return [...depts].sort((a, b) => {
+      const collegeA = a.college || '';
+      const collegeB = b.college || '';
+
+      if (collegeA !== collegeB) {
+        return collegeA.localeCompare(collegeB, 'ko');
+      }
+      
+      const nameA = a.deptName || '';
+      const nameB = b.deptName || '';
+      return nameA.localeCompare(nameB, 'ko');
+    });
+  }, [depts]);
+
   const handleSave = async (formData) => {
     try {
       if (modal.mode === 'add') {
@@ -37,7 +51,6 @@ export default function DeptManagement() {
     }
   };
 
-  // ── 삭제 ────────────────────────────────────────────────────
   const handleDelete = async () => {
     try {
       await api.delete(`/api/v1/depts/${deleteTarget.deptId}`);
@@ -61,7 +74,7 @@ export default function DeptManagement() {
         .dm-add-btn { display:flex; align-items:center; gap:6px; padding:9px 18px; background:#1A3A5C; color:#fff; border:none; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; transition:background .15s; }
         .dm-add-btn:hover { background:#15304e; }
 
-        /* 테이블 카드 */
+        /* 테이블 스태일 */
         .dm-card { background:#fff; border-radius:14px; border:1px solid #F1F5F9; overflow:hidden; }
         .dm-table { width:100%; border-collapse:collapse; }
         .dm-table th { padding:11px 16px; background:#F8FAFC; font-size:12px; font-weight:600; color:#9CA3AF; text-align:left; border-bottom:1px solid #F1F5F9; white-space:nowrap; }
@@ -82,7 +95,7 @@ export default function DeptManagement() {
 
         .dm-empty { padding:4rem; text-align:center; color:#9CA3AF; font-size:13px; }
 
-        /* 모달 오버레이 */
+        /* 모달 스타일 */
         .dm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; z-index:1000; padding:1rem; }
         .dm-modal { background:#fff; border-radius:16px; width:100%; max-width:480px; box-shadow:0 20px 60px rgba(0,0,0,0.15); overflow:hidden; }
         .dm-modal-header { padding:1.25rem 1.5rem; border-bottom:1px solid #F3F4F6; display:flex; align-items:center; justify-content:space-between; }
@@ -107,7 +120,6 @@ export default function DeptManagement() {
         .dm-btn-save:hover { background:#15304e; }
         .dm-btn-save:disabled { background:#94A3B8; cursor:not-allowed; }
 
-        /* 삭제 확인 모달 */
         .dm-del-modal { background:#fff; border-radius:16px; width:100%; max-width:380px; box-shadow:0 20px 60px rgba(0,0,0,0.15); padding:1.75rem; text-align:center; }
         .dm-del-icon { font-size:2.5rem; margin-bottom:0.75rem; }
         .dm-del-title { font-size:15px; font-weight:700; color:#0F172A; margin-bottom:0.5rem; }
@@ -118,22 +130,20 @@ export default function DeptManagement() {
         .dm-btn-del-confirm:hover { background:#B91C1C; }
       `}</style>
 
-      {/* ── 헤더 ── */}
       <div className="dm-header">
         <div className="dm-title">
           학과 관리
-          <span className="dm-count">{depts.length}개 학과</span>
+          <span className="dm-count">{sortedDepts.length}개 학과</span>
         </div>
         <button className="dm-add-btn" onClick={() => setModal({ mode: 'add' })}>
           + 학과 등록
         </button>
       </div>
 
-      {/* ── 테이블 ── */}
       <div className="dm-card">
         {isLoading ? (
           <div className="dm-empty">데이터를 불러오는 중입니다...</div>
-        ) : depts.length === 0 ? (
+        ) : sortedDepts.length === 0 ? (
           <div className="dm-empty">등록된 학과가 없습니다.</div>
         ) : (
           <table className="dm-table">
@@ -148,7 +158,7 @@ export default function DeptManagement() {
               </tr>
             </thead>
             <tbody>
-              {depts.map(d => (
+              {sortedDepts.map(d => (
                 <tr key={d.deptId}>
                   <td><span className="dm-dept-id">{d.deptId}</span></td>
                   <td style={{ fontWeight:600, color:'#111827' }}>{d.deptName}</td>
@@ -170,7 +180,6 @@ export default function DeptManagement() {
         )}
       </div>
 
-      {/* ── 등록 / 수정 모달 ── */}
       {modal && (
         <DeptFormModal
           mode={modal.mode}
@@ -180,7 +189,6 @@ export default function DeptManagement() {
         />
       )}
 
-      {/* ── 삭제 확인 모달 ── */}
       {deleteTarget && (
         <div className="dm-overlay">
           <div className="dm-del-modal">
@@ -201,7 +209,6 @@ export default function DeptManagement() {
   );
 }
 
-// ── 등록 / 수정 폼 모달 ─────────────────────────────────────────────
 function DeptFormModal({ mode, dept, onSave, onClose }) {
   const isEdit = mode === 'edit';
   const [form, setForm] = useState({
@@ -249,7 +256,7 @@ function DeptFormModal({ mode, dept, onSave, onClose }) {
               placeholder="예: CS01"
               value={form.deptId}
               onChange={set('deptId')}
-              disabled={isEdit} // 수정 시 ID 변경 불가
+              disabled={isEdit} // 수정 시 ID 변경 불가 고정
             />
             {isEdit && <span className="dm-hint">학과 ID는 수정할 수 없습니다.</span>}
           </div>
