@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
 // ─── API 설정 ────────────────────────────────────────────────────────
-const BASE_URL = 'http://localhost:8080'; // 개발용
+const BASE_URL = 'http://localhost:8080';
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -22,14 +22,13 @@ const getRiskLevel = (ratio) => {
   const pct = (ratio || 0) * 100;
   if (pct < 20) return { level: 'safe',      label: 'Safe',     color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0', barColor: '#22C55E' };
   if (pct < 30) return { level: 'warning',   label: 'Warning',  color: '#D97706', bg: '#FFFBEB', border: '#FDE68A', barColor: '#F59E0B' };
-  return        { level: 'violation', label: 'Violation', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA', barColor: '#EF4444' };
+  return         { level: 'violation', label: 'Violation', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA', barColor: '#EF4444' };
 };
 
 const fmtPct = (ratio) => ((ratio || 0) * 100).toFixed(1) + '%';
 
-/* 확인서 프린트 유틸 (명세서의 onlineType 속성 완벽 반영) */
+// ─── 확인서 프린트 유틸 ────────────────────────────────────────────────
 const printCert = (student, enrollments, semesterName) => {
-  // 변경점: isOnline 대신 onlineType === 'ONLINE' 만 순수 온라인 학점으로 계산
   const onlineCredits = (enrollments || [])
     .filter(e => e.onlineType === 'ONLINE')
     .reduce((sum, e) => sum + (e.credits || 0), 0);
@@ -66,19 +65,17 @@ const printCert = (student, enrollments, semesterName) => {
     </table>
     <h3>3. 세부 수강 내역</h3>
     <table>
-      <thead><tr style="background:#eee;"><th>과목코드</th><th>과목명</th><th>학점</th><th>이수형태</th></tr></thead>
+      <thead><tr style="background:#eee;"><th>과목명</th><th>학점</th><th>이수형태</th></tr></thead>
       <tbody>
         ${(enrollments || []).map(e => {
-          // onlineType 에 따른 텍스트 출력
-          let typeText = '오프라인(Face-to-face)';
-          if (e.onlineType === 'ONLINE') typeText = '<b>온라인(Online)</b>';
-          if (e.onlineType === 'BLENDED') typeText = '블렌디드(Blended)';
+          let typeText = '대면 수업 (오프라인)';
+          if (e.onlineType === 'ONLINE') typeText = '<b>온라인 수업 (100%)</b>';
+          if (e.onlineType === 'BLENDED') typeText = '온·오프라인 혼합 (블렌디드)';
 
           return `
           <tr>
-            <td>${e.courseId}</td>
             <td>${e.courseName}</td>
-            <td>${e.credits}</td>
+            <td>${e.credits}학점</td>
             <td>${typeText}</td>
           </tr>`;
         }).join('')}
@@ -112,7 +109,6 @@ export default function OnlineViolation() {
   const [detailLoading, setDL]          = useState(false);
   const detailRef = useRef(null);
 
-  // 1. 초기 데이터 로드 (현재 학기, 학과 목록)
   useEffect(() => {
     const init = async () => {
       try {
@@ -129,11 +125,9 @@ export default function OnlineViolation() {
     init();
   }, []);
 
-  // 2. 온라인 30% 초과 학생 검색 리스트 로드 (명세서 18.5)
   const loadList = async (deptId = '') => {
     setLoading(true);
     try {
-      // 변경점: GET /api/v1/search/online-violations 사용 및 파라미터 전달
       const res = await api.get('/api/v1/search/online-violations', {
         params: { deptId: deptId || undefined },
       });
@@ -155,7 +149,6 @@ export default function OnlineViolation() {
     loadList(selectedDept); 
   }, [selectedDept]);
 
-  // 3. 수강 상세 내역 로드 (명세서 11.2)
   const openDetail = async (student) => {
     if (detail?.student?.studentId === student.studentId) {
       setDetail(null);
@@ -178,7 +171,6 @@ export default function OnlineViolation() {
     }
   };
 
-  // 4. 필터링 및 정렬
   const displayed = students
     .filter(s => {
       const level = getRiskLevel(s.onlineRatio).level;
@@ -196,15 +188,14 @@ export default function OnlineViolation() {
       const ratioB = b.onlineRatio || 0;
       if (sortBy === 'ratio_desc') return ratioB - ratioA;
       if (sortBy === 'ratio_asc')  return ratioA - ratioB;
-      if (sortBy === 'name')       return (a.korName || '').localeCompare(b.korName || '');
+      if (sortBy === 'name')        return (a.korName || '').localeCompare(b.korName || '');
       return 0;
     });
 
-  // 통계 계산
   const counts = {
     violation: students.filter(s => (s.onlineRatio || 0) >= 0.3).length,
     warning:   students.filter(s => (s.onlineRatio || 0) >= 0.2 && (s.onlineRatio || 0) < 0.3).length,
-    safe:      students.filter(s => (s.onlineRatio || 0) < 0.2).length,
+    safe:       students.filter(s => (s.onlineRatio || 0) < 0.2).length,
   };
 
   return (
@@ -243,7 +234,7 @@ export default function OnlineViolation() {
 
         .ov-chip { font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; }
         .ov-chip-blue    { background:#EFF6FF; color:#1D4ED8; }
-        .ov-chip-red     { background:#FEF2F2; color:#DC2626; }
+        .ov-chip-red      { background:#FEF2F2; color:#DC2626; }
 
         .ov-row { display:flex; align-items:center; padding:14px 22px; border-bottom:1px solid #F9FAFB; cursor:pointer; transition:background 0.12s; gap:16px; }
         .ov-row:last-child { border-bottom:none; }
@@ -275,14 +266,13 @@ export default function OnlineViolation() {
         .ov-detail-actions { display:flex; gap:8px; }
 
         .ov-enroll-table { width:100%; border-collapse:collapse; }
-        .ov-enroll-table th { padding:10px 14px; font-size:11.5px; font-weight:600; color:#9CA3AF; text-align:left; border-bottom:1px solid #F3F4F6; background:#FAFAFA; white-space:nowrap; }
-        .ov-enroll-table td { padding:11px 14px; font-size:12.5px; color:#374151; border-bottom:1px solid #F9FAFB; vertical-align:middle; }
+        .ov-enroll-table th { padding:12px 16px; font-size:12px; font-weight:600; color:#6B7280; text-align:left; border-bottom:1px solid #E5E7EB; background:#F9FAFB; white-space:nowrap; }
+        .ov-enroll-table td { padding:14px 16px; font-size:13px; color:#374151; border-bottom:1px solid #F3F4F6; vertical-align:middle; }
+        .ov-enroll-table tr:last-child td { border-bottom:none; }
         .ov-enroll-table tr:hover td { background:#F8FAFC; }
 
-        .ov-badge { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:600; padding:3px 8px; border-radius:6px; }
-        .ov-badge-online  { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA; }
-        .ov-badge-blended { background:#F3E8FF; color:#7E22CE; border:1px solid #E9D5FF; }
-        .ov-badge-offline { background:#F3F4F6; color:#4B5563; border:1px solid #E5E7EB; }
+        .ov-badge { display:inline-flex; align-items:center; font-size:12px; font-weight:500; color:#4B5563; background:transparent; padding:4px 0; letter-spacing:-0.2px; }
+        
         .ov-empty { padding:48px; text-align:center; color:#9CA3AF; font-size:13px; }
 
         @media (max-width:900px) {
@@ -466,7 +456,6 @@ export default function OnlineViolation() {
               <table className="ov-enroll-table">
                 <thead>
                   <tr>
-                    <th>과목코드</th>
                     <th>과목명</th>
                     <th>학점</th>
                     <th>이수형태</th>
@@ -475,26 +464,20 @@ export default function OnlineViolation() {
                 </thead>
                 <tbody>
                   {detail.enrollments.map(e => {
-                    // 변경점: onlineType (ONLINE, OFFLINE, BLENDED) 대응
                     const type = e.onlineType;
                     return (
                       <tr key={e.enrollId}>
-                        <td>
-                          <span style={{ fontFamily:'monospace', background:'#F3F4F6', padding:'2px 7px', borderRadius:5, fontSize:12 }}>
-                            {e.courseId}
-                          </span>
-                        </td>
                         <td style={{ fontWeight: 600, color: '#111827' }}>{e.courseName}</td>
                         <td>
                           <span className="ov-chip ov-chip-blue">{e.credits}학점</span>
                         </td>
                         <td>
                           {type === 'ONLINE' ? (
-                            <span className="ov-badge ov-badge-online">🌐 100% 온라인</span>
+                            <span className="ov-badge">온라인 수업</span>
                           ) : type === 'BLENDED' ? (
-                            <span className="ov-badge ov-badge-blended">🌓 블렌디드</span>
+                            <span className="ov-badge">온·오프라인 혼합</span>
                           ) : (
-                            <span className="ov-badge ov-badge-offline">🏛️ 오프라인 대면</span>
+                            <span className="ov-badge">대면 수업</span>
                           )}
                         </td>
                         <td style={{ fontWeight: 600 }}>{e.grade || '—'}</td>
