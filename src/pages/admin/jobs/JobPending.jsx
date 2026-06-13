@@ -9,7 +9,7 @@ const authHeader = () => ({
 
 async function apiFetch(path) {
   const res = await axios.get(`${API_BASE}${path}`, { headers: authHeader() });
-  return res.data.data;
+  return res.data.data ?? res.data; // 이중 data 래핑 유연 대응
 }
 async function apiPatch(path, body) {
   const res = await axios.patch(`${API_BASE}${path}`, body, { headers: authHeader() });
@@ -35,7 +35,7 @@ const LABEL_MAP = {
   REJECTED: '반려',
 };
 
-// ─── 컴포넌트 전용 스타일 (사이드바 제거됨) ───────────
+// ─── 컴포넌트 전용 스타일 ───────────
 const STYLES = `
 @keyframes fadeUp   { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 @keyframes shimmer  { from { background-position:200% 0; } to { background-position:-200% 0; } }
@@ -91,7 +91,7 @@ const STYLES = `
 table.base-tbl { width:100%; border-collapse:collapse; font-size:.8125rem; }
 table.base-tbl thead tr { background:#FAFBFD; border-bottom:1px solid #F1F5F9; }
 table.base-tbl th { padding:.875rem 1rem; text-align:left; font-size:.75rem; color:#64748B; font-weight:600; white-space:nowrap; }
-table.base-tbl td { padding:.875rem 1rem; border-bottom:1px solid #F8FAFC; color:#374151; vertical-align:middle; cursor:pointer; }
+table.base-tbl td { padding:.875rem 1rem; border-bottom:1px solid #F8FAFC; color:#374151; vertical-align:middle; cursor:default; }
 table.base-tbl tbody tr:hover td { background:#F8FAFC; }
 
 /* row action buttons */
@@ -101,6 +101,37 @@ table.base-tbl tbody tr:hover td { background:#F8FAFC; }
 .act-reject  { border-color:#FCA5A5; color:#DC2626; background:#FFF5F5; }
 .act-reject:hover:not(:disabled)  { background:#DC2626; color:#fff; border-color:#DC2626; }
 .act-btn:disabled { opacity:.45; cursor:not-allowed; }
+
+/* list dedicated buttons (수정됨) */
+.act-check { 
+  border: 1.5px solid #3B82F6; 
+  color: #3B82F6; 
+  background: transparent; 
+  padding: .3rem .6rem; 
+  font-size: .75rem; 
+  font-weight: 600; 
+  border-radius: .375rem; 
+  cursor: pointer; 
+  transition: all .2s;
+}
+.act-check:hover { 
+  background: #EFF6FF; 
+}
+
+.act-view { 
+  border: 1.5px solid #E2E8F0; 
+  color: #64748B; 
+  background: transparent; 
+  padding: .3rem .6rem; 
+  font-size: .75rem; 
+  font-weight: 500; 
+  border-radius: .375rem; 
+  cursor: pointer; 
+  transition: all .2s;
+}
+.act-view:hover { 
+  background: #F8FAFC; 
+}
 
 /* buttons */
 .btn-primary { display:inline-flex; align-items:center; gap:.5rem; padding:.625rem 1.375rem; border:none; border-radius:.625rem; background:#3B82F6; color:#fff; font-size:.875rem; font-weight:700; cursor:pointer; }
@@ -224,6 +255,27 @@ function RejectModal({ job, onConfirm, onCancel, loading }) {
 
 // ─── 상세 드로어 ───────────────────────────────────────
 function DetailDrawer({ job, onClose, onApprove, onReject, actioning }) {
+  const [studentInfo, setStudentInfo] = useState(null);
+  const [isLoadingStudent, setIsLoadingStudent] = useState(false);
+
+  useEffect(() => {
+    if (!job?.studentId) return;
+    
+    const fetchStudentDetail = async () => {
+      setIsLoadingStudent(true);
+      try {
+        const data = await apiFetch(`/search/student/${job.studentId}`);
+        setStudentInfo(data.student);
+      } catch (err) {
+        console.error('학생 상세 정보를 불러오지 못했습니다.', err);
+      } finally {
+        setIsLoadingStudent(false);
+      }
+    };
+
+    fetchStudentDetail();
+  }, [job?.studentId]);
+
   if (!job) return null;
   const isPending = job.approvalStatus === 'PENDING';
 
@@ -269,8 +321,8 @@ function DetailDrawer({ job, onClose, onApprove, onReject, actioning }) {
           <div className="info-grid" style={{ marginBottom:'1.25rem' }}>
             <InfoRow label="학생명"  value={job.studentName} />
             <InfoRow label="학번"    value={job.studentId} />
-            <InfoRow label="학과"    value={job.deptName ?? '—'} />
-            <InfoRow label="국적"    value={job.nationality ?? '—'} />
+            <InfoRow label="학과"    value={isLoadingStudent ? '불러오는 중...' : (studentInfo?.deptName ?? '—')} />
+            <InfoRow label="국적"    value={isLoadingStudent ? '불러오는 중...' : (studentInfo?.nationality ?? '—')} />
           </div>
 
           <div style={{ height:'1px', background:'#F1F5F9', margin:'1.25rem 0' }} />
@@ -279,13 +331,13 @@ function DetailDrawer({ job, onClose, onApprove, onReject, actioning }) {
             근로 계약 정보
           </div>
           <div className="info-grid" style={{ marginBottom:'1.25rem' }}>
-            <InfoRow label="사업체명"   value={job.companyName} />
-            <InfoRow label="업종 / 직종" value={job.jobType ?? '—'} />
-            <InfoRow label="근무지 주소" value={job.workplaceAddr ?? '—'} />
-            <InfoRow label="주당 근무시간" value={job.weeklyHours ? `${job.weeklyHours}시간` : '—'} />
-            <InfoRow label="계약 시작일" value={job.startDate} />
-            <InfoRow label="계약 종료일" value={job.endDate ?? '미정'} />
-            <InfoRow label="신청일"     value={job.createdAt?.slice(0, 10) ?? '—'} />
+            <InfoRow label="사업체명"      value={job.companyName} />
+            <InfoRow label="업종 / 직종"   value={job.industry ?? '—'} />
+            <InfoRow label="근무지 주소"   value={job.workAddress ?? '—'} />
+            <InfoRow label="시급"          value={job.wage != null ? `${job.wage.toLocaleString()}원` : '—'} />
+            <InfoRow label="주당 근무시간" value={job.workHoursPerWeek != null ? `${job.workHoursPerWeek}시간` : '—'} />
+            <InfoRow label="계약 시작일"   value={job.startDate} />
+            <InfoRow label="계약 종료일"   value={job.endDate ?? '미정'} />
             <InfoRow label="상태">
               <span className={`pill ${PILL_MAP[job.approvalStatus] ?? 'pill-gray'}`}>
                 {LABEL_MAP[job.approvalStatus] ?? job.approvalStatus}
@@ -462,27 +514,47 @@ export default function JobPending() {
                   <th>학생명</th>
                   <th>학번</th>
                   <th>사업체명</th>
+                  <th>근무지 주소</th>
                   <th>계약기간</th>
+                  <th style={{ width: '110px', textAlign: 'center' }}>관리</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="6" style={{ textAlign:'center', padding:'2rem' }}>데이터를 불러오는 중입니다...</td></tr>
+                  <tr><td colSpan="8" style={{ textAlign:'center', padding:'2rem' }}>데이터를 불러오는 중입니다...</td></tr>
                 ) : displayed.length === 0 ? (
-                  <tr><td colSpan="6" className="empty-state">조건에 맞는 내역이 없습니다.</td></tr>
+                  <tr><td colSpan="8" className="empty-state">조건에 맞는 내역이 없습니다.</td></tr>
                 ) : (
                   displayed.map(job => (
-                    <tr key={job.jobId} onClick={() => setSelected(job)}>
+                    <tr key={job.jobId}>
                       <td>
                         <span className={`pill ${PILL_MAP[job.approvalStatus] ?? 'pill-gray'}`}>
                           {LABEL_MAP[job.approvalStatus] ?? job.approvalStatus}
                         </span>
                       </td>
                       <td>{job.createdAt?.slice(0, 10) ?? '—'}</td>
-                      <td style={{ fontWeight: 600 }}>{job.studentName}</td>
-                      <td>{job.studentId}</td>
-                      <td>{job.companyName}</td>
+                      <td style={{ fontWeight: 600 }}>{job.studentName ?? '—'}</td>
+                      <td>{job.studentId ?? '—'}</td>
+                      <td>{job.companyName ?? '—'}</td>
+                      <td>{job.workAddress ?? '—'}</td>
                       <td>{job.startDate} ~ {job.endDate ?? '미정'}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {job.approvalStatus === 'PENDING' ? (
+                          <button 
+                            className="act-check" 
+                            onClick={() => setSelected(job)}
+                          >
+                            근로 확인
+                          </button>
+                        ) : (
+                          <button 
+                            className="act-view" 
+                            onClick={() => setSelected(job)}
+                          >
+                            상세 보기
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}

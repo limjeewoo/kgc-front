@@ -282,7 +282,7 @@ export default function JobUpload() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">시급 <span className="req">*</span></label>
-                  <input type="number" className="form-input" placeholder="예: 9860" value={form.wage}
+                  <input type="number" className="form-input" placeholder="예: 10320" value={form.wage}
                     onChange={e => set('wage', e.target.value)} />
                 </div>
               </div>
