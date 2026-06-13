@@ -198,7 +198,7 @@ export default function JobUpload() {
     <>
       <style>{GLOBAL_STYLE_CSS}</style>
       <div className="sw-main">
-        <TopBar title="시간제취업 등록 완료" />
+        <TopBar title="시간제 근로 등록 완료" />
         <div className="sw-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
           <div style={{ textAlign: 'center', maxWidth: '360px', background: '#fff', padding: '2.5rem', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
             <div style={{
@@ -237,7 +237,7 @@ export default function JobUpload() {
     <>
       <style>{GLOBAL_STYLE_CSS}</style>
       <div className="sw-main">
-        <TopBar title="시간제취업 신청" />
+        <TopBar title="시간제 근로 신청" />
         <div className="sw-content">
           {error && <ErrBanner msg={error} />}
 
@@ -257,7 +257,7 @@ export default function JobUpload() {
 
           <div className="data-card">
             <div className="card-hd">
-              <div className="card-hd-title">시간제취업 신청서 작성</div>
+              <div className="card-hd-title">시간제 근로 신청서 작성</div>
               <div className="card-badge">내부 서류 심사</div>
             </div>
             <div className="card-body">
@@ -329,7 +329,7 @@ export default function JobUpload() {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">표준 근로계약서 / 시간제취업 허가서 첨부</label>
+                <label className="form-label">표준 근로계약서 / 시간제 근로 허가서 첨부</label>
                 <div
                   className={`upload-zone ${dragOver ? 'drag' : ''} ${form.file ? 'has-file' : ''}`}
                   onClick={() => fileRef.current?.click()}

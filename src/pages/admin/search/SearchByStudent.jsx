@@ -15,9 +15,9 @@ api.interceptors.request.use((config) => {
 
 // 명세서 기준: onlineType ONLINE/OFFLINE/BLENDED
 const ONLINE_TYPE_LABEL = {
-  ONLINE:   { label: '온라인',   bg: '#EFF6FF', color: '#2563EB' },
+  ONLINE:   { label: '온라인',   bg: 'transparent', color: '#374151' },
   OFFLINE:  { label: '오프라인', bg: 'transparent', color: '#374151' },
-  BLENDED:  { label: '블렌디드', bg: '#F3F0FF', color: '#7C3AED' },
+  BLENDED:  { label: '온·오프라인 혼합', bg: 'transparent', color: '#374151' },
 };
 
 // 근로 승인상태

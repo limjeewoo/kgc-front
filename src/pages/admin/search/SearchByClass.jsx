@@ -113,13 +113,6 @@ export default function SearchByClass({ onBack }) {
     }
   };
 
-  // warningStatus에 따른 칩 색상 반환
-  const getWarningChipClass = (warningStatus) => {
-    if (warningStatus === '위험') return 'sc-chip-red';
-    if (warningStatus === '주의') return 'sc-chip-amber';
-    return 'sc-chip-green'; // 정상
-  };
-
   if (showCourse) {
     return (
       <SearchByCourse
@@ -129,6 +122,16 @@ export default function SearchByClass({ onBack }) {
       />
     );
   }
+
+  // 🚀 [추가] 렌더링될 학생들의 전체 과목 목록을 추출하여 중복 없는 열(Column) 헤더 생성
+  const uniqueCourses = Array.from(
+    displayed.reduce((acc, s) => {
+      (s.courses || []).forEach(c => {
+        if (!acc.has(c.courseId)) acc.set(c.courseId, c.courseName);
+      });
+      return acc;
+    }, new Map())
+  ).map(([id, name]) => ({ id, name }));
 
   return (
     <div style={{ fontFamily: "'DM Sans','Noto Sans KR',sans-serif", fontSize: '14px', color: '#111827' }}>
@@ -175,30 +178,19 @@ export default function SearchByClass({ onBack }) {
         .sc-class-tab.active { background:#1A3A5C; border-color:#1A3A5C; color:#fff; font-weight:600; }
         
         .sc-main-layout { display: flex; flex-direction: column; gap: 20px; align-items: stretch; }
-        .sc-grid-wrap { overflow-x:auto; }
+        .sc-grid-wrap { overflow-x:auto; border: 1px solid #E5E7EB; border-radius: 8px; }
         .sc-grid { width:100%; border-collapse:collapse; min-width:600px; }
-        .sc-grid th { padding:10px 8px; font-size:12px; font-weight:600; color:#9CA3AF; text-align:center; border-bottom:1px solid #F3F4F6; white-space:nowrap; background:#FAFAFA; }
-        .sc-grid th.left { text-align:left; padding-left:12px; }
-        .sc-grid td { padding:12px 6px; font-size:12.5px; text-align:center; border-bottom:1px solid #F9FAFB; vertical-align:middle; }
-        .sc-grid td.left { text-align:left; padding-left:12px; }
-        .sc-grid tr:last-child td { border-bottom:none; }
-        .sc-grid tr.danger-row td  { background:#FFF5F5; }
-        .sc-grid tr.warning-row td { background:#FFFBEB; }
-        .sc-grid tr:hover td { background:#F8FAFC !important; }
-
-        .sc-course-list { display: flex; flex-wrap: wrap; gap: 8px; }
-        .sc-course-badge { display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid #E5E7EB; padding: 8px 10px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
-        .sc-course-info { display: flex; align-items: center; gap: 6px; }
-        .sc-course-name { font-weight: 600; color: #374151; font-size: 11.5px; }
-        .sc-course-stat { font-size: 11px; color: #6B7280; border-left: 1px solid #E5E7EB; padding-left: 6px; }
         
-        .sc-week-timeline { display: flex; gap: 2px; align-items: center; }
-        .sc-week-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-        .sc-week-dot.st-0 { background: #E5E7EB; }
-        .sc-week-dot.st-1 { background: #10B981; }
-        .sc-week-dot.st-2 { background: #EF4444; }
-        .sc-week-dot.st-3 { background: #F59E0B; }
-        .sc-week-dot.st-4 { background: #3B82F6; }
+        /* 🚀 새로 적용된 피벗(엑셀) 테이블용 스타일 */
+        .sc-pivot-grid th, .sc-pivot-grid td { border-bottom: 1px solid #E5E7EB; border-right: 1px solid #E5E7EB; }
+        .sc-pivot-grid th:last-child, .sc-pivot-grid td:last-child { border-right: none; }
+        .sc-pivot-grid th { background:#F8FAFC; padding:10px 8px; font-size:12px; font-weight:600; color:#4B5563; text-align:center; vertical-align:middle; white-space:nowrap; }
+        .sc-pivot-grid td { padding:12px 10px; font-size:12.5px; text-align:center; vertical-align:middle; }
+        .sc-pivot-grid tr.danger-row td  { background:#FFF5F5; }
+        .sc-pivot-grid tr.warning-row td { background:#FFFBEB; }
+        .sc-pivot-grid tr:hover td { background:#F1F5F9 !important; }
+        .sc-pivot-grid .left { text-align:left; padding-left:14px; }
+        .sc-absent-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; font-weight: 700; font-size: 12px; }
 
         .sc-side { display:flex; flex-direction:column; gap:14px; min-width:0; }
         .sc-prof-list { display:flex; flex-direction:column; gap:8px; }
@@ -283,19 +275,42 @@ export default function SearchByClass({ onBack }) {
       ) : (
         <div className="sc-main-layout">
 
-          {/* 좌: 수강과목 요약 테이블 */}
-          <div className="sc-card">
-            <div className="sc-card-title">
+          {/* 🚀 좌: 수강과목 요약 테이블 (새로운 엑셀 피벗 디자인 적용 부분) */}
+          <div className="sc-card" style={{ padding: '18px 0' }}>
+            <div className="sc-card-title" style={{ padding: '0 20px 10px 20px' }}>
               학생별 과목 결석 현황
               {quickFilter && <span className="sc-chip sc-chip-red" style={{marginLeft:4}}>필터 적용 중</span>}
             </div>
-            <div className="sc-grid-wrap">
-              <table className="sc-grid">
+            
+            <div className="sc-grid-wrap" style={{ margin: '0 20px' }}>
+              <table className="sc-grid sc-pivot-grid">
                 <thead>
+                  {/* 헤더 1열: 상위 분류 */}
                   <tr>
-                    <th className="left" style={{ width: '180px' }}>학생 정보</th>
-                    <th className="left">수강 과목별 결석 내역</th>
-                    <th style={{ width: '100px' }}>총 결석</th>
+                    <th colSpan="2" className="left" style={{ minWidth: '180px' }}>학생 정보</th>
+                    {uniqueCourses.length > 0 && (
+                      <th colSpan={uniqueCourses.length} style={{ background: '#EEF2FF', color: '#4F46E5', letterSpacing: '-0.5px' }}>
+                        과목별 출석 현황
+                      </th>
+                    )}
+                    <th rowSpan="2" style={{ width: '80px', borderLeft: '1px solid #E5E7EB' }}>총 결석</th>
+                  </tr>
+                  {/* 헤더 2열: 상세 분류 (학번, 이름, 추출된 과목들) */}
+                  <tr>
+                    <th className="left" style={{ width: '90px' }}>학번</th>
+                    <th className="left" style={{ width: '130px' }}>영문 / 한글 이름</th>
+                    {uniqueCourses.map(c => (
+                      <th key={c.id} style={{ 
+                        minWidth: '75px', 
+                        maxWidth: '110px', 
+                        whiteSpace: 'normal', 
+                        wordBreak: 'keep-all',
+                        fontSize: '11px',
+                        lineHeight: '1.3'
+                      }}>
+                        {c.name}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -305,47 +320,53 @@ export default function SearchByClass({ onBack }) {
                     
                     return (
                       <tr key={s.studentId} className={isDanger ? 'danger-row' : isWarning ? 'warning-row' : ''}>
+                        {/* 1. 학번 */}
+                        <td className="left" style={{ fontWeight: 600, color: '#6B7280', fontSize: '13px' }}>
+                          {s.studentId}
+                        </td>
+                        {/* 2. 이름 */}
                         <td className="left">
-                          <div style={{ fontWeight: 700, fontSize: '13.5px' }}>{s.engName}</div>
-                          {s.korName && <div style={{ fontSize: '12px', color: '#4B5563', marginTop: '2px' }}>{s.korName}</div>}
-                          <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: '2px' }}>{s.studentId}</div>
+                          <div style={{ fontWeight: 700, fontSize: '12.5px', color: '#111827' }}>{s.engName}</div>
+                          {s.korName && <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '2px' }}>{s.korName}</div>}
                         </td>
                         
-                        <td className="left">
-                          <div className="sc-course-list">
-                            {s.courses.map(c => (
-                              <div key={c.courseId} className="sc-course-badge">
-                                <div className="sc-course-info">
-                                  <span className="sc-course-name">{c.courseName}</span>
-                                  <span className="sc-course-stat">결석 {c.totalAbsent}</span>
-                                  {c.warningStatus && (
-                                    <span
-                                      className={`sc-chip ${getWarningChipClass(c.warningStatus)}`}
-                                      style={{ padding: '2px 6px', fontSize: '10px' }}
-                                    >
-                                      {c.warningStatus}
-                                    </span>
-                                  )}
-                                </div>
-                                {c.weeklyAttend && c.weeklyAttend.length > 0 && (
-                                  <div className="sc-week-timeline">
-                                    {c.weeklyAttend.map((status, idx) => (
-                                      <div 
-                                        key={idx} 
-                                        className={`sc-week-dot st-${status}`} 
-                                        title={`${idx + 1}주차: ${getAttendLabel(status)}`}
-                                      />
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                            {s.courses.length === 0 && <span style={{ color: '#9CA3AF', fontSize: '12px' }}>수강 과목 없음</span>}
-                          </div>
-                        </td>
+                        {/* 3. 과목별 결석 횟수 (맵핑) */}
+                        {uniqueCourses.map(uc => {
+                          const courseData = (s.courses || []).find(c => c.courseId === uc.id);
+                          if (!courseData) {
+                            // 수강하지 않는 과목
+                            return <td key={uc.id} style={{ color: '#D1D5DB' }}>-</td>;
+                          }
+                          
+                          const absentCount = courseData.totalAbsent || 0;
+                          const wStatus = courseData.warningStatus;
+                          
+                          // 결석 경고 상태에 따른 색상 지정
+                          let bgClass = 'transparent';
+                          let textColor = '#9CA3AF';
+                          
+                          if (absentCount > 0) {
+                            if (wStatus === '위험') { bgClass = '#FEE2E2'; textColor = '#DC2626'; }
+                            else if (wStatus === '주의') { bgClass = '#FEF3C7'; textColor = '#D97706'; }
+                            else { bgClass = '#F3F4F6'; textColor = '#374151'; }
+                          }
 
-                        <td>
-                          <span className={`sc-chip ${isDanger ? 'sc-chip-red' : isWarning ? 'sc-chip-amber' : 'sc-chip-gray'}`} style={{ fontSize: '12px', padding: '5px 12px' }}>
+                          return (
+                            <td key={uc.id}>
+                              {absentCount > 0 ? (
+                                <span className="sc-absent-num" style={{ background: bgClass, color: textColor }}>
+                                  {absentCount}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#D1D5DB' }}>0</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        
+                        {/* 4. 총 결석 */}
+                        <td style={{ borderLeft: '1px solid #E5E7EB' }}>
+                          <span className={`sc-chip ${isDanger ? 'sc-chip-red' : isWarning ? 'sc-chip-amber' : 'sc-chip-gray'}`} style={{ fontSize: '12px', padding: '4px 10px' }}>
                             {s.totalAbsent}회
                           </span>
                         </td>
@@ -357,7 +378,7 @@ export default function SearchByClass({ onBack }) {
             </div>
           </div>
 
-          {/* 우: 사이드 패널 */}
+          {/* 우: 사이드 패널 (유지됨) */}
           <div className="sc-side">
             {/* 학과 교수진 */}
             <div className="sc-card">
