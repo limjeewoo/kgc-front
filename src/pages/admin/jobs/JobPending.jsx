@@ -102,7 +102,7 @@ table.base-tbl tbody tr:hover td { background:#F8FAFC; }
 .act-reject:hover:not(:disabled)  { background:#DC2626; color:#fff; border-color:#DC2626; }
 .act-btn:disabled { opacity:.45; cursor:not-allowed; }
 
-/* list dedicated buttons (수정됨) */
+/* list dedicated buttons */
 .act-check { 
   border: 1.5px solid #3B82F6; 
   color: #3B82F6; 
@@ -306,9 +306,10 @@ function DetailDrawer({ job, onClose, onApprove, onReject, actioning }) {
               처리 단계
             </div>
             <ApprovalStepper status={job.approvalStatus} />
-            {job.approvalStatus === 'REJECTED' && job.rejectionReason && (
+            {/* 📝 수정: 백엔드 필드명에 맞게 job.rejectionReason -> job.rejectReason 으로 수정 */}
+            {job.approvalStatus === 'REJECTED' && job.rejectReason && (
               <div style={{ padding:'.75rem 1rem', background:'#FEF2F2', borderRadius:'.625rem', border:'1px solid #FECACA', fontSize:'.8125rem', color:'#DC2626', marginTop:'.5rem' }}>
-                <strong>반려 사유:</strong> {job.rejectionReason}
+                <strong>반려 사유:</strong> {job.rejectReason}
               </div>
             )}
           </div>
@@ -331,6 +332,8 @@ function DetailDrawer({ job, onClose, onApprove, onReject, actioning }) {
             근로 계약 정보
           </div>
           <div className="info-grid" style={{ marginBottom:'1.25rem' }}>
+            {/* 📝 수정: 상세 보기 패널에도 '신청일(createdAt)' 필드 추가 매핑 */}
+            <InfoRow label="신청일"        value={job.createdAt ? job.createdAt.slice(0, 10) : '—'} />
             <InfoRow label="사업체명"      value={job.companyName} />
             <InfoRow label="업종 / 직종"   value={job.industry ?? '—'} />
             <InfoRow label="근무지 주소"   value={job.workAddress ?? '—'} />
@@ -412,7 +415,7 @@ export default function JobPending() {
       }
       showToast('승인 처리되었습니다.');
       
-      // 🚀 [추가됨] 사이드바 알림 개수 갱신 이벤트 발생
+      // 🚀 사이드바 알림 개수 갱신 이벤트 발생
       window.dispatchEvent(new Event('refresh-sidebar-badge'));
       
     } catch {
@@ -428,14 +431,15 @@ export default function JobPending() {
     setActioning(jobId);
     try {
       await apiPatch(`/jobs/${jobId}/approval`, { approved: false, reason });
-      setAllJobs(prev => prev.map(j => j.jobId === jobId ? { ...j, approvalStatus: 'REJECTED', rejectionReason: reason } : j));
+      // 📝 수정: 반려 사유 상태 업데이트 시에도 백엔드 필드명(rejectReason)으로 통일
+      setAllJobs(prev => prev.map(j => j.jobId === jobId ? { ...j, approvalStatus: 'REJECTED', rejectReason: reason } : j));
       if (selected?.jobId === jobId) {
-        setSelected(prev => ({ ...prev, approvalStatus: 'REJECTED', rejectionReason: reason }));
+        setSelected(prev => ({ ...prev, approvalStatus: 'REJECTED', rejectReason: reason }));
       }
       setRejectTarget(null);
       showToast('반려 처리되었습니다.');
       
-      // 🚀 [추가됨] 사이드바 알림 개수 갱신 이벤트 발생
+      // 🚀 사이드바 알림 개수 갱신 이벤트 발생
       window.dispatchEvent(new Event('refresh-sidebar-badge'));
       
     } catch {
@@ -540,7 +544,8 @@ export default function JobPending() {
                           {LABEL_MAP[job.approvalStatus] ?? job.approvalStatus}
                         </span>
                       </td>
-                      <td>{job.createdAt?.slice(0, 10) ?? '—'}</td>
+                      {/* 📝 수정: 신청일에 백엔드 데이터(createdAt)를 T 기준으로 자르거나 앞 10자리(YYYY-MM-DD)만 표시 */}
+                      <td>{job.createdAt ? job.createdAt.slice(0, 10) : '—'}</td>
                       <td style={{ fontWeight: 600 }}>{job.studentName ?? '—'}</td>
                       <td>{job.studentId ?? '—'}</td>
                       <td>{job.companyName ?? '—'}</td>

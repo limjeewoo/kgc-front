@@ -68,14 +68,15 @@ export default function JobUpload() {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
 
+  // 📝 수정포인트: workplaceAddr를 workAddress로 변경
   const [form, setForm] = useState({
-    industry: '',           
-    wage: '',               
-    workHoursPerWeek: '',   
+    industry: '',          
+    wage: '',              
+    workHoursPerWeek: '',  
     startDate: '',
     endDate: '',
     companyName: '',        
-    workplaceAddr: '',      
+    workAddress: '',      
     file: null,
   });
 
@@ -155,6 +156,7 @@ export default function JobUpload() {
     setError(null);
 
     try {
+      // 📝 수정포인트: 백엔드 API 명세에 맞춰 workAddress로 매핑
       const requestBody = {
         industry: form.industry.trim(),       
         wage: wageNum,                        
@@ -162,7 +164,7 @@ export default function JobUpload() {
         startDate: form.startDate,            
         endDate: form.endDate || null,        
         companyName: form.companyName?.trim() || "정보없음",
-        workplaceAddr: form.workplaceAddr?.trim() || "정보없음", 
+        workAddress: form.workAddress?.trim() || "정보없음", 
       };
 
       const jobResponse = await api.post(`/students/${studentId}/jobs`, requestBody);
@@ -218,7 +220,8 @@ export default function JobUpload() {
               </button>
               <button className="btn-primary" onClick={() => { 
                 setDone(false); 
-                setForm({ companyName: '', industry: '', wage: '', workplaceAddr: '', workHoursPerWeek: '', startDate: '', endDate: '', file: null }); 
+                // 📝 수정포인트: 초기화 시에도 workAddress로 반영
+                setForm({ companyName: '', industry: '', wage: '', workAddress: '', workHoursPerWeek: '', startDate: '', endDate: '', file: null }); 
               }}>
                 추가 등록하기
               </button>
@@ -277,8 +280,9 @@ export default function JobUpload() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">근무지 주소</label>
-                  <input className="form-input" placeholder="정확한 근무지 소재지 주소를 입력하세요" value={form.workplaceAddr}
-                    onChange={e => set('workplaceAddr', e.target.value)} />
+                  {/* 📝 수정포인트: input의 value와 onChange에 매핑된 키를 workAddress로 변경 */}
+                  <input className="form-input" placeholder="정확한 근무지 소재지 주소를 입력하세요" value={form.workAddress}
+                    onChange={e => set('workAddress', e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">시급 <span className="req">*</span></label>
