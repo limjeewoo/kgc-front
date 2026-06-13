@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 // 1. API 인스턴스 설정 (공통 설정)
@@ -15,7 +15,7 @@ api.interceptors.request.use((config) => {
 });
 
 const ProfessorRegister = ({ onComplete, onCancel }) => {
-  // 2. 폼 데이터 상태 관리 (명세서 규격과 필드명 일치)
+  // 2. 폼 데이터 상태 관리
   const [formData, setFormData] = useState({
     professorId: '',
     deptId: '',
@@ -25,6 +25,38 @@ const ProfessorRegister = ({ onComplete, onCancel }) => {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [departments, setDepartments] = useState([]); // 추출된 학과 목록 상태
+
+  // 🚀 컴포넌트 마운트 시 전체 교수 목록을 조회하여 고유한 학과(deptId) 추출
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await api.get('/api/v1/professors');
+        
+        if (response.data.success) {
+          const professors = response.data.data || [];
+          
+          // Map을 이용해 중복 학과 제거 (deptId 기준)
+          const deptMap = new Map();
+          professors.forEach(prof => {
+            if (prof.deptId && !deptMap.has(prof.deptId)) {
+              // 백엔드 응답에 deptName이나 departmentName이 포함되어 있다고 가정 (없을 시 deptId로 폴백)
+              const deptName = prof.deptName || prof.departmentName || prof.deptId;
+              deptMap.set(prof.deptId, deptName);
+            }
+          });
+          
+          // 드롭다운 렌더링을 위한 배열로 변환
+          const uniqueDepts = Array.from(deptMap, ([id, name]) => ({ id, name }));
+          setDepartments(uniqueDepts);
+        }
+      } catch (error) {
+        console.error('교수 목록(학과 정보) 로드 중 에러:', error);
+      }
+    };
+
+    fetchDepartments();
+  }, []);
 
   // 입력값 변경 핸들러
   const handleChange = (e) => {
@@ -76,6 +108,7 @@ const ProfessorRegister = ({ onComplete, onCancel }) => {
         .input-row { margin-bottom: 15px; }
         .input-row label { display: block; font-size: 13px; font-weight: 600; color: #4B5563; margin-bottom: 5px; }
         .input-field { width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; box-sizing: border-box; transition: all 0.2s; }
+        select.input-field { appearance: auto; cursor: pointer; } /* select 스타일 추가 */
         .input-field:focus { outline: none; border-color: #1E3A8A; ring: 2px solid #DBEAFE; }
         .action-btns { display: flex; gap: 10px; margin-top: 25px; }
         .btn { flex: 1; padding: 12px; border-radius: 8px; font-weight: 700; cursor: pointer; border: none; font-size: 14px; }
@@ -100,16 +133,23 @@ const ProfessorRegister = ({ onComplete, onCancel }) => {
           />
         </div>
 
+        {/* 🚀 학과 코드를 입력란에서 드롭다운(Select)으로 변경 */}
         <div className="input-row">
-          <label>학과 코드</label>
-          <input 
+          <label>학과 (코드)</label>
+          <select 
             className="input-field"
             name="deptId"
             value={formData.deptId}
             onChange={handleChange}
-            placeholder="예: CS01"
             required
-          />
+          >
+            <option value="" disabled>학과를 선택하세요</option>
+            {departments.map((dept) => (
+              <option key={dept.id} value={dept.id}>
+                {dept.name === dept.id ? dept.id : `${dept.name} (${dept.id})`}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="input-row">
