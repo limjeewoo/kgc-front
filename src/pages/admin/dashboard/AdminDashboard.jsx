@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../../api/axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 import StudentList from '../students/StudentList.jsx';
@@ -44,6 +44,24 @@ export default function AdminDashboard() {
 
   const [isExcelModalOpen,     setIsExcelModalOpen]     = useState(false);
   const [courseListRefreshKey, setCourseListRefreshKey] = useState(0);
+
+  const fetchPendingJobsCount = useCallback(async () => {
+    try {
+      const res = await api.get('/api/v1/jobs/pending');
+      if (res?.data?.success) {
+        setPendingJobs((res.data.data || []).filter(j => j.approvalStatus === 'PENDING').length);
+      }
+    } catch (error) {
+       console.error('배지 개수 갱신 중 에러:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('refresh-sidebar-badge', fetchPendingJobsCount);
+    return () => {
+      window.removeEventListener('refresh-sidebar-badge', fetchPendingJobsCount);
+    };
+  }, [fetchPendingJobsCount]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {

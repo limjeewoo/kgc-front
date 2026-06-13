@@ -411,6 +411,10 @@ export default function JobPending() {
         setSelected(prev => ({ ...prev, approvalStatus: 'APPROVED' }));
       }
       showToast('승인 처리되었습니다.');
+      
+      // 🚀 [추가됨] 사이드바 알림 개수 갱신 이벤트 발생
+      window.dispatchEvent(new Event('refresh-sidebar-badge'));
+      
     } catch {
       showToast('승인 처리 중 오류가 발생했습니다.', 'error');
     } finally {
@@ -430,6 +434,10 @@ export default function JobPending() {
       }
       setRejectTarget(null);
       showToast('반려 처리되었습니다.');
+      
+      // 🚀 [추가됨] 사이드바 알림 개수 갱신 이벤트 발생
+      window.dispatchEvent(new Event('refresh-sidebar-badge'));
+      
     } catch {
       showToast('반려 처리 중 오류가 발생했습니다.', 'error');
     } finally {
