@@ -5,12 +5,12 @@ const fmt = (d) =>
   d ? new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '–';
 
 const CATEGORY_META = {
-  ATTEND:    { label: '출결',    icon: '📅', color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
-  TOPIK:     { label: 'TOPIK',   icon: '📝', color: '#8B5CF6', bg: '#F5F3FF', border: '#DDD6FE' },
-  ACTIVITY:  { label: '활동',    icon: '🏆', color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
-  VOLUNTEER: { label: '봉사',    icon: '🤝', color: '#10B981', bg: '#ECFDF5', border: '#6EE7B7' },
-  PENALTY:   { label: '차감',    icon: '⚠️', color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' },
-  ETC:       { label: '기타',    icon: '📌', color: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' },
+  ATTEND:    { label: '출결',     color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
+  TOPIK:     { label: 'TOPIK',   color: '#8B5CF6', bg: '#F5F3FF', border: '#DDD6FE' },
+  ACTIVITY:  { label: '활동',    color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
+  VOLUNTEER: { label: '봉사',     color: '#10B981', bg: '#ECFDF5', border: '#6EE7B7' },
+  PENALTY:   { label: '차감',    color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' },
+  ETC:       { label: '기타',    color: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' },
 };
 
 const getCategoryMeta = (category, amount) => {
