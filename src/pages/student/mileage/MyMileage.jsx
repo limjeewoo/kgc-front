@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-// 1. 공통 Axios 인스턴스 설정
 const api = axios.create({
   baseURL: '/api/v1',
   headers: { 'Content-Type': 'application/json' },
@@ -22,9 +21,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// 2. 전역 CSS 스타일 가이드
 const GLOBAL_MILEAGE_CSS = `
-  /* 🛠️ 레이아웃 일관성 유지: 박스 모델 규격 교정 및 좌우 여백 22px 조정 */
   .sw-content { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; animation: mileageFadeUp 0.28s ease; }
   
   @keyframes mileageFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -56,12 +53,15 @@ const GLOBAL_MILEAGE_CSS = `
   .col-date { width: 15%; color: #64748B; }
   .col-name { width: 55%; font-weight: 600; color: #0F172A; }
   .col-category { width: 15%; text-align: center; }
-  .col-points { width: 15%; text-align: right; font-weight: 700; color: #3B82F6; font-size: .9375rem; }
+  .col-points { width: 15%; text-align: right; font-weight: 700; font-size: .9375rem; }
+  .col-points.positive { color: #3B82F6; }
+  .col-points.negative { color: #EF4444; }
 
   .pill { display: inline-flex; align-items: center; padding: 4px 10px; font-size: .75rem; font-weight: 600; border-radius: 6px; line-height: 1; white-space: nowrap; }
   .pill-blue { background: #EFF6FF; color: #2563EB; }
   .pill-purple { background: #F5F3FF; color: #7C3AED; }
   .pill-green { background: #ECFDF5; color: #059669; }
+  .pill-red { background: #FEF2F2; color: #DC2626; }
   .pill-gray { background: #F1F5F9; color: #475569; }
 `;
 
@@ -106,14 +106,13 @@ export default function MyMileage() {
         });
       } catch (error) {
         console.error('API Error:', error);
-        // 백엔드 연동 장애 대비 안전용 폴백 데이터 유지
         setMileageData({
-          totalMileage: 250,
-          semesterMileage: 100,
+          totalMileage: 220,
+          semesterMileage: 70,
           history: [
-            { id: 1, date: '2026-05-12', activityName: '글로벌 버디 프로그램 참여', points: 50, category: '비교과' },
-            { id: 2, date: '2026-04-20', activityName: 'TOPIK 4급 취득', points: 100, category: '어학' },
-            { id: 3, date: '2026-03-15', activityName: '유학생 오리엔테이션 도우미', points: 100, category: '봉사' }
+            { id: 1, date: '2026-05-12', reason: '글로벌 버디 프로그램 참여', changeAmount: 50, category: '비교과' },
+            { id: 2, date: '2026-05-01', reason: '오리엔테이션 무단 불참', changeAmount: -30, category: '관리자조정' },
+            { id: 3, date: '2026-04-20', reason: 'TOPIK 4급 취득', changeAmount: 100, category: '어학' }
           ]
         });
       } finally {
@@ -165,10 +164,10 @@ export default function MyMileage() {
               <table className="base-tbl">
                 <thead>
                   <tr>
-                    <th className="col-date">적립 일자</th>
-                    <th className="col-name">수행 활동명 / 인증 내역</th>
+                    <th className="col-date">일자</th>
+                    <th className="col-name">수행 활동명 / 사유</th>
                     <th className="col-category" style={styles.thCenter}>카테고리</th>
-                    <th className="col-points" style={styles.thRight}>취득 점수</th>
+                    <th className="col-points" style={styles.thRight}>변동 점수</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -182,22 +181,31 @@ export default function MyMileage() {
                       </tr>
                     ))
                   ) : mileageData.history && mileageData.history.length > 0 ? (
-                    mileageData.history.map((item) => (
-                      <tr key={item.id}>
-                        <td className="col-date">{item.date}</td>
-                        <td className="col-name">{item.activityName}</td>
-                        <td className="col-category">
-                          <span className={`pill ${
-                            item.category === '비교과' ? 'pill-blue' :
-                            item.category === '어학' ? 'pill-purple' :
-                            item.category === '봉사' ? 'pill-green' : 'pill-gray'
-                          }`}>
-                            {item.category}
-                          </span>
-                        </td>
-                        <td className="col-points">+{item.points} 점</td>
-                      </tr>
-                    ))
+                    mileageData.history.map((item, index) => {
+                      const amount = item.changeAmount ?? item.points ?? 0;
+                      const description = item.reason ?? item.activityName ?? '-';
+                      const isDeducted = amount < 0;
+
+                      return (
+                        <tr key={item.id || index}>
+                          <td className="col-date">{item.date}</td>
+                          <td className="col-name">{description}</td>
+                          <td className="col-category">
+                            <span className={`pill ${
+                              item.category === '비교과' ? 'pill-blue' :
+                              item.category === '어학' ? 'pill-purple' :
+                              item.category === '봉사' ? 'pill-green' : 
+                              isDeducted ? 'pill-red' : 'pill-gray'
+                            }`}>
+                              {item.category || '기타'}
+                            </span>
+                          </td>
+                          <td className={`col-points ${isDeducted ? 'negative' : 'positive'}`}>
+                            {amount > 0 ? `+${amount}` : amount} 점
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan="4" style={styles.emptyTd}>
