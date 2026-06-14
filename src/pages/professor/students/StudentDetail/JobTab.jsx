@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from "../../../../api/axios";
 
-
 // ─── 상수 ───────────────────────────────────────────────
 const DEFAULT_MAX_HOURS = 20; // 기본 주 최대 근로시간 (TOPIK 미취득 시)
 
@@ -13,12 +12,6 @@ const STATUS_META = {
 };
 
 const fmt = (d) => d ? new Date(d).toLocaleDateString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit' }) : '–';
-
-// 두 날짜 사이 주당 근무시간 계산 (총 시간 / 주 수)
-const calcWeeklyHours = (startDate, endDate, dailyHours, daysPerWeek) => {
-  if (!startDate || !dailyHours || !daysPerWeek) return 0;
-  return dailyHours * daysPerWeek;
-};
 
 // ─── 진행 바 컴포넌트 ─────────────────────────────────
 function HoursBar({ weekly, max }) {
@@ -53,42 +46,6 @@ function HoursBar({ weekly, max }) {
   );
 }
 
-// ─── 반려 사유 모달 ───────────────────────────────────
-function RejectModal({ onConfirm, onCancel }) {
-  const [reason, setReason] = useState('');
-  return (
-    <div style={{
-      position:'fixed', inset:0, background:'rgba(0,0,0,0.4)',
-      display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000
-    }}>
-      <div style={{ background:'#fff', borderRadius:14, padding:'28px 28px 24px', width:400, boxShadow:'0 20px 60px rgba(0,0,0,0.18)' }}>
-        <div style={{ fontWeight:700, fontSize:16, marginBottom:6, color:'#0F172A' }}>반려 사유 입력</div>
-        <div style={{ fontSize:13, color:'#94A3B8', marginBottom:16 }}>반려 사유를 학생에게 전달할 내용으로 작성해주세요.</div>
-        <textarea
-          value={reason}
-          onChange={e => setReason(e.target.value)}
-          placeholder="예: 근로계약서 서명 누락, 허가 시간 초과 등"
-          style={{
-            width:'100%', minHeight:90, border:'1.5px solid #E5E7EB', borderRadius:8,
-            padding:'10px 12px', fontSize:13, resize:'vertical', fontFamily:'inherit',
-            outline:'none', color:'#374151', boxSizing:'border-box',
-          }}
-        />
-        <div style={{ display:'flex', gap:8, marginTop:16, justifyContent:'flex-end' }}>
-          <button onClick={onCancel} style={{ padding:'8px 18px', border:'1px solid #E5E7EB', borderRadius:8, background:'#fff', color:'#6B7280', cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:'inherit' }}>취소</button>
-          <button
-            onClick={() => reason.trim() && onConfirm(reason)}
-            disabled={!reason.trim()}
-            style={{ padding:'8px 18px', border:'none', borderRadius:8, background: reason.trim() ? '#DC2626' : '#F1F5F9', color: reason.trim() ? '#fff' : '#CBD5E1', cursor: reason.trim() ? 'pointer' : 'default', fontSize:13, fontWeight:700, fontFamily:'inherit', transition:'all 0.15s' }}
-          >
-            반려 처리
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── 메인 컴포넌트 ─────────────────────────────────────
 export default function JobTab({ studentId: propsStudentId, studentName }) {
   const { studentId: urlStudentId } = useParams();
@@ -99,7 +56,6 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
   const [loading, setLoading]   = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(null); // jobId
-  const [rejectTarget, setRejectTarget]   = useState(null); // jobId
   const [toast, setToast]       = useState(null);
   const [filterStatus, setFilterStatus] = useState('ALL');
 
@@ -138,52 +94,17 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
 
   useEffect(() => { fetchData(); }, [studentId]);
 
-  // ── 승인 ─────────────────────────────────────────────
-  const handleApprove = async (jobId) => {
-    setActionLoading(jobId);
-    try {
-      const res = await api.patch(`/api/v1/jobs/${jobId}/approval`, { approved: true });
-      if (res.data.success) {
-        setJobs(prev => prev.map(j => j.jobId === jobId ? { ...j, status: 'APPROVED' } : j));
-        showToast('승인 처리되었습니다.');
-      }
-    } catch (e) {
-      showToast(e.response?.data?.message || '승인 처리 실패', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  // ── 반려 ─────────────────────────────────────────────
-  const handleReject = async (reason) => {
-    const jobId = rejectTarget;
-    setRejectTarget(null);
-    setActionLoading(jobId);
-    try {
-      const res = await api.patch(`/api/v1/jobs/${jobId}/approval`, { approved: false, reason });
-      if (res.data.success) {
-        setJobs(prev => prev.map(j => j.jobId === jobId ? { ...j, status: 'REJECTED', rejectReason: reason } : j));
-        showToast('반려 처리되었습니다.');
-      }
-    } catch (e) {
-      showToast(e.response?.data?.message || '반려 처리 실패', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  // ── 계약서 업로드 (관리자 대리 업로드) ────────────────────
+  // ── 계약서 업로드 (관리자/교수 대리 업로드) ────────────────────
   const handleContractUpload = async (jobId, file) => {
     if (!file) return;
     setActionLoading(jobId);
     const form = new FormData();
-    form.append('contract', file); // 백엔드 설정에 맞게 필드명('contract') 조정 필요 가능성 있음
+    form.append('file', file);
     try {
       const res = await api.patch(`/api/v1/jobs/${jobId}/contract`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       if (res.data.success) {
-        // 업로드 성공 시 서버가 반환해주는 URL로 업데이트
         setJobs(prev => prev.map(j => j.jobId === jobId ? { ...j, contractUrl: res.data.data?.contractUrl || 'uploaded' } : j));
         showToast('계약서가 업로드되었습니다.');
       }
@@ -195,12 +116,12 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
   };
 
   // ── 필터 ─────────────────────────────────────────────
-  const filtered = filterStatus === 'ALL' ? jobs : jobs.filter(j => j.status === filterStatus);
+  const filtered = filterStatus === 'ALL' ? jobs : jobs.filter(j => j.approvalStatus === filterStatus);
 
   // ── 통계 ─────────────────────────────────────────────
-  const approved   = jobs.filter(j => j.status === 'APPROVED');
-  const pending    = jobs.filter(j => j.status === 'PENDING');
-  const totalWeekly = approved.reduce((sum, j) => sum + (calcWeeklyHours(j.startDate, j.endDate, j.dailyHours, j.daysPerWeek) || 0), 0);
+  const approved   = jobs.filter(j => j.approvalStatus === 'APPROVED');
+  const pending    = jobs.filter(j => j.approvalStatus === 'PENDING');
+  const totalWeekly = approved.reduce((sum, j) => sum + (j.workHoursPerWeek || 0), 0);
   const isOverall   = totalWeekly > maxHours;
 
   return (
@@ -256,23 +177,18 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
         .jt-meta-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
         .jt-meta-item { background:#F8FAFC; border-radius:8px; padding:10px 12px; }
         .jt-meta-label { font-size:10px; color:#94A3B8; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px; }
-        .jt-meta-val { font-size:13px; font-weight:600; color:#374151; }
+        .jt-meta-val { font-size:13px; font-weight:600; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
         .jt-card-bottom { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
 
         /* 액션 버튼 */
         .jt-btn { display:inline-flex; align-items:center; gap:5px; border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; padding:7px 14px; transition:all 0.15s; font-family:inherit; white-space:nowrap; }
         .jt-btn:disabled { opacity:0.5; cursor:not-allowed; }
-        .jt-btn-approve { background:#ECFDF5; color:#059669; border:1.5px solid #6EE7B7; }
-        .jt-btn-approve:hover:not(:disabled) { background:#D1FAE5; }
-        .jt-btn-reject  { background:#FEF2F2; color:#DC2626; border:1.5px solid #FECACA; }
-        .jt-btn-reject:hover:not(:disabled)  { background:#FEE2E2; }
         
         .jt-label-upload { display:inline-flex; align-items:center; gap:5px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; padding:7px 12px; transition:all 0.15s; font-family:inherit; white-space:nowrap; background:#F8FAFC; color:#64748B; border:1px solid #E2E8F0; }
         .jt-label-upload.disabled { opacity:0.5; cursor:not-allowed; }
         .jt-label-upload:hover:not(.disabled) { background:#F1F5F9; color:#0F172A; }
 
-        /* 학생 등록 계약서 보기 버튼 강조 */
         .jt-btn-view    { background:#EFF6FF; color:#1D4ED8; border:1.5px solid #BFDBFE; }
         .jt-btn-view:hover:not(:disabled)    { background:#DBEAFE; }
 
@@ -342,9 +258,9 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
           <div className="jt-filters">
             {[
               { key:'ALL',      label:`전체 (${jobs.length})` },
-              { key:'PENDING',   label:`대기 (${jobs.filter(j=>j.status==='PENDING').length})` },
-              { key:'APPROVED', label:`승인 (${jobs.filter(j=>j.status==='APPROVED').length})` },
-              { key:'REJECTED', label:`반려 (${jobs.filter(j=>j.status==='REJECTED').length})` },
+              { key:'PENDING',   label:`대기 (${jobs.filter(j=>j.approvalStatus==='PENDING').length})` },
+              { key:'APPROVED', label:`승인 (${jobs.filter(j=>j.approvalStatus==='APPROVED').length})` },
+              { key:'REJECTED', label:`반려 (${jobs.filter(j=>j.approvalStatus==='REJECTED').length})` },
             ].map(f => (
               <button
                 key={f.key}
@@ -375,16 +291,16 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
           <div className="jt-empty">
             <div className="jt-empty-icon">💼</div>
             <div className="jt-empty-txt">
-              {filterStatus === 'ALL' ? '등록된 시간제 취업 이력이 없습니다.' : `${STATUS_META[filterStatus]?.label} 이력이 없습니다.`}
+              {filterStatus === 'ALL' ? '등록된 시간제 근로 이력이 없습니다.' : `${STATUS_META[filterStatus]?.label} 이력이 없습니다.`}
             </div>
           </div>
         ) : (
           <div className="jt-list">
             {filtered.map(job => {
-              const meta   = STATUS_META[job.status] || STATUS_META.PENDING;
-              const weekly = calcWeeklyHours(job.startDate, job.endDate, job.dailyHours, job.daysPerWeek);
+              const meta   = STATUS_META[job.approvalStatus] || STATUS_META.PENDING;
+              const weekly = job.workHoursPerWeek || 0;
               const isAct  = actionLoading === job.jobId;
-              const statusKey = (job.status || 'PENDING').toLowerCase();
+              const statusKey = (job.approvalStatus || 'PENDING').toLowerCase();
 
               return (
                 <div key={job.jobId} className={`jt-card ${statusKey}`}>
@@ -393,8 +309,7 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
                   <div className="jt-card-top">
                     <div>
                       <div className="jt-company">
-                        {job.companyName || '업체명 미입력'}
-                        {/* 학생이 첨부파일 올렸을 때 타이틀 옆에도 아이콘 표시 */}
+                        {job.companyName || '사업체명 미입력'}
                         {job.contractUrl && <span style={{ fontSize: 13 }} title="계약서 첨부됨">📎</span>}
                       </div>
                       <div className="jt-period">
@@ -413,20 +328,20 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
                   {/* 메타 정보 */}
                   <div className="jt-meta-grid">
                     <div className="jt-meta-item">
-                      <div className="jt-meta-label">직종</div>
-                      <div className="jt-meta-val">{job.jobType || '–'}</div>
+                      <div className="jt-meta-label">업종</div>
+                      <div className="jt-meta-val">{job.industry || '–'}</div>
                     </div>
                     <div className="jt-meta-item">
-                      <div className="jt-meta-label">일 근무시간</div>
-                      <div className="jt-meta-val">{job.dailyHours != null ? `${job.dailyHours}시간` : '–'}</div>
+                      <div className="jt-meta-label">주간 근로시간</div>
+                      <div className="jt-meta-val">{job.workHoursPerWeek != null ? `${job.workHoursPerWeek}시간` : '–'}</div>
                     </div>
-                    <div className="jt-meta-item">
-                      <div className="jt-meta-label">주 근무일수</div>
-                      <div className="jt-meta-val">{job.daysPerWeek != null ? `${job.daysPerWeek}일` : '–'}</div>
+                    <div className="jt-meta-item" title={job.workAddress}>
+                      <div className="jt-meta-label">근무지</div>
+                      <div className="jt-meta-val">{job.workAddress || '–'}</div>
                     </div>
                     <div className="jt-meta-item">
                       <div className="jt-meta-label">시급</div>
-                      <div className="jt-meta-val">{job.hourlyWage ? `${job.hourlyWage.toLocaleString()}원` : '–'}</div>
+                      <div className="jt-meta-val">{job.wage ? `${job.wage.toLocaleString()}원` : '–'}</div>
                     </div>
                   </div>
 
@@ -439,7 +354,7 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
 
                     <div style={{ display:'flex', gap:7, flexWrap:'wrap', justifyContent:'flex-end', alignItems:'center' }}>
                       
-                      {/* 계약서 영역: 학생이 올렸으면 [보기], 안 올렸으면 [미등록(대리업로드)] 표시 */}
+                      {/* 계약서 영역: 대리 업로드 및 보기는 교수도 가능 */}
                       {job.contractUrl ? (
                         <a href={job.contractUrl} target="_blank" rel="noreferrer">
                           <button className="jt-btn jt-btn-view">📄 등록된 계약서 보기</button>
@@ -460,37 +375,17 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
                           <label 
                             htmlFor={`contract-${job.jobId}`} 
                             className={`jt-label-upload ${isAct ? 'disabled' : ''}`}
-                            title="관리자 대리 업로드"
+                            title="관리자/교수 대리 업로드"
                           >
                             {isAct ? <span className="spin">⏳</span> : '업로드'}
                           </label>
                         </div>
                       )}
-
-                      {/* 승인/반려 버튼 (PENDING 상태일 때만) */}
-                      {job.status === 'PENDING' && (
-                        <>
-                          <button
-                            className="jt-btn jt-btn-approve"
-                            disabled={isAct}
-                            onClick={() => handleApprove(job.jobId)}
-                          >
-                            {isAct ? <span className="spin">⏳</span> : '✓'} 승인
-                          </button>
-                          <button
-                            className="jt-btn jt-btn-reject"
-                            disabled={isAct}
-                            onClick={() => setRejectTarget(job.jobId)}
-                          >
-                            ✕ 반려
-                          </button>
-                        </>
-                      )}
                     </div>
                   </div>
 
                   {/* 반려 사유 표시 */}
-                  {job.status === 'REJECTED' && job.rejectReason && (
+                  {job.approvalStatus === 'REJECTED' && job.rejectReason && (
                     <div className="jt-reject-reason">
                       💬 반려 사유: {job.rejectReason}
                     </div>
@@ -501,14 +396,6 @@ export default function JobTab({ studentId: propsStudentId, studentName }) {
           </div>
         )}
       </div>
-
-      {/* ── 반려 모달 ── */}
-      {rejectTarget && (
-        <RejectModal
-          onConfirm={handleReject}
-          onCancel={() => setRejectTarget(null)}
-        />
-      )}
 
       {/* ── 토스트 ── */}
       {toast && (

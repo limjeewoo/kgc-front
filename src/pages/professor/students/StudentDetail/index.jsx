@@ -14,7 +14,7 @@ const TABS = [
   { key: 'topik',  label: 'TOPIK' },
   { key: 'enroll', label: '수강/성적' },
   { key: 'attend', label: '출결' },
-  { key: 'job',    label: '시간제 취업' },
+  { key: 'job',    label: '시간제 근로' },
 ];
 
 export default function ProfStudentDetail() {

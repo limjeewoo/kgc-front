@@ -523,7 +523,7 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
             {isSaving ? '저장 중...' : '변경사항 저장하기'}
           </button>
         </div>
-      )}
+      )}            
     </div>
   );
 }
