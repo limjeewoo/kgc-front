@@ -133,8 +133,8 @@ export default function StudentList() {
         .chip-status-off { background: #FEF2F2; color: #DC2626; }
         .chip-status-pause { background: #FFFBEB; color: #D97706; }
 
-        .pagination { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-top: 1px solid #F3F4F6; }
-        .page-info { font-size: 0.75rem; color: #9CA3AF; }
+        /* 페이지네이션 버튼을 정중앙 정렬로 스타일 수정 */
+        .pagination { display: flex; justify-content: center; align-items: center; padding: 1rem 1.25rem; border-top: 1px solid #F3F4F6; }
         .page-btns { display: flex; gap: 0.25rem; }
         .page-num { width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; border-radius: 0.375rem; border: 1px solid #E5E7EB; font-size: 0.8125rem; cursor: pointer; background: #fff; transition: all 0.2s; }
         .page-num:hover:not(:disabled) { background: #F3F4F6; }
@@ -265,9 +265,6 @@ export default function StudentList() {
 
         {!isLoading && (
           <div className="pagination">
-            <div className="page-info">
-              Showing {currentData.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} students
-            </div>
             <div className="page-btns">
               <button 
                 className="page-num" 

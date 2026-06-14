@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from "../../../../api/axios";
 
-/**
- * MileageTab.jsx — KM 마일리지 상세 히스토리 (종합 대시보드 수정본)
- *
- * 사용 API:
- * GET /api/v1/students/{studentId}/mileage — 마일리지 총점 + 이력 조회
- */
-
 const fmt = (d) =>
   d ? new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '–';
 
@@ -20,10 +13,12 @@ const CATEGORY_META = {
   ETC:       { label: '기타',    icon: '📌', color: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' },
 };
 
-const getCategoryMeta = (category) =>
-  CATEGORY_META[category?.toUpperCase()] || CATEGORY_META.ETC;
+const getCategoryMeta = (category, amount) => {
+  if (amount < 0) return CATEGORY_META.PENALTY;
+  return CATEGORY_META[category?.toUpperCase()] || CATEGORY_META.ETC;
+};
 
-// ── 도넛 차트 (SVG) ──────────────────────────────────────
+// 도넛 차트 컴포넌트
 function DonutChart({ segments, total }) {
   const SIZE   = 120;
   const RADIUS = 46;
@@ -61,13 +56,13 @@ function DonutChart({ segments, total }) {
   );
 }
 
-// ── 메인 컴포넌트 ─────────────────────────────────────────
 export default function MileageTab({ studentId }) {
-  const [data,    setData]    = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [filter,  setFilter]  = useState('ALL');
-  const [sort,    setSort]    = useState('DATE_DESC');
+  const [filter, setFilter] = useState('ALL');
+  const [sort, setSort] = useState('DATE_DESC');
 
+  // 마일리지 데이터 조회 API 호출
   useEffect(() => {
     if (!studentId) {
       setLoading(false);
@@ -75,7 +70,6 @@ export default function MileageTab({ studentId }) {
     }
     
     setLoading(true);
-    
     api.get(`/api/v1/students/${studentId}/mileage`)
       .then(res => {
         const responseData = res.data;
@@ -87,47 +81,46 @@ export default function MileageTab({ studentId }) {
           } else if (responseData.data && (responseData.data.history || responseData.data.totalScore !== undefined)) {
             setData(responseData.data);
           } else {
-            console.warn('데이터는 받아왔으나 구조가 매핑되지 않습니다:', responseData);
             setData({ totalScore: 0, history: [] });
           }
         }
       })
       .catch(e => {
-        console.error('MileageTab 로드 실패:', e);
+        console.error('마일리지 로드 실패:', e);
         setData({ totalScore: 0, history: [] });
       })
-      .finally(() => {
-        setLoading(false);
-      });
+      .finally(() => setLoading(false));
   }, [studentId]);
 
   const history = data?.history || [];
-  const total   = data?.totalScore ?? 0; // 보유 마일리지
+  const total   = data?.totalScore ?? 0;
 
-  // ── 필터 + 정렬 ─────────────────────────────────────────
-  const filtered = (filter === 'ALL' ? history : history.filter(h => h.category?.toUpperCase() === filter))
-    .slice()
-    .sort((a, b) => {
-      if (sort === 'DATE_DESC') return new Date(b.earnedAt || b.createdAt) - new Date(a.earnedAt || a.createdAt);
-      if (sort === 'DATE_ASC')  return new Date(a.earnedAt || a.createdAt) - new Date(b.earnedAt || b.createdAt);
-      if (sort === 'SCORE_DESC') return (b.score ?? 0) - (a.score ?? 0);
-      return 0;
-    });
+  // 필터 및 정렬 처리 (changeAmount 필드 사용)
+  const filtered = history.filter(h => {
+    const amount = h.changeAmount ?? h.score ?? 0;
+    if (filter === 'ALL') return true;
+    if (filter === 'PENALTY') return amount < 0;
+    return h.category?.toUpperCase() === filter && amount >= 0;
+  }).slice().sort((a, b) => {
+    const aAmount = a.changeAmount ?? a.score ?? 0;
+    const bAmount = b.changeAmount ?? b.score ?? 0;
+    if (sort === 'DATE_DESC') return new Date(b.earnedAt || b.createdAt) - new Date(a.earnedAt || a.createdAt);
+    if (sort === 'DATE_ASC')  return new Date(a.earnedAt || a.createdAt) - new Date(b.earnedAt || b.createdAt);
+    if (sort === 'SCORE_DESC') return bAmount - aAmount;
+    return 0;
+  });
 
-  // ── 대시보드용 신규 지표 연산 집계 로직 ──────────────────────
+  // 카테고리별 누적 점수 연산
   const categoryTotals = Object.keys(CATEGORY_META).map(key => {
-    const items = history.filter(h => h.category?.toUpperCase() === key && (h.score ?? 0) > 0);
-    return { key, value: items.reduce((s, h) => s + (h.score ?? 0), 0), ...CATEGORY_META[key] };
-  }).filter(c => c.value > 0);
+    if (key === 'PENALTY') return null; 
+    const items = history.filter(h => h.category?.toUpperCase() === key && (h.changeAmount ?? h.score ?? 0) > 0);
+    return { key, value: items.reduce((s, h) => s + (h.changeAmount ?? h.score ?? 0), 0), ...CATEGORY_META[key] };
+  }).filter(c => c && c.value > 0);
 
-  // 1. 누적 배정 마일리지 (순수 플러스 합산액)
-  const totalEarned  = history.filter(h => (h.score ?? 0) > 0).reduce((s, h) => s + h.score, 0);
-  // 차감 마일리지 계산
-  const deducted = Math.abs(history.filter(h => (h.score ?? 0) < 0).reduce((s, h) => s + h.score, 0));
+  const totalEarned = history.filter(h => (h.changeAmount ?? h.score ?? 0) > 0).reduce((s, h) => s + (h.changeAmount ?? h.score), 0);
 
-  // 2. 최고 점수 보유 이력 추출 (단일 건 기준 가장 높게 수여받은 내역)
   const maxScoreItem = history.length > 0 
-    ? [...history].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0] 
+    ? [...history].sort((a, b) => (b.changeAmount ?? b.score ?? 0) - (a.changeAmount ?? a.score ?? 0))[0] 
     : null;
 
   const categories = Object.keys(CATEGORY_META);
@@ -135,36 +128,30 @@ export default function MileageTab({ studentId }) {
   return (
     <div style={{ fontFamily: "'DM Sans','Noto Sans KR',sans-serif", color: '#111827' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&display=swap');
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-
         .mt-wrap { animation: fadeUp 0.28s ease; }
-
-        /* ── 최신 대시보드 상단 3단 위젯 Grid 구조 ── */
-        .mt-dashboard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 1.5rem; }
-        .mt-dash-card { background: #fff; border: 1px solid #F1F5F9; border-radius: 14px; padding: 22px 24px; display: flex; flex-direction: column; justify-content: center; position: relative; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-        .mt-dash-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
         
+        .mt-dashboard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 1.5rem; }
+        .mt-dash-card { background: #fff; border: 1px solid #F1F5F9; border-radius: 14px; padding: 22px 24px; display: flex; flex-direction: column; justify-content: center; position: relative; overflow: hidden; }
+        .mt-dash-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
         .card-purple::before { background: #8B5CF6; }
         .card-blue::before { background: #3B82F6; }
         .card-emerald::before { background: #10B981; }
 
-        .mt-dash-label { font-size: 12px; font-weight: 700; color: #64748B; margin-bottom: 6px; letter-spacing: -0.01em; }
-        .mt-dash-value { font-size: 30px; font-weight: 800; color: #0F172A; line-height: 1.1; display: flex; align-items: baseline; gap: 4px; }
+        .mt-dash-label { font-size: 12px; font-weight: 700; color: #64748B; margin-bottom: 6px; }
+        .mt-dash-value { font-size: 30px; font-weight: 800; color: #0F172A; display: flex; align-items: baseline; gap: 4px; }
         .mt-dash-unit { font-size: 13px; font-weight: 500; color: #94A3B8; }
-        .mt-dash-sub { font-size: 11px; color: #94A3B8; margin-top: 8px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+        .mt-dash-sub { font-size: 11px; color: #94A3B8; margin-top: 8px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* 도넛 섹션 컴팩트 배치 */
         .mt-chart-section { display: flex; background: #fff; border: 1px solid #F1F5F9; border-radius: 14px; padding: 20px 24px; align-items: center; gap: 24px; margin-bottom: 1.5rem; }
         .mt-donut-wrap { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
         .mt-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .mt-donut-score { font-size: 22px; font-weight: 800; color: #0F172A; line-height: 1; }
-        .mt-donut-lbl { font-size: 10px; color: #94A3B8; font-weight: 600; margin-top: 3px; }
+        .mt-donut-lbl { font-size: 11px; color: #94A3B8; font-weight: 700; margin-top: 3px; }
         
         .mt-category-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-        .mt-chip { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; border: 1px solid transparent; }
+        .mt-chip { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 
-        /* ── 필터/정렬 바 ── */
         .mt-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px; }
         .mt-filters { display: flex; gap: 5px; flex-wrap: wrap; }
         .mt-filter-btn { padding: 6px 13px; border-radius: 7px; border: 1.5px solid #E5E7EB; background: #fff; color: #6B7280; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
@@ -172,7 +159,6 @@ export default function MileageTab({ studentId }) {
         .mt-filter-btn.active { background: #1A3A5C; color: #fff; border-color: #1A3A5C; }
         .mt-sort { padding: 6px 12px; border: 1.5px solid #E5E7EB; border-radius: 7px; font-size: 11px; font-weight: 600; background: #fff; color: #374151; cursor: pointer; outline: none; }
 
-        /* ── 히스토리 테이블 ── */
         .mt-card { background: #fff; border: 1px solid #F1F5F9; border-radius: 12px; overflow: hidden; }
         .mt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
         .mt-table thead tr { background: #F8FAFC; }
@@ -182,7 +168,7 @@ export default function MileageTab({ studentId }) {
         .mt-table td.right { text-align: right; }
         .mt-table tbody tr:hover { background: #F8FBFF; }
 
-        .mt-cat-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: 10px; font-weight: 700; border: 1px solid transparent; }
+        .mt-cat-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: 10px; font-weight: 700; }
         .mt-score-cell { font-size: 13px; font-weight: 800; }
         .mt-score-plus  { color: #059669; }
         .mt-score-minus { color: #DC2626; }
@@ -199,44 +185,35 @@ export default function MileageTab({ studentId }) {
 
       <div className="mt-wrap">
         
-        {/* ── 📊 상단 핵심 지표 대시보드 (보유 / 누적 배정 / 최고 기록) ── */}
         <div className="mt-dashboard">
-          
-          {/* 위젯 1: 현재 보유 마일리지 */}
           <div className="mt-dash-card card-purple">
             <div className="mt-dash-label">보유 마일리지</div>
             <div className="mt-dash-value">
-              {total.toLocaleString()} <span className="mt-dash-unit">pt</span>
+              {total.toLocaleString()} <span className="mt-dash-unit">점</span>
             </div>
-            <div className="mt-dash-sub">현재 사용 가능한 실시간 최종 가용 점수</div>
+            <div className="mt-dash-sub">현재 사용 가능한 실시간 점수</div>
           </div>
 
-          {/* 위젯 2: 누적 배정 마일리지 */}
           <div className="mt-dash-card card-blue">
             <div className="mt-dash-label">누적 배정 마일리지</div>
             <div className="mt-dash-value" style={{ color: '#2563EB' }}>
-              {totalEarned.toLocaleString()} <span className="mt-dash-unit">pt</span>
+              {totalEarned.toLocaleString()} <span className="mt-dash-unit">점</span>
             </div>
-            <div className="mt-dash-sub">
-              차감 이력을 제외하고 부여받은 순수 총점 합계
-            </div>
+            <div className="mt-dash-sub">차감 이력을 제외한 총 획득 점수</div>
           </div>
 
-          {/* 위젯 3: 단일 최고 기록 보유 항목 */}
           <div className="mt-dash-card card-emerald">
-            <div className="mt-dash-label">최고 점수 보유 내역</div>
+            <div className="mt-dash-label">최고 점수 획득 내역</div>
             <div className="mt-dash-value" style={{ color: '#059669' }}>
-              {maxScoreItem ? `+${maxScoreItem.score?.toLocaleString()}` : '0'}{' '}
-              <span className="mt-dash-unit">pt</span>
+              {maxScoreItem ? `+${(maxScoreItem.changeAmount ?? maxScoreItem.score)?.toLocaleString()}` : '0'} 
+              <span className="mt-dash-unit">점</span>
             </div>
             <div className="mt-dash-sub">
-              {maxScoreItem ? `최고 항목: ${maxScoreItem.description || maxScoreItem.reason}` : '수여 내역 없음'}
+              {maxScoreItem ? `항목: ${maxScoreItem.reason || maxScoreItem.description}` : '수여 내역 없음'}
             </div>
           </div>
-
         </div>
 
-        {/* ── 🍩 카테고리별 분해 분석 차트 바 ── */}
         <div className="mt-chart-section">
           <div className="mt-donut-wrap">
             <DonutChart
@@ -245,7 +222,7 @@ export default function MileageTab({ studentId }) {
             />
             <div className="mt-donut-center">
               <div className="mt-donut-score">{total}</div>
-              <div className="mt-donut-lbl">TOTAL</div>
+              <div className="mt-donut-lbl">총점</div>
             </div>
           </div>
 
@@ -257,21 +234,20 @@ export default function MileageTab({ studentId }) {
                   <div
                     key={c.key}
                     className="mt-chip"
-                    style={{ background: c.bg, color: c.color, borderColor: c.border }}
+                    style={{ background: c.bg, color: c.color, border: `1px solid ${c.border}` }}
                   >
                     <span>{c.icon}</span>
                     {c.label}
-                    <span style={{ marginLeft: 2, opacity: 0.8 }}>{c.value.toLocaleString()}pt</span>
+                    <span style={{ marginLeft: 2, opacity: 0.8 }}>{c.value.toLocaleString()}점</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize: '11px', color: '#94A3B8' }}>누적된 세부 카테고리별 통계가 없습니다.</div>
+              <div style={{ fontSize: '11px', color: '#94A3B8' }}>누적된 통계가 없습니다.</div>
             )}
           </div>
         </div>
 
-        {/* ── 필터 / 정렬 ── */}
         <div className="mt-toolbar">
           <div className="mt-filters">
             <button
@@ -281,9 +257,14 @@ export default function MileageTab({ studentId }) {
               전체 ({history.length})
             </button>
             {categories.map(key => {
-              const cnt = history.filter(h => h.category?.toUpperCase() === key).length;
-              if (cnt === 0) return null;
               const meta = CATEGORY_META[key];
+              const cnt = history.filter(h => {
+                const amount = h.changeAmount ?? h.score ?? 0;
+                if (key === 'PENALTY') return amount < 0;
+                return h.category?.toUpperCase() === key && amount >= 0;
+              }).length;
+              
+              if (cnt === 0) return null;
               return (
                 <button
                   key={key}
@@ -307,7 +288,6 @@ export default function MileageTab({ studentId }) {
           </select>
         </div>
 
-        {/* ── 히스토리 테이블 ── */}
         <div className="mt-card">
           {loading ? (
             <div className="mt-loading">
@@ -328,7 +308,7 @@ export default function MileageTab({ studentId }) {
                   <th style={{ width: 36 }}>No</th>
                   <th style={{ width: 80 }}>카테고리</th>
                   <th>내용</th>
-                  <th style={{ width: 100 }}>획득일</th>
+                  <th style={{ width: 100 }}>처리일자</th>
                   <th className="right" style={{ width: 80 }}>점수</th>
                   <th className="right" style={{ width: 90 }}>누적 점수</th>
                 </tr>
@@ -339,15 +319,16 @@ export default function MileageTab({ studentId }) {
                   const runningMap = {};
                   let acc = 0;
                   sorted_asc.forEach(h => {
-                    acc += h.score ?? 0;
-                    runningMap[h.mileageId ?? h.id ?? ((h.earnedAt || h.createdAt) + h.score)] = acc;
+                    const amount = h.changeAmount ?? h.score ?? 0;
+                    acc += amount;
+                    runningMap[h.mileageId ?? h.id ?? ((h.earnedAt || h.createdAt) + amount)] = acc;
                   });
 
                   return filtered.map((item, idx) => {
-                    const meta    = getCategoryMeta(item.category);
-                    const score   = item.score ?? 0;
-                    const isPlus  = score >= 0;
-                    const key     = item.mileageId ?? item.id ?? ((item.earnedAt || item.createdAt) + item.score);
+                    const amount  = item.changeAmount ?? item.score ?? 0;
+                    const meta    = getCategoryMeta(item.category, amount);
+                    const isPlus  = amount >= 0;
+                    const key     = item.mileageId ?? item.id ?? ((item.earnedAt || item.createdAt) + amount);
                     const running = runningMap[key];
 
                     return (
@@ -356,15 +337,15 @@ export default function MileageTab({ studentId }) {
                         <td>
                           <span
                             className="mt-cat-badge"
-                            style={{ background: meta.bg, color: meta.color, borderColor: meta.border }}
+                            style={{ background: meta.bg, color: meta.color, border: `1px solid ${meta.border}` }}
                           >
                             {meta.icon} {meta.label}
                           </span>
                         </td>
-                        <td className="mt-desc">{item.description || item.reason || '–'}</td>
+                        <td className="mt-desc">{item.reason || item.description || '–'}</td>
                         <td className="mt-date">{fmt(item.earnedAt || item.createdAt)}</td>
                         <td className={`right mt-score-cell ${isPlus ? 'mt-score-plus' : 'mt-score-minus'}`}>
-                          {isPlus ? '+' : ''}{score.toLocaleString()}
+                          {isPlus ? '+' : ''}{amount.toLocaleString()}
                         </td>
                         <td className="right mt-running">
                           {running != null ? running.toLocaleString() : '–'}
@@ -380,10 +361,10 @@ export default function MileageTab({ studentId }) {
                     {filtered.length}건 표시 중
                   </td>
                   <td className="right" style={{ color: '#059669' }}>
-                    +{filtered.filter(h => (h.score ?? 0) > 0).reduce((s, h) => s + h.score, 0).toLocaleString()}
+                    +{filtered.filter(h => (h.changeAmount ?? h.score ?? 0) > 0).reduce((s, h) => s + (h.changeAmount ?? h.score), 0).toLocaleString()}
                   </td>
                   <td className="right" style={{ color: '#0F172A' }}>
-                    총 {total.toLocaleString()} pt
+                    총 {total.toLocaleString()} 점
                   </td>
                 </tr>
               </tfoot>

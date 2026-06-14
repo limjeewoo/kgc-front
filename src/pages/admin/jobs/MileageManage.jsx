@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import MileageTab from '../students/StudentDetail/MileageTab'; 
 
 export default function MileageManage() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // 모달 제어 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [points, setPoints] = useState('');
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 🔐 인증 헤더 생성 함수
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [detailsStudent, setDetailsStudent] = useState(null);
+
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
     return {
@@ -22,13 +24,10 @@ export default function MileageManage() {
     };
   };
 
-  // 학생 데이터에서 안전하게 마일리지 값을 가져오는 헬퍼 함수
   const getStudentMileage = (student) => {
-    // 백엔드 필드명이 mileage 일 수도, totalMileage 일 수도 있으므로 병합 처리
     return student.mileage !== undefined ? student.mileage : (student.totalMileage || 0);
   };
 
-  // 1. 학생 목록 조회
   const initFetch = async () => {
     try {
       setLoading(true);
@@ -46,7 +45,6 @@ export default function MileageManage() {
         rawStudents = response.data;
       }
 
-      // 높은 점수 순으로 정렬 정렬
       const sortedData = [...rawStudents].sort((a, b) => getStudentMileage(b) - getStudentMileage(a));
       setStudents(sortedData);
     } catch (error) {
@@ -61,7 +59,6 @@ export default function MileageManage() {
     initFetch();
   }, []);
 
-  // 2. 수동 점수 조정 모달 열기
   const openAdjustModal = (student) => {
     setSelectedStudent(student);
     setPoints('');
@@ -69,7 +66,12 @@ export default function MileageManage() {
     setIsModalOpen(true);
   };
 
-  // 3. 🎯 점수 조정 처리 및 프론트 상태 즉시 변동(Optimistic Update)
+  const openDetailsModal = (student) => {
+    setDetailsStudent(student);
+    setIsDetailsModalOpen(true);
+  };
+
+  // 관리자/조교 마일리지 수동 추가/차감 처리 API
   const handleAdjustPoints = async (e) => {
     e.preventDefault();
     if (!points || isNaN(points)) {
@@ -88,8 +90,7 @@ export default function MileageManage() {
 
       const requestBody = {
         changeAmount: numPoints,
-        reason: reason.trim(),
-        studentId: targetStudentId 
+        reason: reason.trim()
       };
 
       const targetUrl = `/api/v1/students/${targetStudentId}/mileage`;
@@ -108,7 +109,6 @@ export default function MileageManage() {
         alert(`${selectedStudent.korName || selectedStudent.name || '선택한'} 학생의 마일리지가 정상적으로 조정되었습니다.`);
         setIsModalOpen(false);
 
-        // 🔥 [화면 실시간 반영 파트 필드명 이중 방어]
         setStudents(prevStudents => 
           prevStudents.map(student => {
             if (student.studentId === targetStudentId) {
@@ -116,65 +116,58 @@ export default function MileageManage() {
               const updatedMileage = currentMileage + numPoints;
               return { 
                 ...student, 
-                mileage: updatedMileage,       // 둘 다 업데이트해 버려서 
-                totalMileage: updatedMileage  // 렌더링 오류 원천 차단
+                mileage: updatedMileage, 
+                totalMileage: updatedMileage 
               };
             }
             return student;
           }).sort((a, b) => getStudentMileage(b) - getStudentMileage(a))
         );
 
-        // 최신 서버 데이터 동기화
         initFetch(); 
       } else {
         alert(`반영 실패: ${response.data?.message || '처리 중 오류가 발생했습니다.'}`);
       }
     } catch (error) {
-      console.error('⚠️ [디버깅 로그]:', error);
+      console.error('오류 발생:', error);
       const serverMessage = error.response?.data?.message || error.message;
-      alert(`🚨 실패 안내: ${serverMessage}`);
+      alert(`실패 안내: ${serverMessage}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 검색 필터링
   const filteredStudents = students.filter(student => {
     const name = student.korName || student.name || '';
     const id = student.studentId || '';
     return name.toLowerCase().includes(searchTerm.toLowerCase()) || id.includes(searchTerm);
   });
 
-  // 상단 요약 대시보드 계산 시에도 헬퍼 함수 사용
   const totalDistributedMileage = students.reduce((acc, curr) => acc + getStudentMileage(curr), 0);
   const topScore = students[0] ? getStudentMileage(students[0]) : 0;
 
   if (loading) return (
     <div className="mileage-loading">
       <div className="spinner" />
-      <p>KGC 시스템에서 마일리지 데이터를 분석 중입니다...</p>
+      <p>마일리지 데이터를 분석 중입니다...</p>
     </div>
   );
 
   return (
     <div className="mileage-container">
       <style>{`
-        .mileage-container { animation: fadeUp 0.28s ease; }
         .mileage-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 50vh; color: #6b7280; font-size: 0.875rem; }
         .spinner { width: 40px; height: 40px; border: 3px solid #E5E7EB; border-top-color: #3B82F6; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px; }
         
         .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
-        .summary-card { background: #fff; border: 1px solid #F1F5F9; border-radius: 1rem; padding: 1.25rem; position: relative; overflow: hidden; }
-        .summary-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: #3B82F6; }
-        .summary-card.orange::after { background: #F59E0B; }
-        .summary-card.purple::after { background: #8B5CF6; }
+        .summary-card { background: #fff; border: 1px solid #F1F5F9; border-radius: 1rem; padding: 1.25rem; }
         .summary-lbl { font-size: 0.75rem; color: #64748B; margin-bottom: 0.25rem; font-weight: 500; }
         .summary-val { font-size: 1.5rem; font-weight: 700; color: #0F172A; }
         .summary-val .unit { font-size: 0.8125rem; font-weight: 400; color: #94A3B8; margin-left: 2px; }
 
         .table-ctrl { background: #fff; border: 1px solid #F1F5F9; border-radius: 1rem 1rem 0 0; padding: 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: none; }
-        .search-input { width: 18rem; padding: 0.5rem 0.875rem; border: 1px solid #E2E8F0; border-radius: 0.5rem; font-size: 0.8125rem; outline: none; transition: 0.15s; }
-        .search-input:focus { border-color: #3B82F6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        .search-input { width: 18rem; padding: 0.5rem 0.875rem; border: 1px solid #E2E8F0; border-radius: 0.5rem; font-size: 0.8125rem; outline: none; }
+        .search-input:focus { border-color: #3B82F6; }
 
         .table-card { background: #fff; border: 1px solid #F1F5F9; border-radius: 0 0 1rem 1rem; overflow: hidden; }
         .m-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8125rem; }
@@ -190,11 +183,21 @@ export default function MileageManage() {
         .rank-default { color: #94A3B8; }
         .score-txt { font-weight: 700; color: #1E3A8A; }
 
-        .action-btn { background: #1A3A5C; color: #fff; border: none; padding: 0.375rem 0.75rem; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: 0.15s; }
-        .action-btn:hover { background: #15304e; box-shadow: 0 2px 8px rgba(26,58,92,0.2); }
+        .btn-flex-container { display: flex; gap: 6px; justify-content: center; align-items: center; }
+        .base-btn { padding: 0.375rem 0.625rem; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
 
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.4); display: flex; align-items: center; justify-content: center; z-index: 999; backdrop-filter: blur(2px); }
-        .modal-box { background: #fff; border-radius: 1rem; width: 26rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden; animation: fadeUp 0.2s ease; }
+        .btn-details { background: #ffffff; color: #475569; border: 1px solid #CBD5E1; }
+        .btn-details:hover { background: #F8FAFC; border-color: #94A3B8; color: #1E293B; }
+        
+        .btn-adjust { background: #1A3A5C; color: #fff; border: none; }
+        .btn-adjust:hover { background: #15304e; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.4); display: flex; align-items: center; justify-content: center; z-index: 999; }
+        .modal-box { background: #fff; border-radius: 1rem; width: 26rem; overflow: hidden; }
+        
+        .details-modal-box { background: #fff; border-radius: 1rem; width: 85%; max-width: 1000px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+        .details-modal-bd { overflow-y: auto; padding: 1.25rem; flex: 1; background: #F8FAFC; }
+
         .modal-hd { padding: 1.25rem; border-bottom: 1px solid #F1F5F9; font-weight: 700; font-size: 0.9375rem; color: #0F172A; }
         .modal-bd { padding: 1.25rem; }
         .modal-ft { padding: 1rem 1.25rem; background: #F8FAFC; border-top: 1px solid #F1F5F9; display: flex; justify-content: flex-end; gap: 0.5rem; }
@@ -209,26 +212,23 @@ export default function MileageManage() {
         .btn-submit:disabled { background: #94A3B8; cursor: not-allowed; }
 
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
 
-      {/* 대시보드 스탯 요약 */}
       <div className="summary-grid">
         <div className="summary-card">
           <div className="summary-lbl">누적 배정 마일리지</div>
           <div className="summary-val">{totalDistributedMileage.toLocaleString()}<span className="unit">점</span></div>
         </div>
-        <div className="summary-card orange">
+        <div className="summary-card">
           <div className="summary-lbl">최고 점수 보유자</div>
           <div className="summary-val">{topScore.toLocaleString()}<span className="unit">점</span></div>
         </div>
-        <div className="summary-card purple">
+        <div className="summary-card">
           <div className="summary-lbl">평가 대상 명수</div>
           <div className="summary-val">{filteredStudents.length}<span className="unit">명</span></div>
         </div>
       </div>
 
-      {/* 검색 바 */}
       <div className="table-ctrl">
         <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0F172A' }}>마일리지 랭킹 관리</div>
         <input 
@@ -240,7 +240,6 @@ export default function MileageManage() {
         />
       </div>
 
-      {/* 테이블 리스트 */}
       <div className="table-card">
         <table className="m-table">
           <thead>
@@ -252,7 +251,7 @@ export default function MileageManage() {
               <th>분반</th>
               <th>국적</th>
               <th style={{ textAlign: 'right' }}>보유 마일리지</th>
-              <th style={{ width: '120px', textAlign: 'center' }}>조정</th>
+              <th style={{ width: '160px', textAlign: 'center' }}>관리 작업</th>
             </tr>
           </thead>
           <tbody>
@@ -283,13 +282,22 @@ export default function MileageManage() {
                     <td style={{ textAlign: 'right' }} className="score-txt">
                       {getStudentMileage(student).toLocaleString()}점
                     </td>
+                    
                     <td style={{ textAlign: 'center' }}>
-                      <button 
-                        className="action-btn"
-                        onClick={() => openAdjustModal(student)}
-                      >
-                        점수 조정
-                      </button>
+                      <div className="btn-flex-container">
+                        <button 
+                          className="base-btn btn-details"
+                          onClick={() => openDetailsModal(student)}
+                        >
+                          상세보기
+                        </button>
+                        <button 
+                          className="base-btn btn-adjust"
+                          onClick={() => openAdjustModal(student)}
+                        >
+                          점수 조정
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -299,7 +307,25 @@ export default function MileageManage() {
         </table>
       </div>
 
-      {/* 수동 조정 모달 팝업 */}
+      {isDetailsModalOpen && detailsStudent && (
+        <div className="modal-overlay" onClick={() => setIsDetailsModalOpen(false)}>
+          <div className="details-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-hd" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>📊 {detailsStudent.korName || detailsStudent.name} 학생 마일리지 상세 내역</span>
+              <button 
+                onClick={() => setIsDetailsModalOpen(false)} 
+                style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748B', lineHeight: '1' }}
+              >
+                &times;
+              </button>
+            </div>
+            <div className="details-modal-bd">
+              <MileageTab studentId={detailsStudent.studentId} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {isModalOpen && selectedStudent && (
         <div className="modal-overlay">
           <div className="modal-box">
