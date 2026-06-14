@@ -132,7 +132,7 @@ export default function AdminDashboard() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght=300;400;500;700&family=DM+Sans:wght=300;400;500;600;700&display=swap');
+
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
         :root { font-size: 16px; --primary: #3B82F6; --sidebar-bg: #1A3A5C; }
