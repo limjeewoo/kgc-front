@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-// 1. 서버 주소 보정용 상수 (이미지 절대경로 렌더링용)
 const SERVER_URL = '/api/v1'.replace(/\/api\/v1\/?$/, ''); 
 
 const api = axios.create({
@@ -44,7 +43,7 @@ const GLOBAL_PROFILE_CSS = `
   
   .tbl-wrap { width: 100%; overflow-x: auto; background: #fff; }
   .base-tbl { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
-  .base-tbl th { background: #F8FAFC; color: #64748B; font-weight: 600; padding: .75rem 1.5rem; border-bottom: 1px solid #E2E8F0; font-size: .75rem; }
+  .base-tbl th { background: #F8FAFC; color: #64748B; font-weight: 600; padding: .75rem 1.5rem; border-bottom: 1px solid #E2E8F0; font-size: .75rem; white-space: nowrap; }
   .base-tbl td { padding: .875rem 1.5rem; border-bottom: 1px solid #F1F5F9; color: #334155; font-weight: 500; vertical-align: middle; }
   .base-tbl tbody tr:last-child td { border-bottom: none; }
 
@@ -59,7 +58,6 @@ const GLOBAL_PROFILE_CSS = `
   .save-toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); background: #0F172A; color: #fff; padding: .625rem 1.25rem; border-radius: 10px; font-size: .875rem; font-weight: 600; z-index: 9999; animation: toastIn .2s ease; pointer-events: none; }
   @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
-  /* 2. 아바타(프로필 사진) 관련 CSS 추가 */
   .avatar-wrapper { position: relative; cursor: pointer; border-radius: 50%; overflow: hidden; width: 4.5rem; height: 4.5rem; flex-shrink: 0; background: linear-gradient(135deg, #3B82F6, #8B5CF6); display: flex; align-items: center; justify-content: center; font-size: 1.625rem; font-weight: 700; color: #fff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); }
   .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
   .avatar-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: #fff; font-size: 11px; font-weight: 600; text-align: center; padding: 4px 0; opacity: 0; transition: opacity 0.2s; }
@@ -87,7 +85,6 @@ function EmptyState({ text }) {
   return <div style={styles.emptyState}>{text}</div>;
 }
 
-// 수정 가능한 필드 컴포넌트
 function EditableInfoItem({ label, value, fieldKey, studentId, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState(value ?? '');
@@ -162,7 +159,6 @@ function EditableInfoItem({ label, value, fieldKey, studentId, onSaved }) {
   );
 }
 
-// 수정 불가 필드
 function InfoItem({ label, value, children }) {
   return (
     <div>
@@ -178,13 +174,11 @@ export default function MyProfile() {
   const [student, setStudent] = useState(null);
   const [studentId, setStudentId] = useState(null);
   const [visas, setVisas]     = useState([]);
-  const [topik, setTopik]     = useState([]);
+  const [topiks, setTopiks]   = useState([]); 
   const [toast, setToast]     = useState(null);
 
-  // 3. 파일 입력을 위한 Ref 추가
   const fileInputRef = useRef(null);
 
-  // 4. 이미지 절대 경로 변환 유틸리티
   const getFullPhotoUrl = (url) => {
     if (!url) return null;
     if (url.startsWith('http') || url.startsWith('blob:')) return url;
@@ -221,8 +215,8 @@ export default function MyProfile() {
 
       if (tRes.status === 'fulfilled') {
         const tData = tRes.value.data?.data ?? tRes.value.data;
-        setTopik(Array.isArray(tData) ? tData : []);
-      } else { setTopik([]); }
+        setTopiks(Array.isArray(tData) ? tData : []);
+      } else { setTopiks([]); }
 
     } catch (err) {
       setError(err.message || '프로필 정보를 불러오지 못했습니다.');
@@ -243,7 +237,6 @@ export default function MyProfile() {
     setTimeout(() => setToast(null), 2500);
   }
 
-  // 5. 사진 변경 로직
   const handlePhotoChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -253,7 +246,6 @@ export default function MyProfile() {
       return;
     }
 
-    // 사진 즉각 미리보기를 위한 Blob URL 생성
     const localPreviewUrl = URL.createObjectURL(file);
     const prevPhotoUrl = student.photoUrl; 
     setStudent(prev => ({ ...prev, photoUrl: localPreviewUrl }));
@@ -268,12 +260,10 @@ export default function MyProfile() {
       });
       
       showToast('✓ 프로필 사진이 성공적으로 변경되었습니다.');
-      // 서버에서 전달받은 진짜 URL이 있으면 그걸로 교체, 없다면 미리보기 유지
       const newUrl = res.data?.data?.photoUrl || localPreviewUrl;
       setStudent(prev => ({ ...prev, photoUrl: newUrl }));
     } catch (error) {
       alert(error.response?.data?.message || '사진 업로드 중 오류가 발생했습니다.');
-      // 실패 시 기존 사진으로 롤백
       setStudent(prev => ({ ...prev, photoUrl: prevPhotoUrl }));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -281,14 +271,13 @@ export default function MyProfile() {
   };
 
   const currentVisa = visas.find(v => v.isCurrent) ?? visas[0] ?? null;
-  const latestTopik = topik[0] ?? null;
+  const latestTopik = topiks[0] ?? null;
   const statusColor = { '재학': 'pill-green', '휴학': 'pill-amber', '졸업': 'pill-gray', '제적': 'pill-red' };
 
   return (
     <>
       <style>{GLOBAL_PROFILE_CSS}</style>
 
-      {/* 숨겨진 파일 입력 필드 */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -303,11 +292,8 @@ export default function MyProfile() {
         <div className="sw-content">
           {error && <ErrBanner msg={error} onRetry={load} />}
 
-          {/* 상단 히어로 카드 */}
           <div className="data-card" style={styles.mb24}>
             <div className="card-body" style={styles.heroLayout}>
-              
-              {/* 6. 수정된 아바타 렌더링 영역 */}
               <div className="avatar-wrapper" onClick={() => fileInputRef.current?.click()}>
                 {student?.photoUrl ? (
                   <img 
@@ -344,7 +330,6 @@ export default function MyProfile() {
             </div>
           </div>
 
-          {/* 인적사항 */}
           <div className="sec-label">인적사항</div>
           <div className="data-card">
             <div className="card-hd">
@@ -362,7 +347,6 @@ export default function MyProfile() {
                 </div>
               ) : (
                 <div className="info-grid">
-                  {/* 수정 불가 */}
                   <InfoItem label="성명 (Name)"                value={student?.korName} />
                   <InfoItem label="영문 성명 (English Name)"    value={student?.engName} />
                   <InfoItem label="성별 (Gender)"               value={student?.gender} />
@@ -373,7 +357,6 @@ export default function MyProfile() {
                     <span className={`pill ${statusColor[student?.enrollStatus] ?? 'pill-gray'}`}>{student?.enrollStatus ?? '재학'}</span>
                   </InfoItem>
 
-                  {/* 수정 가능 3개 */}
                   <EditableInfoItem
                     label="연락처 (Phone)"
                     fieldKey="phone"
@@ -401,7 +384,6 @@ export default function MyProfile() {
             </div>
           </div>
 
-          {/* 비자 정보 */}
           <div className="sec-label">비자 정보 (Visa Status)</div>
           <div className="data-card">
             <div className="card-hd">
@@ -417,10 +399,10 @@ export default function MyProfile() {
                 <div className="card-body">
                   <div className="info-grid">
                     <InfoItem label="비자 종류 (Visa Type)"  value={currentVisa.visaType} />
-                    <InfoItem label="발급일 (Issue Date)"    value={currentVisa.issueDate} />
                     <InfoItem label="만료일 (Expiry Date)"   value={currentVisa.expireDate} />
                     <InfoItem label="체류 잔여일 (D-Day)">
                       {(() => {
+                        if(!currentVisa.expireDate) return '—';
                         const dDay = Math.ceil((new Date(currentVisa.expireDate) - Date.now()) / 86400000);
                         const isExpired = dDay < 0;
                         return (
@@ -438,14 +420,13 @@ export default function MyProfile() {
                     <div className="tbl-wrap" style={styles.borderTopF1}>
                       <table className="base-tbl">
                         <thead>
-                          <tr><th>비자 종류</th><th>발급일</th><th>만료일</th><th>상태</th></tr>
+                          <tr><th>비자 종류</th><th>만료일</th><th>현재 비자 여부</th></tr>
                         </thead>
                         <tbody>
                           {visas.map((v, i) => (
                             <tr key={v.visaId ?? i}>
-                              <td style={styles.tblBoldText}>{v.visaType}</td>
-                              <td>{v.issueDate}</td>
-                              <td>{v.expireDate}</td>
+                              <td style={styles.tblBoldText}>{v.visaType ?? '—'}</td>
+                              <td>{v.expireDate ?? '—'}</td>
                               <td>{v.isCurrent ? <span className="pill pill-blue">현재 적용</span> : <span className="pill pill-gray">만료/이전</span>}</td>
                             </tr>
                           ))}
@@ -458,7 +439,6 @@ export default function MyProfile() {
             )}
           </div>
 
-          {/* TOPIK */}
           <div className="sec-label">한국어 능력 수준 (TOPIK)</div>
           <div className="data-card">
             <div className="card-hd">
@@ -467,20 +447,35 @@ export default function MyProfile() {
             </div>
             {loading ? (
               <div className="card-body"><Skeleton h="3rem" /></div>
-            ) : topik.length === 0 ? (
+            ) : topiks.length === 0 ? (
               <EmptyState text="등록된 공인 TOPIK 어학 성적이 없습니다." />
             ) : (
               <div className="tbl-wrap">
                 <table className="base-tbl">
                   <thead>
-                    <tr><th>인증 급수</th><th>성적 취득일</th><th>비고 사항</th></tr>
+                    <tr>
+                      <th>TOPIK 급수</th>
+                      <th>시험일</th>
+                      <th>어학원명</th>
+                      <th>어학원 수강급수</th>
+                      <th>학습 시작년월</th>
+                      <th>기초평가</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    {topik.map((t, i) => (
+                    {topiks.map((t, i) => (
                       <tr key={t.langId ?? i}>
-                        <td><span className="pill pill-violet" style={styles.topikPill}>TOPIK {t.topikLevel}급</span></td>
-                        <td style={styles.tblMediumText}>{t.acquiredDate}</td>
-                        <td style={styles.tblNoteText}>{t.note ?? '—'}</td>
+                        <td>
+                          {t.topikLevel 
+                            ? <span className="pill pill-violet" style={styles.topikPill}>TOPIK {t.topikLevel}급</span>
+                            : '—'
+                          }
+                        </td>
+                        <td style={styles.tblMediumText}>{t.examDate ?? '—'}</td>
+                        <td>{t.instituteName ?? '—'}</td>
+                        <td>{t.instituteLevel ?? '—'}</td>
+                        <td>{t.koreanStartDate ?? '—'}</td>
+                        <td>{t.basicTestResult ?? '—'}</td>
                       </tr>
                     ))}
                   </tbody>

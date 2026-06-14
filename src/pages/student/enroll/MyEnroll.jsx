@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
@@ -10,7 +10,6 @@ async function apiFetch(path) {
   const res = await axios.get(`${API_BASE}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  // 백엔드 응답 구조 보정 (data.data 또는 data)
   return res.data?.data ?? res.data;
 }
 
@@ -25,7 +24,6 @@ function toArray(val) {
 const CSS = `
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   
-  /* 🛠️ 대시보드와 동일하게 좌우 여백 22px 조정 및 화면 밖 탈출(잘림) 방지 속성 적용 */
   .en-wrap { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; }
   
   .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-bottom:1.25rem; }
@@ -37,7 +35,13 @@ const CSS = `
 
   .data-card  { background:#fff; border-radius:14px; border:1px solid #E2E8F0; overflow:hidden; margin-top:1.25rem; }
   .card-hd    { display:flex; align-items:center; justify-content:space-between; padding:1.25rem; border-bottom:1px solid #F1F5F9; flex-wrap:wrap; gap:.75rem; }
-  .card-hd-title { font-size:1rem; font-weight:700; color:#1E293B; }
+  .card-hd-title { font-size:1rem; font-weight:700; color:#1E293B; display:flex; align-items:center; gap:.5rem; }
+  
+  /* 새로고침 버튼 스타일 */
+  .btn-refresh { background:#F1F5F9; border:none; border-radius:6px; padding:6px 10px; font-size:.75rem; font-weight:600; color:#475569; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:background 0.2s; }
+  .btn-refresh:hover { background:#E2E8F0; color:#0F172A; }
+  .btn-refresh:disabled { opacity:0.5; cursor:not-allowed; }
+
   .form-select { padding:6px 32px 6px 12px; font-size:.875rem; border:1px solid #E2E8F0; border-radius:6px; color:#334155; background:#fff; font-weight:600; cursor:pointer; }
   .form-select:focus { border-color:#3B82F6; outline:none; }
 
@@ -102,24 +106,22 @@ function GpaBar({ gpa, max = 4.5 }) {
 // ── 메인 컴포넌트 ───────────────────────────────────────────
 export default function MyEnroll() {
   const [loading,     setLoading]     = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error,       setError]       = useState(null);
   const [studentId,   setStudentId]   = useState(null);
   const [semesters,   setSemesters]   = useState([]);
   const [selSem,      setSelSem]      = useState('');
   const [enrollments, setEnrollments] = useState([]);
 
-  // 초기: 내 ID + 학기 목록
+  // 초기 렌더링: 사용자 정보와 학기 목록 세팅
   async function init() {
     setLoading(true);
     setError(null);
     try {
       const me = await apiFetch('/auth/me');
-      
       const sid = me?.userId ?? me?.studentId ?? (typeof me === 'string' || typeof me === 'number' ? String(me) : null);
       
-      if (!sid) {
-        throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
-      }
+      if (!sid) throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
       setStudentId(sid);
 
       const [semRes, curRes] = await Promise.allSettled([
@@ -145,24 +147,32 @@ export default function MyEnroll() {
 
   useEffect(() => { init(); }, []);
 
-  // 학기 변경 시 혹은 studentId가 확보되었을 때 수강 목록 갱신
-  useEffect(() => {
+  // 성적/수강 내역 조회 로직 (독립된 함수로 분리하여 새로고침 버튼과 연동)
+  const fetchEnrollments = useCallback(async (isManualRefresh = false) => {
     if (!studentId) return;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const query = selSem ? `?semesterId=${selSem}` : '';
-        const data  = await apiFetch(`/students/${studentId}/enrollments${query}`);
-        setEnrollments(toArray(data));
-      } catch (err) {
-        console.error("Enrollments fetch error:", err);
-        setError('수강 목록을 불러오지 못했습니다.');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    
+    if (isManualRefresh) setIsRefreshing(true);
+    else setLoading(true);
+    
+    setError(null);
+    
+    try {
+      const query = selSem ? `?semesterId=${selSem}` : '';
+      const data  = await apiFetch(`/students/${studentId}/enrollments${query}`);
+      setEnrollments(toArray(data));
+    } catch (err) {
+      console.error("Enrollments fetch error:", err);
+      setError('수강 목록을 불러오지 못했습니다.');
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
   }, [studentId, selSem]);
+
+  // 학기 변경 시 데이터 자동 갱신
+  useEffect(() => {
+    fetchEnrollments(false);
+  }, [fetchEnrollments]);
 
   // 파생 통계 연산
   const gradedList    = enrollments.filter(e => e.grade);
@@ -213,7 +223,18 @@ export default function MyEnroll() {
         {/* 수강 목록 테이블 */}
         <div className="data-card">
           <div className="card-hd">
-            <div className="card-hd-title">수강 목록</div>
+            <div className="card-hd-title">
+              수강 목록
+              {/* 새로고침 버튼 추가: 성적 엑셀 업로드 즉시 확인 용도 */}
+              <button 
+                className="btn-refresh" 
+                onClick={() => fetchEnrollments(true)}
+                disabled={loading || isRefreshing}
+              >
+                {isRefreshing ? '불러오는 중...' : '🔄 최신 성적 불러오기'}
+              </button>
+            </div>
+            
             {semesters.length > 0 ? (
               <select className="form-select" value={selSem} onChange={e => setSelSem(e.target.value)}>
                 {semesters.map(s => (
@@ -227,7 +248,7 @@ export default function MyEnroll() {
             )}
           </div>
 
-          {loading ? (
+          {loading && !isRefreshing ? (
             <div style={{ padding:'1rem 1.5rem', display:'flex', flexDirection:'column', gap:'.75rem' }}>
               {[...Array(4)].map((_, i) => <Skeleton key={i} h="2.75rem" />)}
             </div>
@@ -241,10 +262,11 @@ export default function MyEnroll() {
               <table className="base-tbl">
                 <thead>
                   <tr>
+                    {/* 요청하신 필드에 맞게 헤더 변경 */}
                     <th>과목명</th>
-                    <th>과목 코드</th>
+                    <th>이수구분</th> 
                     <th style={{ textAlign:'center' }}>학점</th>
-                    <th style={{ textAlign:'center' }}>수업 유형</th>
+                    <th style={{ textAlign:'center' }}>수업 방식</th>
                     <th style={{ textAlign:'center' }}>성적</th>
                     <th style={{ textAlign:'right', paddingRight:'2.5rem' }}>평균 학점</th>
                   </tr>
@@ -254,14 +276,23 @@ export default function MyEnroll() {
                     const gpaNum = e.grade ? gpaToNum(e.grade) : null;
                     return (
                       <tr key={e.enrollId ?? i}>
+                        {/* courseName 매핑 */}
                         <td style={{ fontWeight:700, color:'#1E293B' }}>{e.courseName}</td>
-                        <td style={{ color:'#94A3B8', fontFamily:'monospace', letterSpacing:'-.02em' }}>{e.courseCode ?? '—'}</td>
+                        {/* courseType 매핑 */}
+                        <td style={{ color:'#64748B', fontSize:'.8125rem' }}>
+                          <span style={{ background:'#F1F5F9', padding:'4px 8px', borderRadius:'4px', fontWeight:600 }}>
+                            {e.courseType ?? '—'}
+                          </span>
+                        </td>
+                        {/* credits 매핑 */}
                         <td style={{ textAlign:'center', fontWeight:600 }}>{e.credits ?? '—'}</td>
+                        {/* onlineType 매핑 */}
                         <td style={{ textAlign:'center' }}>
                           <span className={`pill ${TYPE_PILL[e.onlineType] ?? 'pill-gray'}`}>
                             {TYPE_LABEL[e.onlineType] ?? e.onlineType ?? '—'}
                           </span>
                         </td>
+                        {/* grade 매핑 */}
                         <td style={{ textAlign:'center' }}>
                           {e.grade
                             ? <span className={`pill ${GRADE_PILL[e.grade] ?? 'pill-gray'}`} style={{ minWidth:'24px', justifyContent:'center' }}>{e.grade}</span>
