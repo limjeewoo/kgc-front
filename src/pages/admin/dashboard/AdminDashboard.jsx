@@ -383,7 +383,7 @@ export default function AdminDashboard() {
                     </div>
                     <div style={{padding:'16px 18px'}}>
                       {visaList.length === 0 ? (
-                        <div className="empty-box">만료 임박 학생이 없습니다. ✅</div>
+                        <div className="empty-box">만료 임박 학생이 없습니다.</div>
                       ) : (
                         <>
                           <div className="summary-row"><span style={{fontSize:'0.8125rem', color:'#374151', fontWeight:500}}>위험 (D-14 이내)</span><span style={{fontSize:'0.6875rem', fontWeight:700, padding:'3px 10px', borderRadius:20, background:'#FEF2F2', color:'#DC2626'}}>{visaDanger.length}명</span></div>
@@ -409,7 +409,7 @@ export default function AdminDashboard() {
                     </div>
                     <div style={{padding:'16px 18px'}}>
                       {attendanceList.length === 0 ? (
-                        <div className="empty-box">출결 위험군이 없습니다. ✅</div>
+                        <div className="empty-box">출결 위험군이 없습니다. </div>
                       ) : (
                         <>
                           <div className="summary-row"><span style={{fontSize:'0.8125rem', color:'#374151', fontWeight:500}}>위험 (결석 4회+)</span><span style={{fontSize:'0.6875rem', fontWeight:700, padding:'3px 10px', borderRadius:20, background:'#FEF2F2', color:'#DC2626'}}>{attendDanger.length}명</span></div>
@@ -430,7 +430,7 @@ export default function AdminDashboard() {
                     <span className="count-pill">{onlineList.length}명</span>
                   </div>
                   {onlineList.length === 0
-                    ? <div className="empty-box">초과 학생이 없습니다. ✅</div>
+                    ? <div className="empty-box">초과 학생이 없습니다.</div>
                     : onlineList.map(o => (
                       <div key={o.studentId} className="online-row">
                         <div className="online-name">{o.korName}</div>

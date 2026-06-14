@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios'
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import axios from 'axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
+
+// 1. 서버 주소 보정용 상수 (이미지 절대경로 렌더링용)
+const SERVER_URL = '/api/v1'.replace(/\/api\/v1\/?$/, ''); 
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -38,6 +41,7 @@ const GLOBAL_PROFILE_CSS = `
   .btn-save:disabled { background: #94A3B8; cursor: not-allowed; }
   .btn-cancel-edit { background: none; border: 1px solid #E2E8F0; color: #64748B; padding: 4px 8px; border-radius: 6px; font-size: .75rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
   .btn-cancel-edit:hover { background: #F8FAFC; }
+  
   .tbl-wrap { width: 100%; overflow-x: auto; background: #fff; }
   .base-tbl { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
   .base-tbl th { background: #F8FAFC; color: #64748B; font-weight: 600; padding: .75rem 1.5rem; border-bottom: 1px solid #E2E8F0; font-size: .75rem; }
@@ -54,6 +58,12 @@ const GLOBAL_PROFILE_CSS = `
 
   .save-toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); background: #0F172A; color: #fff; padding: .625rem 1.25rem; border-radius: 10px; font-size: .875rem; font-weight: 600; z-index: 9999; animation: toastIn .2s ease; pointer-events: none; }
   @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+  /* 2. 아바타(프로필 사진) 관련 CSS 추가 */
+  .avatar-wrapper { position: relative; cursor: pointer; border-radius: 50%; overflow: hidden; width: 4.5rem; height: 4.5rem; flex-shrink: 0; background: linear-gradient(135deg, #3B82F6, #8B5CF6); display: flex; align-items: center; justify-content: center; font-size: 1.625rem; font-weight: 700; color: #fff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); }
+  .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
+  .avatar-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: #fff; font-size: 11px; font-weight: 600; text-align: center; padding: 4px 0; opacity: 0; transition: opacity 0.2s; }
+  .avatar-wrapper:hover .avatar-overlay { opacity: 1; }
 `;
 
 function Skeleton({ h = '1rem', w = '100%' }) {
@@ -107,7 +117,6 @@ function EditableInfoItem({ label, value, fieldKey, studentId, onSaved }) {
     if (e.key === 'Escape') { setEditing(false); setDraft(value ?? ''); setFieldError(null); }
   }
 
-  // yyyy-MM-dd → yyyy. MM. dd 표시용
   function formatDate(val) {
     if (!val) return '—';
     const [y, m, d] = val.split('-');
@@ -172,6 +181,16 @@ export default function MyProfile() {
   const [topik, setTopik]     = useState([]);
   const [toast, setToast]     = useState(null);
 
+  // 3. 파일 입력을 위한 Ref 추가
+  const fileInputRef = useRef(null);
+
+  // 4. 이미지 절대 경로 변환 유틸리티
+  const getFullPhotoUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http') || url.startsWith('blob:')) return url;
+    return `${SERVER_URL}${url}`;
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -214,7 +233,6 @@ export default function MyProfile() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 저장 후 로컬 student 상태 즉시 반영 + 토스트 표시
   function handleSaved(fieldKey, newValue) {
     setStudent(prev => ({ ...prev, [fieldKey]: newValue }));
     showToast('✓ 변경사항이 저장되었습니다.');
@@ -225,6 +243,43 @@ export default function MyProfile() {
     setTimeout(() => setToast(null), 2500);
   }
 
+  // 5. 사진 변경 로직
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 업로드 가능합니다.');
+      return;
+    }
+
+    // 사진 즉각 미리보기를 위한 Blob URL 생성
+    const localPreviewUrl = URL.createObjectURL(file);
+    const prevPhotoUrl = student.photoUrl; 
+    setStudent(prev => ({ ...prev, photoUrl: localPreviewUrl }));
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('photo', file);
+
+    try {
+      const res = await api.patch(`/students/${studentId}/photo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      showToast('✓ 프로필 사진이 성공적으로 변경되었습니다.');
+      // 서버에서 전달받은 진짜 URL이 있으면 그걸로 교체, 없다면 미리보기 유지
+      const newUrl = res.data?.data?.photoUrl || localPreviewUrl;
+      setStudent(prev => ({ ...prev, photoUrl: newUrl }));
+    } catch (error) {
+      alert(error.response?.data?.message || '사진 업로드 중 오류가 발생했습니다.');
+      // 실패 시 기존 사진으로 롤백
+      setStudent(prev => ({ ...prev, photoUrl: prevPhotoUrl }));
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const currentVisa = visas.find(v => v.isCurrent) ?? visas[0] ?? null;
   const latestTopik = topik[0] ?? null;
   const statusColor = { '재학': 'pill-green', '휴학': 'pill-amber', '졸업': 'pill-gray', '제적': 'pill-red' };
@@ -232,6 +287,16 @@ export default function MyProfile() {
   return (
     <>
       <style>{GLOBAL_PROFILE_CSS}</style>
+
+      {/* 숨겨진 파일 입력 필드 */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        style={{ display: 'none' }} 
+        accept="image/*" 
+        onChange={handlePhotoChange} 
+      />
+
       {toast && <div className="save-toast">{toast}</div>}
       <div className="sw-main">
         <TopBar title="프로필" />
@@ -241,9 +306,21 @@ export default function MyProfile() {
           {/* 상단 히어로 카드 */}
           <div className="data-card" style={styles.mb24}>
             <div className="card-body" style={styles.heroLayout}>
-              <div style={styles.avatar}>
-                {loading ? '?' : (student?.korName?.charAt(0).toUpperCase() ?? 'S')}
+              
+              {/* 6. 수정된 아바타 렌더링 영역 */}
+              <div className="avatar-wrapper" onClick={() => fileInputRef.current?.click()}>
+                {student?.photoUrl ? (
+                  <img 
+                    src={getFullPhotoUrl(student.photoUrl)} 
+                    alt="프로필" 
+                    onError={() => setStudent(prev => ({ ...prev, photoUrl: null }))} 
+                  />
+                ) : (
+                  loading ? '?' : (student?.korName?.charAt(0).toUpperCase() ?? 'S')
+                )}
+                <div className="avatar-overlay">변경</div>
               </div>
+              
               <div style={styles.flex1}>
                 {loading ? (
                   <div style={styles.skeletonColumn}>
@@ -286,7 +363,7 @@ export default function MyProfile() {
               ) : (
                 <div className="info-grid">
                   {/* 수정 불가 */}
-                  <InfoItem label="성명 (Name)"                 value={student?.korName} />
+                  <InfoItem label="성명 (Name)"                value={student?.korName} />
                   <InfoItem label="영문 성명 (English Name)"    value={student?.engName} />
                   <InfoItem label="성별 (Gender)"               value={student?.gender} />
                   <InfoItem label="소속 학과 (Dept)"            value={student?.deptName} />
@@ -424,7 +501,6 @@ const styles = {
   emptyState: { padding: '3rem 1.5rem', textAlign: 'center', color: '#94A3B8', fontSize: '.875rem' },
   mb24: { marginBottom: '1.5rem' },
   heroLayout: { display: 'flex', alignItems: 'center', gap: '1.5rem' },
-  avatar: { width: '4.5rem', height: '4.5rem', borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.625rem', fontWeight: 700, color: '#fff', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)' },
   flex1: { flex: 1 },
   skeletonColumn: { display: 'flex', flexDirection: 'column', gap: '.5rem' },
   metaRow: { display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.375rem' },
