@@ -17,8 +17,8 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
     studentId:'', korName:'', engName:'', deptId:'', deptName:'',
     gender:'', nationality:'', birthDate:'', phone:'', address:'',
     classSec:'', grade:'', admissionDate:'', enrollStatus:'',
-    foreignRegNo:'', visaType:'정보없음', currentVisaId: null, topikLevel:'정보없음',
-    maxWorkHours:'정보없음', gpa:null, totalCredits:null, photoUrl:null,
+    foreignRegNo:'', visaType: '-', currentVisaId: null, topikLevel: '-',
+    maxWorkHours: '-', gpa:null, totalCredits:null, photoUrl:null,
   };
 
   const [isLoading, setIsLoading]             = useState(true);
@@ -48,17 +48,17 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         
         setStudent(prev => ({ 
           ...prev, 
-          visaType: currentVisa.visaType || '정보없음',
+          visaType: currentVisa.visaType || '-',
           currentVisaId: currentVisa.visaId || null
         }));
         setOriginalStudent(prev => ({ 
           ...prev, 
-          visaType: currentVisa.visaType || '정보없음',
+          visaType: currentVisa.visaType || '-',
           currentVisaId: currentVisa.visaId || null
         }));
       } else {
-        setStudent(prev => ({ ...prev, visaType: '정보없음', currentVisaId: null }));
-        setOriginalStudent(prev => ({ ...prev, visaType: '정보없음', currentVisaId: null }));
+        setStudent(prev => ({ ...prev, visaType: '-', currentVisaId: null }));
+        setOriginalStudent(prev => ({ ...prev, visaType: '-', currentVisaId: null }));
       }
     } catch (e) {
       console.error('비자 최신 정보 동기화 실패:', e);
@@ -98,9 +98,11 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
     if (!isNewMode && id && id !== 'undefined') {
       initPromises.push(api.get(`/api/v1/students/${id}`));
       initPromises.push(api.get(`/api/v1/students/${id}/visas`).catch(() => ({ data: { success: false } })));
+      initPromises.push(api.get(`/api/v1/students/${id}/topik`).catch(() => ({ data: { success: false } })));
+      initPromises.push(api.get(`/api/v1/topik/work-hours/${id}`).catch(() => ({ data: { success: false } })));
     }
 
-    Promise.all(initPromises).then(([deptRes, natRes, studentRes, visaRes]) => {
+    Promise.all(initPromises).then(([deptRes, natRes, studentRes, visaRes, topikRes, workHoursRes]) => {
       if (deptRes.data?.success) setDepartments(deptRes.data.data);
       
       if (natRes.data?.success) {
@@ -124,12 +126,26 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
       if (studentRes && studentRes.data?.success) {
         const s = studentRes.data.data;
         
-        let fetchedVisaType = '정보없음';
+        let fetchedVisaType = '-';
         let fetchedVisaId = null;
         if (visaRes && visaRes.data?.success && visaRes.data.data?.length > 0) {
           const currentVisa = visaRes.data.data.find(v => v.isCurrent) || visaRes.data.data[0];
-          fetchedVisaType = currentVisa.visaType || '정보없음';
+          fetchedVisaType = currentVisa.visaType || '-';
           fetchedVisaId = currentVisa.visaId || null;
+        }
+
+        let fetchedTopikLevel = '-';
+        if (topikRes && topikRes.data?.success && topikRes.data.data?.length > 0) {
+          // 가장 최신 이력 혹은 첫 번째 항목을 기준 데이터로 바인딩합니다.
+          fetchedTopikLevel = topikRes.data.data[0].topikLevel || '-';
+        }
+
+        let fetchedMaxWorkHours = '-';
+        if (workHoursRes && workHoursRes.data?.success) {
+          const whData = workHoursRes.data.data;
+          // API 응답 형태가 단일 필드값 또는 객체일 경우를 모두 유연하게 방어 처리합니다.
+          const hours = typeof whData === 'object' && whData !== null ? (whData.maxWorkHours ?? whData.workHours) : whData;
+          fetchedMaxWorkHours = hours !== undefined && hours !== null ? `${hours}시간` : '-';
         }
 
         const mapped = {
@@ -140,9 +156,9 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
           korName:      s.korName || '이름 없음',
           gender:       s.gender || '',
           nationality:  s.nationality || '',
-          birthDate:     s.birthDate || '',
-          phone:         s.phone || '',
-          address:       s.address || '',
+          birthDate:    s.birthDate || '',
+          phone:        s.phone || '',
+          address:      s.address || '',
           classSec:     s.classSec || '',
           grade:        s.grade ? String(s.grade) : '',
           admissionDate: s.admissionDate || '',
@@ -150,8 +166,8 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
           foreignRegNo: s.foreignRegNo || '',
           visaType:     fetchedVisaType,
           currentVisaId: fetchedVisaId,
-          topikLevel:   s.topikLevel || '정보없음',
-          maxWorkHours: s.maxWorkHours || '정보없음',
+          topikLevel:   fetchedTopikLevel,
+          maxWorkHours: fetchedMaxWorkHours,
           gpa:          s.gpa ?? null,
           totalCredits: s.totalCredits ?? null,
           photoUrl:     s.photoUrl || null,
@@ -525,7 +541,7 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         </div>
 
         <div className="bt-info-card">
-          <div className="bt-info-card-title" style={{ display:'flex', justifycontent:'space-between' }}>
+          <div className="bt-info-card-title" style={{ display:'flex', justifyContent:'space-between' }}>
             학적 상세
             {readOnly && <span style={{ fontSize:11, color:'#D97706', fontWeight:600 }}>🔒 수정 불가</span>}
           </div>
@@ -628,7 +644,9 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
           </div>
           <div className="bt-info-row">
             <span className="bt-info-key">최대 근로시간</span>
-            <span className="bt-info-val">{student.maxWorkHours}</span>
+            <span className="bt-info-val" style={{ color: isNewMode ? '#9CA3AF' : '#374151' }}>
+              {isNewMode ? '등록 완료 후 지정 가능' : student.maxWorkHours}
+            </span>
           </div>
         </div>
       </div>

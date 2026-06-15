@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useLocation } from 'react-router-dom'; // 🎯 라우팅 상태를 받기 위해 추가
+import { useSearchParams } from 'react-router-dom';
 import api from '../../../api/axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 import StudentList from '../students/StudentList.jsx';
@@ -19,10 +19,8 @@ import JobTab from '../students/StudentDetail/JobTab.jsx';
 import SemesterManagement from "../semesters/SemestersManagement.jsx";
 import JobPending from "../jobs/JobPending.jsx";
 import MileageManage from "../jobs/MileageManage.jsx";
-import SystemConfig from  "../Config/SystemConfig.jsx";
+import SystemConfig from "../Config/SystemConfig.jsx";
 import DeptManagement from "../Dept/DeptManagemen.jsx";
-
-// 🎯 라우팅 이탈을 막기 위해 디테일 탭 컴포넌트들을 대시보드 내부로 가져옵니다.
 import VisaTab from "../students/StudentDetail/VisaTab.jsx";
 import EnrollTab from "../students/StudentDetail/EnrollTab.jsx";
 import TopikTab from "../students/StudentDetail/TopikTab.jsx";
@@ -35,37 +33,30 @@ const JOB_SUB_MENUS   = ['학생 근로', '학생 근로 현황'];
 const PROF_SUB_MENUS  = ['전체 교수 목록', '학생-지도교수 배정 관리'];
 
 export default function AdminDashboard() {
-  const location = useLocation(); // 🎯 VisaTab 등에서 넘어온 네비게이션 state 캐치
-
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [activeMenu, setActiveMenu] = useState('대시보드');
 
-  // 🎯 학생 상세 정보 보기를 위한 상태 추가 (선택된 학생 ID 관리)
+  const activeMenu = searchParams.get('menu') || '대시보드';
+
   const [selectedStudentId, setSelectedStudentId] = useState(null);
-
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [jobDropdownOpen,    setJobDropdownOpen]    = useState(false);
   const [profDropdownOpen,   setProfDropdownOpen]   = useState(false);
-
   const [currentSemester, setCurrentSemester] = useState(null);
   const [visaList,        setVisaList]        = useState([]);
   const [attendanceList,  setAttendanceList]  = useState([]);
   const [onlineList,      setOnlineList]      = useState([]);
   const [totalStudents,   setTotalStudents]   = useState(0);
   const [pendingJobs,     setPendingJobs]     = useState(0);
-
   const [isExcelModalOpen,     setIsExcelModalOpen]     = useState(false);
   const [courseListRefreshKey, setCourseListRefreshKey] = useState(0);
 
-  // 🎯 location.state로 넘어온 신호가 있다면 해당 메뉴와 학생 ID를 즉시 반영
-  useEffect(() => {
-    if (location.state?.activeMenu) {
-      setActiveMenu(location.state.activeMenu);
-    }
-    if (location.state?.studentId) {
-      setSelectedStudentId(location.state.studentId);
-    }
-  }, [location.state]);
+  const setActiveMenu = useCallback((menuName) => {
+    setSearchParams(prev => {
+      prev.set('menu', menuName);
+      return prev;
+    });
+  }, [setSearchParams]);
 
   const fetchPendingJobsCount = useCallback(async () => {
     try {
@@ -74,7 +65,7 @@ export default function AdminDashboard() {
         setPendingJobs((res.data.data || []).filter(j => j.approvalStatus === 'PENDING').length);
       }
     } catch (error) {
-       console.error('배지 개수 갱신 중 에러:', error);
+       console.error(error);
     }
   }, []);
 
@@ -111,7 +102,7 @@ export default function AdminDashboard() {
         if (jobsRes?.status === 'fulfilled' && jobsRes.value?.data?.success)
           setPendingJobs((jobsRes.value.data.data || []).filter(j => j.approvalStatus === 'PENDING').length);
       } catch (error) {
-        console.error('대시보드 데이터 로드 중 에러:', error);
+        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -120,7 +111,6 @@ export default function AdminDashboard() {
     else setLoading(false);
   }, [activeMenu]);
 
-  // 🎯 Custom Event 리스너 유지 (하위 컴포넌트 원격 조작용)
   useEffect(() => {
     const handleMenuSwitch = (e) => {
       if (e.detail?.menu) {
@@ -132,15 +122,15 @@ export default function AdminDashboard() {
     };
     window.addEventListener('switch-admin-menu', handleMenuSwitch);
     return () => window.removeEventListener('switch-admin-menu', handleMenuSwitch);
-  }, []);
+  }, [setActiveMenu]);
 
   const isSearchMenuActive = SEARCH_SUB_MENUS.includes(activeMenu);
   const isJobMenuActive    = JOB_SUB_MENUS.includes(activeMenu);
   const isProfMenuActive   = PROF_SUB_MENUS.includes(activeMenu) || activeMenu === '교수 등록';
-
+  
   const handleMenuClick = (menuName) => {
     if (menuName === '통합 검색') { setSearchDropdownOpen(p => !p); setJobDropdownOpen(false); setProfDropdownOpen(false); return; }
-    if (menuName === '학생 근로')  { setJobDropdownOpen(p => !p);    setSearchDropdownOpen(false); setProfDropdownOpen(false); return; }
+    if (menuName === '학생 근로')  { setJobDropdownOpen(p => !p);   setSearchDropdownOpen(false); setProfDropdownOpen(false); return; }
     if (menuName === '교수 관리')  { setProfDropdownOpen(p => !p);   setSearchDropdownOpen(false); setJobDropdownOpen(false); return; }
     setActiveMenu(menuName);
     if (!SEARCH_SUB_MENUS.includes(menuName)) setSearchDropdownOpen(false);
@@ -159,6 +149,7 @@ export default function AdminDashboard() {
         <div style={{ width:40, height:40, border:'3px solid #E5E7EB', borderTopColor:'#1A3A5C', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 12px' }} />
         <div style={{ color:'#6B7280', fontSize:'0.875rem' }}>데이터 동기화 중...</div>
       </div>
+      {/* 스타일 영역 (필요 시 작성) */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -270,7 +261,6 @@ export default function AdminDashboard() {
             <div className="sb-lbl">메인</div>
             <button className={`nav-btn ${activeMenu === '대시보드' ? 'active' : ''}`} onClick={() => handleMenuClick('대시보드')}>대시보드</button>
           </div>
-
           <div className="sb-sec">
             <div className="sb-lbl">학생 관리</div>
             <button className={`nav-btn ${activeMenu === '학생 목록' ? 'active' : ''}`} onClick={() => handleMenuClick('학생 목록')}>학생 목록</button>
@@ -295,14 +285,12 @@ export default function AdminDashboard() {
               ))}
             </div>
           </div>
-
           <div className="sb-sec">
             <div className="sb-lbl">학사</div>
             <button className={`nav-btn ${activeMenu === '출결 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('출결 관리')}>출결 관리</button>
             <button className={`nav-btn ${activeMenu === '과목 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('과목 관리')}>과목 관리</button>
             <button className={`nav-btn ${activeMenu === '학과 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('학과 관리')}>학과 관리</button>
           </div>
-
           <div className="sb-sec">
             <div className="sb-lbl">활동 및 시스템</div>
             <button className={`nav-btn ${activeMenu === '마일리지 조회' ? 'active' : ''}`} onClick={() => handleMenuClick('마일리지 조회')}>마일리지 조회</button>
@@ -317,7 +305,6 @@ export default function AdminDashboard() {
             </div>
             <button className={`nav-btn ${activeMenu === '학과/학기 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('학과/학기 관리')}>학기 관리</button>
           </div>
-
           <div className="sb-sec">
             <div className="sb-lbl" style={{ color:'rgba(239,68,68,0.6)' }}>시스템 관리</div>
             <button
@@ -328,7 +315,6 @@ export default function AdminDashboard() {
               🔐 권한 관리
             </button>
           </div>
-
           <div className="sidebar-bottom">
             <div className="user-info">
               <div className="user-avatar">A</div>
@@ -339,11 +325,9 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
-
         <div className="main">
           <TopBar title={activeMenu} />
           <div className="content">
-
             {activeMenu === '대시보드' && (
               <>
                 <div className="dash-header">
@@ -359,7 +343,6 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
-
                 <div className="section-label">주요 지표</div>
                 <div className="stats-grid">
                   <button className="stat-card c-blue" onClick={() => setActiveMenu('학생 목록')}>
@@ -387,7 +370,6 @@ export default function AdminDashboard() {
                     <div className="stat-hint">승인 처리 필요</div>
                   </button>
                 </div>
-
                 <div className="section-label">빠른 이동</div>
                 <div className="quick-grid" style={{gridTemplateColumns:'repeat(2,1fr)'}}>
                   <button className="qa-card" onClick={() => setIsExcelModalOpen(true)}>
@@ -399,7 +381,6 @@ export default function AdminDashboard() {
                     <div><div className="qa-text">권한 관리</div><div className="qa-sub">역할별 기능 제어</div></div>
                   </button>
                 </div>
-
                 <div className="section-label">알림 현황</div>
                 <div className="bottom-grid">
                   <div className="data-card">
@@ -427,7 +408,6 @@ export default function AdminDashboard() {
                       <div style={{padding:'10px 18px', fontSize:'0.75rem', color:'#3B82F6', cursor:'pointer', borderTop:'1px solid #F3F4F6', textAlign:'right'}} onClick={() => setActiveMenu('비자 만료 현황')}>전체 목록 보기 →</div>
                     )}
                   </div>
-
                   <div className="data-card">
                     <div className="card-hd" style={{cursor:'pointer'}} onClick={() => setActiveMenu('출결 관리')}>
                       <span className="card-hd-title">출결 위험군</span>
@@ -454,7 +434,6 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 </div>
-
                 <div className="data-card online-card">
                   <div className="card-hd">
                     <span className="card-hd-title">순수 온라인 수업 비율 30% 초과</span>
@@ -473,8 +452,6 @@ export default function AdminDashboard() {
                 </div>
               </>
             )}
-
-            {/* 🎯 잘렸던 하위 메뉴 매핑 로직 완벽 복구 */}
             {activeMenu === '학생 목록'                && <StudentList />}
             {activeMenu === '학생 상담 이력'           && <ConsultTab />}
             {activeMenu === '비자 만료 현황'           && <AdminVisaExpirePage />}
@@ -483,7 +460,6 @@ export default function AdminDashboard() {
             {activeMenu === '학과-반별 검색'           && <SearchByClass   onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '과목별 검색'              && <SearchByCourse  onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '온라인 30% 초과 검색'     && <OnlineViolation />}
-            
             {activeMenu === '과목 관리'                && <CourseList key={courseListRefreshKey} />}
             {activeMenu === '학과 관리'                && <DeptManagement />}
             {activeMenu === '마일리지 조회'            && <MileageManage />}
@@ -494,27 +470,25 @@ export default function AdminDashboard() {
             {activeMenu === '학생 근로'                && <JobPending />}
             {activeMenu === '학생 근로 현황'           && <JobTab />}
             {activeMenu === '권한 관리'                && <SystemConfig />}
-
-            {/* 🎯 새로 편입된 학생 상세 탭들 (selectedStudentId를 prop으로 전달) */}
             {activeMenu === '학생 기본 정보'           && <BasicTab studentId={selectedStudentId} />}
             {activeMenu === '학생 비자 정보'           && <VisaTab studentId={selectedStudentId} />}
             {activeMenu === '학생 TOPIK 정보'          && <TopikTab studentId={selectedStudentId} />}
             {activeMenu === '학생 수강 정보'           && <EnrollTab studentId={selectedStudentId} />}
-            {activeMenu === '학생 출결 정보'           && <AttendTab studentId={selectedStudentId} />}
 
-            {/* 아직 컴포넌트가 연결되지 않은 메뉴 처리용 */}
-            {(NOT_IMPLEMENTED.has(activeMenu) || activeMenu === '출결 관리') && (
+            {/* 변경점 1: '출결 관리' 혹은 '학생 출결 정보'일 때 AttendTab이 열리도록 병합 및 수정 */}
+            {(activeMenu === '학생 출결 정보' || activeMenu === '출결 관리') && <AttendTab studentId={selectedStudentId} />}
+
+            {/* 변경점 2: 미구현 예외 필터에서 '출결 관리' 제거 */}
+            {NOT_IMPLEMENTED.has(activeMenu) && (
               <div className="not-impl">
                 <h2>🚧 {activeMenu}</h2>
                 <p>해당 기능은 현재 개발 중이거나 연동 준비 중입니다.</p>
               </div>
             )}
-            
           </div>
         </div>
       </div>
 
-      {/* 엑셀 일괄 등록 모달 */}
       {isExcelModalOpen && (
         <AdminExcelUploadModal 
           isOpen={isExcelModalOpen}
@@ -522,7 +496,7 @@ export default function AdminDashboard() {
           onSuccess={() => {
             setIsExcelModalOpen(false);
             setCourseListRefreshKey(prev => prev + 1);
-            if (activeMenu === '대시보드') setActiveMenu('대시보드'); // 강제 렌더링
+            if (activeMenu === '대시보드') setActiveMenu('대시보드'); 
           }}
         />
       )}

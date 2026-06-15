@@ -1,245 +1,222 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-// const BASE_URL = 'https://api.kmgc.world'; // 배포용
-const BASE_URL = 'http://localhost:8080'; // 개발용
+const BASE_URL = 'http://localhost:8080';
 
-export default function TopikTab() {
-  const { id } = useParams(); // App.jsx의 :id 파라미터 바인딩
-  const navigate = useNavigate();
-  
-  // 1. 상태 관리 정의
+const fmtDate = (d) => d ? d.replace(/-/g, '. ') : '-';
+
+export default function TopikTab({ studentId }) {
   const [student, setStudent] = useState(null);
   const [topikHistory, setTopikHistory] = useState([]);
-  const [searchQuery, setSearchQuery] = useState(''); // 전역 진입 시 검색어
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // TOPIK 신규 등록 폼 상태
   const [topikInfo, setTopikInfo] = useState({
-    topikLevel: '1',
-    testRound: '',
-    totalScore: '',
-    acquisitionDate: '',
-    expiryDate: '',
-    memo: ''
+    topikLevel: 1,
+    examDate: '',
+    instituteName: '',
+    instituteLevel: '',
+    koreanStartDate: '',
+    basicTestResult: ''
   });
 
-  // 🎯 [교정 완료] API_BASE_URL 오타를 상단의 BASE_URL 변수로 변경 매핑
   const api = axios.create({
     baseURL: BASE_URL,
     headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
   });
 
-  // 2. [비동기 연동] URL 파라미터에 id(studentId)가 존재할 때 기존 데이터 조회
-  useEffect(() => {
-    if (!id) return;
+  const switchMenu = (menuName) => {
+    window.dispatchEvent(
+      new CustomEvent('switch-admin-menu', {
+        detail: { menu: menuName }
+      })
+    );
+  };
 
-    const fetchTopikData = async () => {
-      try {
-        setIsLoading(true);
-
-        const [studentRes, topikRes] = await Promise.all([
-          api.get(`/api/v1/students/${id}`).catch(() => ({ data: { success: false } })),
-          api.get(`/api/v1/students/${id}/topik`).catch(() => ({ data: { success: false } }))
-        ]);
-
-        if (studentRes.data?.success) {
-          setStudent(studentRes.data.data);
-        } else if (studentRes.data) {
-          setStudent(studentRes.data); // 래핑이 없는 스펙일 때 예외 보완
-        }
-
-        if (topikRes.data?.success) {
-          const sortedHistory = (topikRes.data.data || []).sort(
-            (a, b) => new Date(b.acquisitionDate || b.testDate) - new Date(a.acquisitionDate || a.testDate)
-          );
-          setTopikHistory(sortedHistory);
-        }
-      } catch (error) {
-        console.error("TOPIK 이력 데이터 로드 실패:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTopikData();
-  }, [id]);
-
-  // 3. 목록 버튼을 통해 진입했을 때 (id가 없을 때) 수동 유학생 검색 기능
-  const handleStudentSearch = async () => {
-    if (!searchQuery.trim()) return alert('학번 또는 이름을 입력해 주세요.');
-    
-    setIsLoading(true);
+  // 삭제 후 목록 리프레시를 위해 useEffect 외부로 로직 추출
+  const fetchTopikData = async () => {
+    if (!studentId) return;
     try {
-      const res = await api.get(`/api/v1/students`, { params: { search: searchQuery } });
-      let studentsList = res.data?.success ? res.data.data : res.data;
-      
-      if (Array.isArray(studentsList) && studentsList.length > 0) {
-        const matched = studentsList[0];
-        setStudent(matched);
-        
-        // 검색된 대상을 바탕으로 기존 내역이 있는지 추가 연동 조회
-        try {
-          const tRes = await api.get(`/api/v1/students/${matched.studentId || matched.id}/topik`);
-          const tData = tRes.data?.success ? tRes.data.data : tRes.data;
-          if (Array.isArray(tData)) setTopikHistory(tData);
-        } catch {}
-      } else {
-        alert('조회된 유학생 정보가 없습니다.');
-        setStudent(null);
+      setIsLoading(true);
+
+      const [studentRes, topikRes] = await Promise.all([
+        api.get(`/api/v1/students/${studentId}`).catch(() => ({ data: null })),
+        api.get(`/api/v1/students/${studentId}/topik`).catch(() => ({ data: [] }))
+      ]);
+
+      if (studentRes.data?.success) {
+        setStudent(studentRes.data.data);
+      } else if (studentRes.data) {
+        setStudent(studentRes.data);
       }
-    } catch (err) {
-      alert('학생 검색 중 통신 오류가 발생했습니다.');
+
+      let rawList = [];
+      if (topikRes.data?.success) {
+        rawList = topikRes.data.data?.topiks || topikRes.data.data || [];
+      } else if (Array.isArray(topikRes.data)) {
+        rawList = topikRes.data;
+      }
+
+      const sortedHistory = [...rawList].sort(
+        (a, b) => new Date(b.examDate || '') - new Date(a.examDate || '')
+      );
+      setTopikHistory(sortedHistory);
+    } catch (error) {
+      console.error("데이터 로드 실패:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (!studentId) {
+      alert('대상 학생이 지정되지 않았습니다. 학생 목록으로 이동합니다.');
+      switchMenu('학생 목록');
+      return;
+    }
+
+    fetchTopikData();
+  }, [studentId]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setTopikInfo(prev => ({ ...prev, [name]: value }));
+    setTopikInfo(prev => ({
+      ...prev,
+      [name]: (name === 'topikLevel' || name === 'instituteLevel') && value ? Number(value) : value
+    }));
   };
 
-  // 4. TOPIK 점수 백엔드 POST 제출 핸들러
+  const handleBackToStudentList = () => {
+    switchMenu('학생 목록');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const targetStudentId = id || student?.studentId || student?.id;
-    
-    if (!targetStudentId) {
-      return alert('성적을 등록할 대상 학생을 먼저 지정해야 합니다.');
-    }
+    if (!studentId) return alert('학생 정보가 없습니다.');
 
     setIsSubmitting(true);
     try {
-      const response = await api.post(`/api/v1/students/${targetStudentId}/topik`, topikInfo);
+      const response = await api.post(`/api/v1/students/${studentId}/topik`, topikInfo);
 
       if (response.data?.success || response.status === 200 || response.status === 201) {
-        alert('TOPIK 자격 점수가 성공적으로 저장되었습니다.');
-        navigate('/admin/students');
+        alert('TOPIK/어학 성적이 성공적으로 저장되었습니다.');
+        switchMenu('학생 목록');
       } else {
-        alert('저장에 실패했습니다. 백엔드 스펙을 확인하세요.');
+        alert('저장에 실패했습니다.');
       }
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || '서버 전송 중 에러가 발생했습니다.');
+      alert(err.response?.data?.message || '서버 전송 중 오류가 발생했습니다.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const checkStatus = (expiryDate, apiStatus) => {
-    if (apiStatus) return apiStatus;
-    if (!expiryDate) return '-';
-    return new Date(expiryDate) >= new Date() ? '유효' : '만료';
+  // 삭제 처리 핸들러 함수
+  const handleDelete = async (langId) => {
+    if (!langId) {
+      alert('삭제할 항목의 식별자(ID)가 올바르지 않습니다.');
+      return;
+    }
+
+    if (!window.confirm('해당 어학 성적 이력을 정말 삭제하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      const response = await api.delete(`/api/v1/topik/${langId}`);
+      
+      if (response.data?.success || response.status === 200) {
+        alert('성적 이력이 성공적으로 삭제되었습니다.');
+        fetchTopikData(); // 삭제 후 목록 최신화
+      } else {
+        alert('삭제에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || '삭제 처리 중 오류가 발생했습니다.');
+    }
   };
 
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem', color: '#9CA3AF', fontSize: '14px' }}>
-        🔄 백엔드 데이터 실시간 동기화 중...
-      </div>
-    );
-  }
-
   return (
-    <div style={{ fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", fontSize: '14px', color: '#111827', padding: '20px' }}>
+    <div className="main-content">
       <style>{`
-        .tt-topbar { background: #fff; padding: 0 28px; height: 58px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E5E7EB; margin-bottom: 24px; }
-        .tt-topbar-left { display: flex; align-items: center; gap: 10px; }
-        .tt-back-btn { width: 32px; height: 32px; border-radius: 8px; background: #F3F4F6; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; color: #374151; }
-        .tt-back-btn:hover { background: #E5E7EB; transform: translateX(-2px); }
-        .tt-breadcrumb { font-size: 13px; color: #9CA3AF; }
-        .tt-breadcrumb span { color: #111827; font-weight: 600; }
-
-        .student-picker-box { background: #F9FAFB; padding: 18px; border-radius: 10px; border: 1px solid #E5E7EB; margin-bottom: 20px; }
-        .search-row { display: flex; gap: 8px; margin-top: 8px; }
-        .search-row input { flex: 1; padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 6px; font-size: 13px; }
-        .btn-inline-search { background: #374151; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; }
-
-        .selected-student-panel { background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 10px; padding: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
-        .student-meta h4 { margin: 0; font-size: 14px; color: #065F46; font-weight: 700; }
-        .student-meta p { margin: 4px 0 0 0; font-size: 12px; color: #047857; }
-        .badge-target { background: #10B981; color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; }
-
-        .tt-card { background: #fff; border-radius: 14px; border: 1px solid #F3F4F6; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); margin-bottom: 24px; }
-        .tt-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #F3F4F6; }
-        .tt-title { font-size: 16px; font-weight: 700; color: #065F46; }
-
-        .topik-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 10px; }
-        .form-group { display: flex; flex-direction: column; gap: 6px; }
-        .form-group.full { grid-column: span 2; }
-        .form-group label { font-size: 13px; font-weight: 600; color: #374151; }
-        .form-group input, .form-group select, .form-group textarea { padding: 9px 12px; border: 1px solid #D1D5DB; border-radius: 6px; font-size: 13px; background: #fff; }
-        .form-group input:focus, .form-group select:focus { border-color: #10B981; outline: none; }
-
-        .tt-table { width: 100%; border-collapse: collapse; }
-        .tt-table th { background: #F9FAFB; padding: 12px; font-size: 12px; color: #6B7280; font-weight: 600; text-align: left; border-bottom: 1px solid #F3F4F6; }
-        .tt-table td { padding: 14px 12px; font-size: 13px; border-bottom: 1px solid #F9FAFB; }
+        .main-content { padding: 1.5rem 1.75rem; background: #F0F2F7; min-height: 100vh; font-family: 'DM Sans', 'Noto Sans KR', sans-serif; }
         
-        .status-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
-        .status-valid { background: #F0FDF4; color: #16A34A; }
-        .status-expired { background: #FEF2F2; color: #EF4444; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .page-title { font-size: 1.375rem; font-weight: 700; color: #111827; margin: 0; }
+        .tab-desc { font-size: 0.8125rem; color: #6B7280; margin: 0.25rem 0 0 0; }
 
-        .action-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-        .btn-cancel { background: #fff; border: 1px solid #D1D5DB; color: #374151; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
-        .btn-submit { background: #065F46; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .topik-tab-wrapper { background: #fff; border-radius: 0.875rem; padding: 1.5rem; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem; }
+
+        .selected-student-panel { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 0.5rem; padding: 1.25rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #1A3A5C; }
+        .student-info-meta h4 { margin: 0 0 0.375rem 0; font-size: 1.0625rem; color: #0F172A; font-weight: 700; }
+        .student-info-meta p { margin: 0; font-size: 0.875rem; color: #475569; }
+        .student-info-meta span { font-weight: 600; color: #1A3A5C; }
+        .badge-target { background: #E2E8F0; color: #475569; font-size: 0.75rem; padding: 0.375rem 0.75rem; border-radius: 1rem; font-weight: 600; }
+
+        .section-subtitle { font-size: 0.9375rem; font-weight: 700; color: #111827; margin: 0 0 1.25rem 0; padding-bottom: 0.75rem; border-bottom: 1px solid #F3F4F6; }
+
+        .topik-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.375rem; }
+        .form-group.full { grid-column: span 2; }
+        .form-group label { font-size: 0.8125rem; font-weight: 600; color: #374151; }
+        .form-group input, .form-group select { padding: 0.625rem 0.875rem; border: 1px solid #E5E7EB; border-radius: 0.5rem; font-size: 0.875rem; background: #fff; transition: border-color 0.2s; }
+        .form-group input:focus, .form-group select:focus { border-color: #1A3A5C; outline: none; box-shadow: 0 0 0 1px #1A3A5C; }
+        
+        .action-row { grid-column: span 2; margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.5rem; border-top: 1px solid #F3F4F6; padding-top: 1.25rem; }
+        .btn-cancel { background: #fff; border: 1px solid #D1D5DB; color: #374151; padding: 0.625rem 1.25rem; border-radius: 0.5rem; font-size: 0.8125rem; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .btn-cancel:hover { background: #F9FAFB; border-color: #9CA3AF; color: #1F2937; }
+        .btn-submit { background: #1A3A5C; color: #fff; border: none; padding: 0.625rem 1.5rem; border-radius: 0.5rem; font-size: 0.8125rem; cursor: pointer; font-weight: 600; transition: background-color 0.2s; }
+        .btn-submit:hover { background: #112740; }
         .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .history-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .history-table th { background: #F9FAFB; color: #6B7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; padding: 0.875rem 1.25rem; border-bottom: 1px solid #F3F4F6; }
+        .history-table td { padding: 1rem 1.25rem; border-bottom: 1px solid #F9FAFB; font-size: 0.875rem; color: #111827; }
+        
+        .chip-topik-level { background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; padding: 0.25rem 0.625rem; border-radius: 1.25rem; font-size: 0.6875rem; font-weight: 600; display: inline-flex; }
+        .institute-sub { color: #6B7280; font-size: 0.75rem; margin-left: 0.375rem; }
+
+        /* 삭제 버튼 스타일 추가 */
+        .btn-delete { background: #EF4444; color: #fff; border: none; padding: 0.375rem 0.75rem; border-radius: 0.375rem; font-size: 0.75rem; cursor: pointer; font-weight: 600; transition: background-color 0.2s; }
+        .btn-delete:hover { background: #DC2626; }
       `}</style>
 
-      {/* 상단 네비게이션 */}
-      <div className="tt-topbar">
-        <div className="tt-topbar-left">
-          <button className="tt-back-btn" onClick={() => navigate('/admin/students')} title="목록으로">
-            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <div className="tt-breadcrumb">
-            학생 행정 관리 › {student?.korName || '미지정'} › <span>TOPIK 급수 취득 정보</span>
-          </div>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">TOPIK 및 어학 성적 등록</h1>
+          <p className="tab-desc">외국인 유학생의 한국어 능력 시험 급수 및 연계 어학원 수강 정보를 관리합니다.</p>
         </div>
       </div>
 
-      {/* [조건부 기본창] ID 없이 리스트 전역 버튼으로 직접 진입한 경우 검색 UI 표출 */}
-      {!id && !student && (
-        <div className="student-picker-box">
-          <label style={{ fontWeights: 600, color: '#4B5563', fontSize: '13px' }}>TOPIK 자격증 등록 유학생 검색</label>
-          <div className="search-row">
-            <input 
-              type="text" 
-              placeholder="학번 또는 성명을 입력해 주세요..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleStudentSearch()}
-            />
-            <button type="button" className="tt-back-btn" style={{width:'auto', padding:'0 14px', fontSize:'13px'}} onClick={handleStudentSearch}>검색 확인</button>
-          </div>
+      {isLoading && (
+        <div style={{ textAlign: 'center', color: '#1A3A5C', fontSize: '0.875rem', marginBottom: '1.5rem', fontWeight: 600 }}>
+          🔄 학생 프로필 동기화 중...
         </div>
       )}
 
-      {/* 매칭 또는 파라미터 로드 완료된 학생 프로필 바 */}
-      {student && (
-        <div className="selected-student-panel">
-          <div className="student-meta">
-            <h4>{student.korName} ({student.engName || 'N/A'})</h4>
-            <p>학번: {student.studentId || student.id} · 국적: {student.nationality || '-'} · 소속학과: {student.department || student.deptName || '-'}</p>
+      <div className="topik-tab-wrapper">
+        {student && (
+          <div className="selected-student-panel">
+            <div className="student-info-meta">
+              <h4>{student.korName || '이름 없음'} {student.engName ? `(${student.engName})` : ''}</h4>
+              <p>
+                학번: <span>{student.studentId || student.id}</span> &nbsp;|&nbsp; 
+                국적: <span>{student.nationality || '-'}</span> &nbsp;|&nbsp; 
+                소속: <span>{student.department || student.deptName || '-'}</span>
+              </p>
+            </div>
+            <span className="badge-target">대상 학생 지정됨</span>
           </div>
-          <span className="badge-target">성적 추가 연동 대상</span>
-        </div>
-      )}
+        )}
 
-      {/* 1. 새로운 성적 입력 양식 */}
-      <div className="tt-card">
-        <div className="tt-card-header">
-          <div className="tt-title">신규 TOPIK 성적 자격 등록</div>
-        </div>
+        <h3 className="section-subtitle">신규 어학 성적 등록</h3>
         
         <form onSubmit={handleSubmit} className="topik-form-grid">
           <div className="form-group">
-            <label>합격 급수 (TOPIK Level)</label>
-            <select name="topikLevel" value={topikInfo.topikLevel} onChange={handleInputChange}>
+            <label>TOPIK 급수</label>
+            <select name="topikLevel" value={topikInfo.topikLevel} onChange={handleInputChange} required>
               <option value="1">1급</option>
               <option value="2">2급</option>
               <option value="3">3급</option>
@@ -250,81 +227,92 @@ export default function TopikTab() {
           </div>
 
           <div className="form-group">
-            <label>시험 회차 (선택 입력)</label>
-            <input type="text" name="testRound" value={topikInfo.testRound} onChange={handleInputChange} placeholder="예: 제 92회" />
+            <label>시험일</label>
+            <input type="date" name="examDate" value={topikInfo.examDate} onChange={handleInputChange} required />
           </div>
 
           <div className="form-group">
-            <label>취득 점수 (Score)</label>
-            <input type="number" name="totalScore" value={topikInfo.totalScore} onChange={handleInputChange} placeholder="점수 입력" required />
+            <label>어학원명</label>
+            <input type="text" name="instituteName" value={topikInfo.instituteName} onChange={handleInputChange} placeholder="예: 서울한국어학원" />
           </div>
 
           <div className="form-group">
-            <label>취득 일자 (합격 발표일)</label>
-            <input type="date" name="acquisitionDate" value={topikInfo.acquisitionDate} onChange={handleInputChange} required />
+            <label>어학원 수강급수</label>
+            <input type="number" name="instituteLevel" value={topikInfo.instituteLevel} onChange={handleInputChange} placeholder="숫자로 입력 (예: 4)" />
           </div>
 
           <div className="form-group">
-            <label>성적 만료 일자</label>
-            <input type="date" name="expiryDate" value={topikInfo.expiryDate} onChange={handleInputChange} required />
+            <label>한국어학습 시작년월</label>
+            <input type="date" name="koreanStartDate" value={topikInfo.koreanStartDate} onChange={handleInputChange} />
           </div>
 
-          <div className="form-group full">
-            <label>특이사항 메모</label>
-            <textarea name="memo" rows="2" value={topikInfo.memo} onChange={handleInputChange} placeholder="관리자 기재 정보 입력..."></textarea>
+          <div className="form-group">
+            <label>기초한국어능력평가 결과</label>
+            <input type="text" name="basicTestResult" value={topikInfo.basicTestResult} onChange={handleInputChange} placeholder="결과 입력 (예: 48)" />
           </div>
 
-          <div className="form-group full action-row">
-            <button type="button" className="btn-cancel" onClick={() => navigate('/admin/students')}>취소</button>
+          <div className="action-row">
+            <button type="button" className="btn-cancel" onClick={handleBackToStudentList}>취소</button>
             <button type="submit" className="btn-submit" disabled={isSubmitting}>
-              {isSubmitting ? '저장 중...' : '급수 성적 저장'}
+              {isSubmitting ? '저장 중...' : '저장'}
             </button>
           </div>
         </form>
       </div>
 
-      {/* 2. 기존 취득 이력 현황 테이블 */}
-      <div className="tt-card">
-        <div className="tt-card-header">
-          <div className="tt-title" style={{color:'#111827', fontSize:'14px'}}>과거 취득 이력 현황 목록</div>
+      <div className="topik-tab-wrapper" style={{ padding: '1.25rem 0 0 0', overflow: 'hidden' }}>
+        <div style={{ padding: '0 1.5rem 1rem 1.5rem' }}>
+          <h3 className="section-subtitle" style={{ margin: 0, border: 'none', padding: 0 }}>과거 취득 이력 목록</h3>
         </div>
 
-        <table className="tt-table">
+        <table className="history-table">
           <thead>
             <tr>
-              <th>시험/취득 일자</th>
-              <th>급수</th>
-              <th>취득 점수</th>
-              <th>유효 기간</th>
-              <th>상태</th>
+              <th>시험일</th>
+              <th>TOPIK 급수</th>
+              <th>어학원 정보</th>
+              <th>한국어학습 시작년월</th>
+              <th>기초한국어능력평가</th>
+              <th style={{ textAlign: 'center' }}>관리</th>
             </tr>
           </thead>
           <tbody>
             {topikHistory.length === 0 ? (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>
-                  시스템에 누적 등록된 과거 TOPIK 이력이 존재하지 않습니다.
+                <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: '#9CA3AF' }}> {/* colSpan을 6으로 확장 */}
+                  등록된 과거 TOPIK/어학 이력이 없습니다.
                 </td>
               </tr>
             ) : (
-              topikHistory.map((item, idx) => {
-                const targetDate = item.acquisitionDate || item.testDate || '-';
-                const status = checkStatus(item.expiryDate, item.status);
-                
-                return (
-                  <tr key={item.topikId || item.id || idx}>
-                    <td style={{ fontWeight: 500 }}>{targetDate}</td>
-                    <td><span style={{ color: '#10B981', fontWeight: 700 }}>{item.topikLevel}급</span></td>
-                    <td>{item.totalScore ? `${item.totalScore}점` : '-'}</td>
-                    <td style={{ color: '#6B7280' }}>{item.expiryDate || '-'}</td>
-                    <td>
-                      <span className={`status-badge ${status === '유효' ? 'status-valid' : 'status-expired'}`}>
-                        {status}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })
+              topikHistory.map((item, idx) => (
+                <tr key={item.langId || item.id || item.topikId || idx}>
+                  <td style={{ fontWeight: 600, color: '#4B5563' }}>{fmtDate(item.examDate)}</td>
+                  <td>
+                    <span className="chip-topik-level">
+                      {item.topikLevel ? `${item.topikLevel}급` : '-'}
+                    </span>
+                  </td>
+                  <td>
+                    {item.instituteName ? (
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 500 }}>{item.instituteName}</span>
+                        {item.instituteLevel && <span className="institute-sub">({item.instituteLevel}급 수강)</span>}
+                      </div>
+                    ) : '-'}
+                  </td>
+                  <td style={{ color: '#4B5563' }}>{fmtDate(item.koreanStartDate)}</td>
+                  <td style={{ fontWeight: 600, color: '#1A3A5C' }}>{item.basicTestResult || '-'}</td>
+                  <td style={{ textAlign: 'center' }}> {/* 삭제 버튼 열 구현 */}
+                    <button 
+                      type="button" 
+                      className="btn-delete"
+                      onClick={() => handleDelete(item.langId || item.id || item.topikId)}
+                    >
+                      삭제
+                    </button>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>

@@ -3,9 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 // const BASE_URL = 'https://api.kmgc.world'; // 배포용
-const BASE_URL = 'http://localhost:8080'; // 개발용
+const API_BASE_URL = 'http://localhost:8080';
 
-// API 상태 코드 -> UI 클래스/라벨 매핑
 const LABELS = { ok: '출', abs: '결', late: '지', pub: '공', none: '-' };
 const getStatusKey = (code) => {
   if (code === 1) return 'ok';
@@ -16,12 +15,11 @@ const getStatusKey = (code) => {
 };
 
 export default function AttendTab() {
-  const { id } = useParams(); // URL 파라미터에서 studentId 추출
+  const { id } = useParams();
   const navigate = useNavigate();
   const [attendData, setAttendData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Axios 인스턴스 생성 (인증 토큰 포함)
   const api = axios.create({
     baseURL: API_BASE_URL,
     headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
@@ -32,23 +30,19 @@ export default function AttendTab() {
       try {
         setIsLoading(true);
 
-        // 1. 학생의 수강 목록 조회 (명세서 11번)
         const enrollRes = await api.get(`/api/v1/students/${id}/enrollments`);
         const enrollments = enrollRes.data.success ? enrollRes.data.data : [];
 
-        // 2. 각 수강 과목의 상세 출결 조회 (명세서 13번)
-        // (미구현 상태일 수 있으므로 에러 발생 시 빈 데이터로 fallback 처리)
         const courseAttendances = await Promise.all(
           enrollments.map(async (enroll) => {
             try {
               const attRes = await api.get(`/api/v1/enrollments/${enroll.enrollId}/attendances`);
               if (attRes.data.success) {
                 const attData = attRes.data.data;
-                
-                // 1~15주차 배열 초기화 (기본값 null)
                 const attendArray = Array(15).fill(null); 
+                
                 (attData.attendances || []).forEach(att => {
-                  attendArray[att.weekNo - 1] = att.status; // weekNo는 1부터 시작하므로 -1
+                  attendArray[att.weekNo - 1] = att.status;
                 });
 
                 return {
@@ -65,7 +59,6 @@ export default function AttendTab() {
               console.warn(`[${enroll.courseId}] 출결 로드 실패 (미구현 예상)`, err);
             }
             
-            // API 호출 실패 또는 에러 시 빈 데이터 반환
             return {
               id: enroll.enrollId,
               name: enroll.courseName,
@@ -76,7 +69,6 @@ export default function AttendTab() {
           })
         );
 
-        // 3. 전체 통합 출석률 계산
         let sumAttend = 0;
         let sumAbsent = 0;
         let sumLate = 0;
@@ -93,7 +85,7 @@ export default function AttendTab() {
           currentRate,
           totalRequiredHours: totalHours,
           currentAttendedHours: sumAttend,
-          visaThreshold: 70, // 비자 연장 기준 (하드코딩 유지 또는 정책 API 연동)
+          visaThreshold: 70,
           courses: courseAttendances
         });
 
@@ -173,7 +165,6 @@ export default function AttendTab() {
         .ab-ok { background: #F0FDF4; color: #16A34A; }
       `}</style>
 
-      {/* 상단 네비게이션 */}
       <div className="at-topbar">
         <button className="at-back-btn" onClick={() => navigate(-1)} title="뒤로가기">
           <svg width="1rem" height="1rem" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -181,7 +172,6 @@ export default function AttendTab() {
         <div className="at-breadcrumb">관리자 대시보드 › 학생 목록 › <span>학생 상세 출결</span></div>
       </div>
 
-      {/* 요약 컨테이너 */}
       <div className="at-summary-container">
         <div className="at-rate-card">
           <div style={{ fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '0.5rem', fontWeight: 500 }}>현재 통합 출석률</div>
@@ -199,7 +189,6 @@ export default function AttendTab() {
         </div>
       </div>
 
-      {/* 범례 */}
       <div className="legend-bar">
         <div className="legend-item"><div className="legend-cell lc-ok">출</div>출석</div>
         <div className="legend-item"><div className="legend-cell lc-abs">결</div>결석</div>
@@ -208,7 +197,6 @@ export default function AttendTab() {
         <div className="legend-item"><div className="legend-cell lc-none">-</div>미입력</div>
       </div>
 
-      {/* 주차별 출결 테이블 */}
       <div className="attend-table-wrap">
         <div className="attend-table-header">
           <div>
@@ -242,7 +230,7 @@ export default function AttendTab() {
                     </td>
                     {course.attend.map((statusCode, weekIdx) => {
                       const statusKey = getStatusKey(statusCode);
-                      const isLocked = weekIdx >= 13; // 13주차 이후 하드코딩 (서버 현재 주차 데이터로 변경 권장)
+                      const isLocked = weekIdx >= 13; 
                       return (
                         <td key={weekIdx}>
                           <div 
@@ -257,7 +245,6 @@ export default function AttendTab() {
                     })}
                     <td>
                       <div className="summary-wrap">
-                        {/* API에서 내려준 totalAbsent 값을 그대로 사용합니다. */}
                         {renderAbsBadge(course.totalAbsent)}
                       </div>
                     </td>
