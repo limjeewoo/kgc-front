@@ -517,6 +517,7 @@ export default function AdminDashboard() {
       {/* 엑셀 일괄 등록 모달 */}
       {isExcelModalOpen && (
         <AdminExcelUploadModal 
+          isOpen={isExcelModalOpen}
           onClose={() => setIsExcelModalOpen(false)}
           onSuccess={() => {
             setIsExcelModalOpen(false);

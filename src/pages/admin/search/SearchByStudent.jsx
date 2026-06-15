@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-// API 설정
 const api = axios.create({
   baseURL: 'http://localhost:8080',
   headers: { 'Content-Type': 'application/json' },
@@ -13,26 +12,26 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 명세서 기준: onlineType ONLINE/OFFLINE/BLENDED
-const ONLINE_TYPE_LABEL = {
-  ONLINE:   { label: '온라인',   bg: 'transparent', color: '#374151' },
-  OFFLINE:  { label: '오프라인', bg: 'transparent', color: '#374151' },
-  BLENDED:  { label: '온·오프라인 혼합', bg: 'transparent', color: '#374151' },
-};
-
-// 근로 승인상태
 const APPROVAL_STATUS_LABEL = {
   PENDING:  { label: '대기중',  bg: '#FFFBEB', color: '#D97706' },
   APPROVED: { label: '승인',    bg: '#F0FDF4', color: '#16A34A' },
   REJECTED: { label: '반려',    bg: '#FEF2F2', color: '#DC2626' },
 };
 
-export default function SearchByStudent({ onBack }) {
-  const [query, setQuery]     = useState('');
-  const [result, setResult]   = useState(null); 
+const ATTENDANCE_CODE = {
+  0: { label: '-', color: '#9CA3AF', title: '미입력' },
+  1: { label: '○', color: '#3B82F6', title: '출석' },
+  2: { label: '×', color: '#EF4444', title: '결석' },
+  3: { label: '△', color: '#F59E0B', title: '지각' },
+  4: { label: '◎', color: '#10B981', title: '공결' },
+};
+
+export default function SearchByStudent() {
+  const [query, setQuery] = useState('');
+  const [result, setResult] = useState(null); 
   const [searched, setSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('profile'); // profile | enroll | consult | job | topik | visa
+  const [activeTab, setActiveTab] = useState('profile');
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -41,15 +40,15 @@ export default function SearchByStudent({ onBack }) {
     setResult(null);
     setActiveTab('profile');
     try {
-      // 명세서 18.1: GET /api/v1/search/student/{studentId}
       const res = await api.get(`/api/v1/search/student/${query.trim()}`);
       if (res.data.success) {
+        console.log("🔍 백엔드 응답 학생 데이터:", res.data.data);
         setResult(res.data.data);
       } else {
         setResult(null);
       }
     } catch (err) {
-      console.error('학생 조회 오류:', err);
+      console.error("검색 중 에러 발생:", err);
       setResult(null);
     } finally {
       setIsLoading(false);
@@ -58,106 +57,78 @@ export default function SearchByStudent({ onBack }) {
 
   const handleKeyDown = (e) => { if (e.key === 'Enter') handleSearch(); };
 
-  // 데이터 파싱 및 기본값 처리
-  const s           = result?.student       || {};
-  const visas        = result?.visas        || [];
-  const topiks       = result?.topiks       || [];
-  const jobs         = result?.jobs         || [];
+  const s = result?.student || {};
+  const visas = result?.visas || [];
+  const topiks = result?.topiks || [];
+  const jobs = result?.jobs || [];
   const consultations = result?.consultations || [];
-  const enrollments  = result?.enrollments  || [];
-  const requiredCourses = result?.requiredCourses || [];
-  const reqCompleted = result?.requiredCourseCompleted ?? 0;
-  const reqTotal     = result?.requiredCourseTotal     ?? 0;
+  const attendances = result?.attendances || result?.attendanceList || result?.enrollments || [];
 
-  const currentVisa = visas.find(v => v.isCurrent) || visas[0];
   const latestTopik = topiks[0];
 
   const TABS = [
     { key: 'profile', label: '기본정보' },
-    { key: 'enroll',  label: `수강목록 (${enrollments.length})` },
+    { key: 'attend',  label: `수강/출석 (${attendances.length})` },
     { key: 'consult', label: `상담이력 (${consultations.length})` },
     { key: 'job',     label: `근로현황 (${jobs.length})` },
-    { key: 'topik',   label: 'TOPIK' },
+    { key: 'topik',   label: 'TOPIK / 어학원' },
     { key: 'visa',    label: '비자' },
   ];
 
   return (
     <>
       <style>{`
-        .sbs-wrap { font-family: 'DM Sans', 'Noto Sans KR', sans-serif; font-size: 14px; color: #111827; }
-        .sbs-search-row { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; }
-        .sbs-input { flex: 1; max-width: 360px; padding: 0.65rem 1rem; border: 1.5px solid #E5E7EB; border-radius: 0.625rem; font-size: 0.875rem; outline: none; background: #fff; font-family: inherit; }
-        .sbs-input:focus { border-color: #3B82F6; }
-        .sbs-search-btn { padding: 0.65rem 1.4rem; background: #1A3A5C; color: #fff; border: none; border-radius: 0.625rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+        .sbs-wrap { font-family: 'Noto Sans KR', sans-serif; font-size: 13px; color: #111827; }
+        .sbs-search-row { display: flex; gap: 0.75rem; margin-bottom: 1.25rem; }
+        .sbs-input { flex: 1; max-width: 360px; padding: 0.55rem 0.85rem; border: 1.5px solid #E5E7EB; border-radius: 0.375rem; font-size: 0.85rem; outline: none; }
+        .sbs-input:focus { border-color: #1A3A5C; }
+        .sbs-search-btn { padding: 0.55rem 1.25rem; background: #1A3A5C; color: #fff; border: none; border-radius: 0.375rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
         .sbs-search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        /* 카드 스타일 */
-        .sbs-card { background: #fff; border-radius: 0.875rem; border: 1px solid #F3F4F6; margin-bottom: 1rem; overflow: hidden; }
-        .sbs-card-header { padding: 0.875rem 1.25rem; border-bottom: 1px solid #F3F4F6; font-weight: 700; font-size: 0.875rem; color: #1A3A5C; display: flex; align-items: center; gap: 0.5rem; }
-        .sbs-card-header::before { content:''; display:inline-block; width:3px; height:1rem; background:#3B82F6; border-radius:2px; flex-shrink:0; }
+        .sbs-top-bar { display: flex; align-items: center; background: #F0F4F8; border: 1px solid #D2DCE6; padding: 0.5rem 1rem; border-radius: 4px; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .sbs-tb-label-black { background: #000; color: #fff; padding: 0.25rem 0.75rem; font-weight: 700; font-size: 13px; border-radius: 2px; }
+        .sbs-tb-id { font-size: 16px; font-weight: 700; color: #1A3A5C; letter-spacing: 0.5px; }
+        .sbs-tb-name-box { display: flex; gap: 0.5rem; align-items: center; font-weight: 700; font-size: 14px; color: #333; margin-right: auto; }
+        .sbs-tb-meta { display: flex; align-items: center; gap: 1rem; font-size: 12px; color: #4B5563; }
+        .sbs-tb-meta span em { font-style: normal; font-weight: 700; color: #111827; margin-left: 4px; }
+        .sbs-tb-tag { background: #6B7280; color: #fff; padding: 1px 6px; font-size: 11px; font-weight: 600; border-radius: 2px; }
 
-        /* 프로필 상단 레이아웃 */
-        .sbs-profile-top { display: flex; gap: 1.5rem; padding: 1.25rem; align-items: flex-start; }
-        .sbs-photo { width: 88px; height: 110px; border-radius: 0.5rem; background: #EFF6FF; border: 2px solid #DBEAFE; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
-        .sbs-photo img { width: 100%; height: 100%; object-fit: cover; }
-        .sbs-info-main { flex: 1; }
-        .sbs-name-row { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
-        .sbs-eng-name { font-size: 1.25rem; font-weight: 700; color: #111827; }
-        .sbs-kor-name { font-size: 0.9375rem; color: #6B7280; font-weight: 500; }
-
-        /* 단정한 정보 그리드 */
-        .sbs-info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem 1.5rem; }
-        .sbs-info-label { font-size: 0.6875rem; color: #9CA3AF; font-weight: 500; margin-bottom: 2px; }
-        .sbs-info-value { font-size: 0.8125rem; font-weight: 600; color: #111827; }
-
-        /* 통계 영역 */
-        .sbs-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid #F3F4F6; }
-        .sbs-stat-box { padding: 0.875rem 1.25rem; text-align: center; border-right: 1px solid #F3F4F6; }
-        .sbs-stat-box:last-child { border-right: none; }
-        .sbs-stat-val { font-size: 1.375rem; font-weight: 700; color: #111827; }
-        .sbs-stat-lbl { font-size: 0.6875rem; color: #9CA3AF; margin-top: 2px; }
-
-        /* 탭 스타일 */
-        .sbs-tabs { display: flex; gap: 4px; padding: 0 1.25rem; border-bottom: 1px solid #F3F4F6; background: #FAFAFA; overflow-x: auto; }
-        .sbs-tab { padding: 10px 16px; font-size: 0.8125rem; font-weight: 500; color: #6B7280; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; font-family: inherit; transition: all 0.15s; }
-        .sbs-tab.active { color: #1A3A5C; font-weight: 700; border-bottom-color: #3B82F6; }
+        .sbs-card { background: #fff; border-radius: 6px; border: 1px solid #E5E7EB; margin-bottom: 1rem; overflow: hidden; }
+        .sbs-tabs { display: flex; gap: 2px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; }
+        .sbs-tab { padding: 10px 16px; font-size: 13px; font-weight: 500; color: #4B5563; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; }
+        .sbs-tab.active { color: #1A3A5C; font-weight: 700; border-bottom-color: #1A3A5C; background: #fff; }
         .sbs-tab-body { padding: 1.25rem; }
 
-        /* 테이블 기본 */
         .sbs-table-wrap { overflow-x: auto; }
-        .sbs-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 600px; }
-        .sbs-table th { padding: 0.6rem 0.75rem; background: #F9FAFB; color: #6B7280; font-weight: 600; text-align: left; border-bottom: 1px solid #F3F4F6; white-space: nowrap; }
-        .sbs-table th.center { text-align: center; }
-        .sbs-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #F9FAFB; vertical-align: middle; }
-        .sbs-table td.center { text-align: center; }
-        .sbs-table tr:last-child td { border-bottom: none; }
+        
+        .sbs-attend-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 1000px; text-align: center; }
+        .sbs-attend-table th { padding: 6px 4px; background: #F8FAFC; color: #334155; font-weight: 600; border: 1px solid #CBD5E1; font-size: 11px; }
+        .sbs-attend-table td { padding: 6px 4px; border: 1px solid #E2E8F0; color: #334155; }
+        .sbs-attend-table td.left { text-align: left; padding-left: 8px; }
+        
+        .sbs-warn-badge { font-weight: 700; padding: 2px 6px; border-radius: 3px; font-size: 11px; display: inline-block; }
+        .sbs-warn-badge.주의 { background: #FEF3C7; color: #D97706; border: 1px solid #FCD34D; }
+        .sbs-warn-badge.위험 { background: #FEE2E2; color: #DC2626; border: 1px solid #FCA5A5; }
+        .sbs-warn-badge.정상 { background: #F0FDF4; color: #16A34A; }
 
-        /* 배지 (콘텐츠 내부용) */
-        .sbs-badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; display: inline-block; }
-        .tag-green  { background: #F0FDF4; color: #16A34A; }
-        .tag-gray   { background: #F3F4F6; color: #374151; }
-        .tag-red    { background: #FEF2F2; color: #EF4444; }
-
-        /* 상담 */
-        .sbs-counsel-item { padding: 1rem 0; border-bottom: 1px solid #F9FAFB; }
-        .sbs-counsel-item:last-child { border-bottom: none; }
-        .sbs-counsel-meta { font-size: 0.75rem; font-weight: 700; color: #6B7280; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
-        .sbs-counsel-text { font-size: 0.8125rem; color: #374151; line-height: 1.65; background: #F9FAFB; border-radius: 0.5rem; padding: 0.75rem 1rem; }
-
-        /* 교양필수 진행률 바 */
-        .sbs-progress-bar { height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden; margin-top: 4px; }
-        .sbs-progress-fill { height: 100%; background: #3B82F6; border-radius: 4px; transition: width 0.3s; }
-
-        .sbs-empty { padding: 2rem; text-align: center; color: #9CA3AF; font-size: 0.8125rem; }
-        .sbs-not-found { padding: 3rem; text-align: center; background: #fff; border-radius: 0.875rem; border: 1px solid #F3F4F6; }
+        .sbs-grid-profile { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+        .sbs-pro-item { border-bottom: 1px solid #F3F4F6; padding-bottom: 0.5rem; }
+        .sbs-pro-lbl { font-size: 11px; color: #9CA3AF; margin-bottom: 2px; }
+        .sbs-pro-val { font-weight: 600; font-size: 13px; }
+        .sbs-empty { padding: 2rem; text-align: center; color: #9CA3AF; }
+        .sbs-not-found { padding: 3rem; text-align: center; background: #fff; border-radius: 6px; border: 1px solid #E5E7EB; }
+        
+        .sbs-badge { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+        .tag-gray { background: #F3F4F6; color: #374151; }
+        .tag-green { background: #E8F5E9; color: #2E7D32; }
+        .tag-red { background: #FFEBEE; color: #C62828; }
       `}</style>
 
       <div className="sbs-wrap">
-        {/* 검색바 */}
         <div className="sbs-search-row">
           <input
             className="sbs-input"
-            placeholder="학번을 입력하세요 (예: 25071001)"
+            placeholder="학번을 입력하세요"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -167,133 +138,39 @@ export default function SearchByStudent({ onBack }) {
           </button>
         </div>
 
-        {/* 초기 상태 */}
         {!searched && (
           <div className="sbs-not-found">
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔍</div>
-            <p style={{ fontWeight: 600, color: '#374151' }}>학번으로 학생을 검색하세요</p>
+            <p style={{ color: '#6B7280' }}>학번을 입력하여 검색을 시작해 주세요.</p>
           </div>
         )}
 
-        {/* 결과 없음 */}
         {searched && !result && !isLoading && (
           <div className="sbs-not-found">
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>😶</div>
-            <p style={{ fontWeight: 600, color: '#374151' }}>학생 정보를 찾을 수 없습니다</p>
+            <p style={{ fontWeight: 600, color: '#EF4444' }}>학생 정보를 찾을 수 없습니다.</p>
           </div>
         )}
 
-        {/* 학생 정보 출력 */}
         {result && (
           <>
-            <div className="sbs-card">
-              <div className="sbs-card-header">학생 기본 정보</div>
-              <div className="sbs-profile-top">
-                <div className="sbs-photo">
-                  {s.photoUrl
-                    ? <img src={s.photoUrl} alt="프로필" />
-                    : <span style={{ fontSize: '2.5rem', color: '#BFDBFE' }}>👤</span>
-                  }
-                </div>
-                <div className="sbs-info-main">
-                  <div className="sbs-name-row">
-                    <span className="sbs-eng-name">{s.engName}</span>
-                    {s.korName && <span className="sbs-kor-name">({s.korName})</span>}
-                  </div>
-                  
-                  {/* 통합된 단정한 정보 그리드 */}
-                  <div className="sbs-info-grid">
-                    <div>
-                      <div className="sbs-info-label">학번</div>
-                      <div className="sbs-info-value">{s.studentId || '-'}</div>
-                    </div>
-                    <div>
-                      <div className="sbs-info-label">소속 학과</div>
-                      <div className="sbs-info-value">{s.deptName || '-'}</div>
-                    </div>
-                    <div>
-                      <div className="sbs-info-label">등록 상태</div>
-                      <div className="sbs-info-value">{s.enrollStatus || '-'}</div>
-                    </div>
-
-                    <div>
-                      <div className="sbs-info-label">학년</div>
-                      <div className="sbs-info-value">{s.grade ? `${s.grade}학년` : '-'}</div>
-                    </div>
-                    <div>
-                      <div className="sbs-info-label">분반</div>
-                      <div className="sbs-info-value">{s.classSec ? `${s.classSec}반` : '-'}</div>
-                    </div>
-                    <div>
-                      <div className="sbs-info-label">성별</div>
-                      <div className="sbs-info-value">{s.gender || '-'}</div>
-                    </div>
-
-                    <div>
-                      <div className="sbs-info-label">국적</div>
-                      <div className="sbs-info-value">{s.nationality || '-'}</div>
-                    </div>
-                    <div>
-                      <div className="sbs-info-label">연락처</div>
-                      <div className="sbs-info-value">{s.phone || '-'}</div>
-                    </div>
-                    <div>
-                      <div className="sbs-info-label">생년월일</div>
-                      <div className="sbs-info-value">{s.birthDate || '-'}</div>
-                    </div>
-
-                    <div>
-                      <div className="sbs-info-label">입학일</div>
-                      <div className="sbs-info-value">{s.admissionDate || '-'}</div>
-                    </div>
-                    <div>
-                      <div className="sbs-info-label">TOPIK 급수</div>
-                      <div className="sbs-info-value">{latestTopik?.topikLevel ? `${latestTopik.topikLevel}급` : '없음'}</div>
-                    </div>
-                    <div>
-                      <div className="sbs-info-label">비자 종류</div>
-                      <div className="sbs-info-value">{currentVisa?.visaType || '-'}</div>
-                    </div>
-
-                    <div>
-                      <div className="sbs-info-label">비자 만료일</div>
-                      <div className="sbs-info-value">{currentVisa?.expireDate || '-'}</div>
-                    </div>
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <div className="sbs-info-label">교양필수 이수</div>
-                      <div className="sbs-info-value">{reqCompleted} / {reqTotal} 과목</div>
-                      {reqTotal > 0 && (
-                        <div className="sbs-progress-bar" style={{ maxWidth: '280px' }}>
-                          <div className="sbs-progress-fill" style={{ width: `${Math.round(reqCompleted / reqTotal * 100)}%` }} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+            <div className="sbs-top-bar">
+              <div className="sbs-tb-label-black">학번</div>
+              <div className="sbs-tb-id">{s.studentId || '-'}</div>
+              
+              <div className="sbs-tb-name-box">
+                <span>{s.engName || '영문명 없음'}</span>
+                {s.korName && <span style={{ color: '#6B7280', fontWeight: 'normal', fontSize: '13px' }}>{s.korName}</span>}
               </div>
 
-              {/* 하단 통계 바 */}
-              <div className="sbs-stats-row">
-                <div className="sbs-stat-box">
-                  <div className="sbs-stat-val">{s.totalCredits ?? 0}</div>
-                  <div className="sbs-stat-lbl">총이수학점</div>
-                </div>
-                <div className="sbs-stat-box">
-                  <div className="sbs-stat-val">{s.gpa?.toFixed(2) ?? '0.00'}</div>
-                  <div className="sbs-stat-lbl">전체 평점</div>
-                </div>
-                <div className="sbs-stat-box">
-                  <div className="sbs-stat-val">{enrollments.length}</div>
-                  <div className="sbs-stat-lbl">수강 과목 수</div>
-                </div>
-                <div className="sbs-stat-box">
-                  <div className="sbs-stat-val">{consultations.length}</div>
-                  <div className="sbs-stat-lbl">상담 횟수</div>
-                </div>
+              <div className="sbs-tb-meta">
+                <span>성별:<em>{s.gender || '-'}</em></span>
+                <span>총이수학점:<em>{s.totalCredits ?? 0}</em></span>
+                <span>평점:<em>{s.gpa?.toFixed(2) ?? '-'}</em></span>
+                <span className="sbs-tb-tag">TOPIK</span>
+                <span style={{ marginLeft: '-8px', fontWeight: 600 }}>{latestTopik?.topikLevel ? `${latestTopik.topikLevel}급` : '-'}</span>
+                <span>연락처:<em style={{ color: '#2563EB' }}>{s.phone || '-'}</em></span>
               </div>
             </div>
 
-            {/* 탭 카드 영역 */}
             <div className="sbs-card">
               <div className="sbs-tabs">
                 {TABS.map(t => (
@@ -307,190 +184,78 @@ export default function SearchByStudent({ onBack }) {
                 ))}
               </div>
 
-              {/* 기본정보 탭 */}
               {activeTab === 'profile' && (
-                <div className="sbs-tab-body">
-                  {requiredCourses.length > 0 && (
-                    <>
-                      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#1A3A5C' }}>교양필수 이수 현황</div>
-                      <div className="sbs-table-wrap" style={{ marginBottom: 20 }}>
-                        <table className="sbs-table">
-                          <thead>
-                            <tr>
-                              <th>과목명</th>
-                              <th className="center">이수여부</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {requiredCourses.map((rc, i) => (
-                              <tr key={i}>
-                                <td>{rc.courseName}</td>
-                                <td className="center">
-                                  <span className={`sbs-badge ${rc.completed ? 'tag-green' : 'tag-gray'}`}>
-                                    {rc.completed ? '이수' : '미이수'}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
-                  )}
-                  {requiredCourses.length === 0 && (
-                    <div className="sbs-empty">교양필수 이수 정보가 없습니다.</div>
-                  )}
-                </div>
+                 <div className="sbs-tab-body">
+                 <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                   <div style={{ width: '90px', height: '115px', background: '#F3F4F6', border: '1px solid #D1D5DB', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                     {s.photoUrl ? <img src={s.photoUrl} alt="프로필" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '11px', color: '#9CA3AF' }}>사진 없음</span>}
+                   </div>
+                   
+                   <div style={{ flex: 1 }} className="sbs-grid-profile">
+                     <div className="sbs-pro-item"><div className="sbs-pro-lbl">소속학과</div><div className="sbs-pro-val">{s.deptName || '-'}</div></div>
+                     <div className="sbs-pro-item"><div className="sbs-pro-lbl">학년/분반</div><div className="sbs-pro-val">{s.grade ? `${s.grade}학년` : '-'} / {s.classSec ? `${s.classSec}분반` : '-'}</div></div>
+                     <div className="sbs-pro-item"><div className="sbs-pro-lbl">등록상태</div><div className="sbs-pro-val">{s.enrollStatus || '-'}</div></div>
+                     <div className="sbs-pro-item"><div className="sbs-pro-lbl">국적</div><div className="sbs-pro-val">{s.nationality || '-'}</div></div>
+                     <div className="sbs-pro-item"><div className="sbs-pro-lbl">생년월일</div><div className="sbs-pro-val">{s.birthDate || '-'}</div></div>
+                     <div className="sbs-pro-item"><div className="sbs-pro-lbl">입학일</div><div className="sbs-pro-val">{s.admissionDate || '-'}</div></div>
+                   </div>
+                 </div>
+               </div>
               )}
 
-              {/* 수강목록 탭 */}
-              {activeTab === 'enroll' && (
-                <div className="sbs-tab-body">
-                  {enrollments.length === 0 ? (
-                    <div className="sbs-empty">수강 내역이 없습니다.</div>
+              {activeTab === 'attend' && (
+                <div className="sbs-tab-body" style={{ padding: '0.75rem' }}>
+                  {attendances.length === 0 ? (
+                    <div className="sbs-empty">
+                      등록된 수강/출석 데이터가 없습니다.<br/>
+                      <span style={{ fontSize: '11px', color: '#EF4444', marginTop: '4px', display: 'inline-block' }}>
+                        (F12 콘솔창의 '백엔드 응답 데이터'에 attendances 배열이 비어있는지 확인해주세요.)
+                      </span>
+                    </div>
                   ) : (
                     <div className="sbs-table-wrap">
-                      <table className="sbs-table">
+                      <table className="sbs-attend-table">
                         <thead>
                           <tr>
-                            <th>학기</th>
+                            <th style={{ width: '65px' }}>출석평가</th>
                             <th>과목명</th>
-                            <th className="center">이수구분</th>
-                            <th className="center">학점</th>
-                            <th className="center">수업방식</th>
-                            <th className="center">성적</th>
+                            <th style={{ width: '80px' }}>구분</th>
+                            {Array.from({ length: 15 }, (_, i) => (
+                              <th key={i} style={{ width: '40px', minWidth: '40px' }}>{i + 1}주</th>
+                            ))}
+                            <th style={{ width: '40px' }}>출석</th>
+                            <th style={{ width: '40px' }}>지각</th>
+                            <th style={{ width: '40px' }}>결석</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {enrollments.map((en, i) => {
-                            const onlineStyle = ONLINE_TYPE_LABEL[en.onlineType] || ONLINE_TYPE_LABEL.OFFLINE;
-                            return (
-                              <tr key={en.enrollId ?? i}>
-                                <td style={{ color: '#9CA3AF', fontSize: 12 }}>{en.semesterId}</td>
-                                <td style={{ fontWeight: 600 }}>{en.courseName}</td>
-                                <td className="center">
-                                  <span className="sbs-badge tag-gray">{en.courseType || '-'}</span>
-                                </td>
-                                <td className="center">{en.credits}학점</td>
-                                <td className="center">
-                                  <span className="sbs-badge" style={{ background: onlineStyle.bg, color: onlineStyle.color }}>
-                                    {onlineStyle.label}
-                                  </span>
-                                </td>
-                                <td className="center">
-                                  <span style={{ fontWeight: 700, color: en.grade ? '#111827' : '#D1D5DB' }}>
-                                    {en.grade ?? '-'}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* 상담이력 탭 */}
-              {activeTab === 'consult' && (
-                <div className="sbs-tab-body">
-                  {consultations.length === 0 ? (
-                    <div className="sbs-empty">기록된 상담 내역이 없습니다.</div>
-                  ) : (
-                    consultations.map((c, i) => (
-                      <div className="sbs-counsel-item" key={c.consultId ?? i}>
-                        <div className="sbs-counsel-meta">
-                          <span>{c.consultDate}</span>
-                          <span>|</span>
-                          <span>{c.professorName} 교수</span>
-                          {c.crisisFlag && (
-                            <span className="sbs-badge tag-red" style={{ fontSize: 11 }}>⚠ 위기징후</span>
-                          )}
-                        </div>
-                        <div className="sbs-counsel-text">{c.rawContent}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {/* 근로현황 탭 */}
-              {activeTab === 'job' && (
-                <div className="sbs-tab-body">
-                  {jobs.length === 0 ? (
-                    <div className="sbs-empty">근로 이력이 없습니다.</div>
-                  ) : (
-                    <div className="sbs-table-wrap">
-                      <table className="sbs-table">
-                        <thead>
-                          <tr>
-                            <th>사업체명</th>
-                            <th>업종</th>
-                            <th>근무지</th>
-                            <th className="center">주간 근로시간</th>
-                            <th className="center">시급</th>
-                            <th>기간</th>
-                            <th className="center">승인상태</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {jobs.map((j, i) => {
-                            const apv = APPROVAL_STATUS_LABEL[j.approvalStatus] || { label: j.approvalStatus, bg: '#F3F4F6', color: '#374151' };
-                            return (
-                              <tr key={j.jobId ?? i}>
-                                <td style={{ fontWeight: 600 }}>{j.companyName || '-'}</td>
-                                <td>{j.industry || '-'}</td>
-                                <td style={{ fontSize: 12, color: '#6B7280' }}>{j.workAddress || '-'}</td>
-                                <td className="center">{j.workHoursPerWeek}시간</td>
-                                <td className="center">{j.wage?.toLocaleString()}원</td>
-                                <td style={{ fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>
-                                  {j.startDate} ~ {j.endDate || ''}
-                                </td>
-                                <td className="center">
-                                  <span className="sbs-badge" style={{ background: apv.bg, color: apv.color }}>
-                                    {apv.label}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TOPIK 탭 */}
-              {activeTab === 'topik' && (
-                <div className="sbs-tab-body">
-                  {topiks.length === 0 ? (
-                    <div className="sbs-empty">TOPIK 이력이 없습니다.</div>
-                  ) : (
-                    <div className="sbs-table-wrap">
-                      <table className="sbs-table">
-                        <thead>
-                          <tr>
-                            <th className="center">TOPIK 급수</th>
-                            <th>시험일</th>
-                            <th>어학원명</th>
-                            <th className="center">어학원 수강급수</th>
-                            <th>한국어학습 시작</th>
-                            <th className="center">기초평가</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {topiks.map((t, i) => (
-                            <tr key={t.langId ?? i}>
-                              <td className="center">
-                                <span className="sbs-badge tag-gray">{t.topikLevel}급</span>
+                          {attendances.map((att, idx) => (
+                            <tr key={att.courseId || idx}>
+                              <td>
+                                {att.warningStatus && att.warningStatus !== '정상' ? (
+                                  <span className={`sbs-warn-badge ${att.warningStatus}`}>{att.warningStatus}</span>
+                                ) : (
+                                  <span className="sbs-warn-badge 정상">정상</span>
+                                )}
                               </td>
-                              <td>{t.examDate || '-'}</td>
-                              <td>{t.instituteName || '-'}</td>
-                              <td className="center">{t.instituteLevel ?? '-'}급</td>
-                              <td>{t.koreanStartDate || '-'}</td>
-                              <td className="center">{t.basicTestResult ?? '-'}</td>
+                              <td className="left" style={{ fontWeight: '600', color: '#1E293B' }}>{att.courseName || '-'}</td>
+                              <td>{att.courseType || '-'}</td>
+                              
+                              {Array.from({ length: 15 }).map((_, wIdx) => {
+                                const code = att.weeklyAttend?.[wIdx] ?? 0;
+                                const match = ATTENDANCE_CODE[code] || ATTENDANCE_CODE[0];
+                                return (
+                                  <td key={wIdx} title={match.title} style={{ color: match.color, fontWeight: '700', fontSize: '13px' }}>
+                                    {match.label}
+                                  </td>
+                                );
+                              })}
+                              
+                              <td style={{ fontWeight: '600', background: '#F8FAFC', color: '#3B82F6' }}>{att.totalPresent ?? 0}</td>
+                              <td style={{ fontWeight: '600', background: '#F8FAFC', color: '#F59E0B' }}>{att.totalLate ?? 0}</td>
+                              <td style={{ fontWeight: '600', background: '#F8FAFC', color: (att.totalAbsent > 0) ? '#EF4444' : '#334155' }}>
+                                {att.totalAbsent ?? 0}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -500,31 +265,122 @@ export default function SearchByStudent({ onBack }) {
                 </div>
               )}
 
-              {/* 비자 탭 */}
+              {activeTab === 'consult' && (
+                <div className="sbs-tab-body">
+                  {consultations.length === 0 ? (
+                    <div className="sbs-empty">상담 내역이 없습니다.</div>
+                  ) : (
+                    consultations.map((c, i) => (
+                      <div style={{ padding: '0.75rem 0', borderBottom: '1px solid #F3F4F6' }} key={c.consultId || i}>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#4B5563', marginBottom: '4px' }}>
+                          <span>{c.consultDate}</span> | <span>{c.professorName}</span>
+                          {c.crisisFlag && <span className="sbs-badge tag-red" style={{ marginLeft: '6px' }}>위기징후</span>}
+                        </div>
+                        <div style={{ background: '#F9FAFB', padding: '0.5rem 0.75rem', borderRadius: '4px', fontSize: '12.5px' }}>{c.rawContent}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'job' && (
+                <div className="sbs-tab-body">
+                  {jobs.length === 0 ? (
+                    <div className="sbs-empty">근로 이력이 없습니다.</div>
+                  ) : (
+                    <div className="sbs-table-wrap">
+                      <table className="sbs-attend-table" style={{ textAlign: 'left' }}>
+                        <thead>
+                          <tr>
+                            <th>사업체명</th>
+                            <th>업종</th>
+                            <th>근무지 주소</th>
+                            <th>주간근로시간</th>
+                            <th>시급</th>
+                            <th>승인상태</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {jobs.map((j, i) => {
+                            const apv = APPROVAL_STATUS_LABEL[j.approvalStatus] || { label: j.approvalStatus, bg: '#F3F4F6', color: '#374151' };
+                            return (
+                              <tr key={j.jobId || i}>
+                                <td style={{ fontWeight: '600' }}>{j.companyName}</td>
+                                <td>{j.industry}</td>
+                                <td>{j.workAddress}</td>
+                                <td>{j.workHoursPerWeek}</td>
+                                <td>{j.wage?.toLocaleString()}</td>
+                                <td>
+                                  <span className="sbs-badge" style={{ background: apv.bg, color: apv.color }}>{apv.label}</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'topik' && (
+                <div className="sbs-tab-body">
+                  {topiks.length === 0 ? (
+                    <div className="sbs-empty">TOPIK 정보가 없습니다.</div>
+                  ) : (
+                    <div className="sbs-table-wrap">
+                      <table className="sbs-attend-table">
+                        <thead>
+                          <tr>
+                            <th>급수</th>
+                            <th>시험일자</th>
+                            <th>어학원명</th>
+                            <th>어학원 이수급수</th>
+                            <th>한국어 학습 시작일</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topiks.map((t, i) => (
+                            <tr key={t.langId || i}>
+                              <td><span className="sbs-badge tag-gray">{t.topikLevel}급</span></td>
+                              <td>{t.examDate || '-'}</td>
+                              <td style={{ fontWeight: '600' }}>{t.instituteName || '-'}</td>
+                              <td>{t.instituteLevel ? `${t.instituteLevel}급` : '-'}</td>
+                              <td>{t.koreanStartDate || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {activeTab === 'visa' && (
                 <div className="sbs-tab-body">
                   {visas.length === 0 ? (
                     <div className="sbs-empty">비자 이력이 없습니다.</div>
                   ) : (
                     <div className="sbs-table-wrap">
-                      <table className="sbs-table">
+                      <table className="sbs-attend-table">
                         <thead>
                           <tr>
                             <th>비자 종류</th>
                             <th>만료일</th>
-                            <th className="center">현재 비자</th>
+                            <th>상태</th>
                           </tr>
                         </thead>
                         <tbody>
                           {visas.map((v, i) => (
-                            <tr key={v.visaId ?? i}>
-                              <td style={{ fontWeight: 600 }}>{v.visaType}</td>
-                              <td>{v.expireDate}</td>
-                              <td className="center">
-                                {v.isCurrent
-                                  ? <span className="sbs-badge tag-green">현재</span>
-                                  : <span className="sbs-badge tag-gray">이전</span>
-                                }
+                            <tr key={v.visaId || i}>
+                              <td style={{ fontWeight: '600' }}>{v.visaType}</td>
+                              <td>{v.expireDate || '-'}</td>
+                              <td>
+                                {v.isCurrent ? (
+                                  <span className="sbs-badge tag-green">현재</span>
+                                ) : (
+                                  <span className="sbs-badge tag-gray">이전</span>
+                                )}
                               </td>
                             </tr>
                           ))}
