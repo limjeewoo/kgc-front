@@ -26,6 +26,7 @@ import EnrollTab from "../students/StudentDetail/EnrollTab.jsx";
 import TopikTab from "../students/StudentDetail/TopikTab.jsx";
 import BasicTab from "../students/StudentDetail/BasicTab.jsx";
 import AttendTab from "../students/StudentDetail/AttendTab.jsx";
+import GradeTab from '../students/StudentDetail/GradeTab.jsx';
 
 const NOT_IMPLEMENTED = new Set(['상담 내역']);
 const SEARCH_SUB_MENUS = ['개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색'];
@@ -474,11 +475,8 @@ export default function AdminDashboard() {
             {activeMenu === '학생 비자 정보'           && <VisaTab studentId={selectedStudentId} />}
             {activeMenu === '학생 TOPIK 정보'          && <TopikTab studentId={selectedStudentId} />}
             {activeMenu === '학생 수강 정보'           && <EnrollTab studentId={selectedStudentId} />}
-
-            {/* 변경점 1: '출결 관리' 혹은 '학생 출결 정보'일 때 AttendTab이 열리도록 병합 및 수정 */}
             {(activeMenu === '학생 출결 정보' || activeMenu === '출결 관리') && <AttendTab studentId={selectedStudentId} />}
-
-            {/* 변경점 2: 미구현 예외 필터에서 '출결 관리' 제거 */}
+            {activeMenu === '수강/성적' && <GradeTab studentId={selectedStudentId} />}
             {NOT_IMPLEMENTED.has(activeMenu) && (
               <div className="not-impl">
                 <h2>🚧 {activeMenu}</h2>

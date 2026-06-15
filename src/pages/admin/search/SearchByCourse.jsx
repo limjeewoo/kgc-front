@@ -14,6 +14,12 @@ api.interceptors.request.use((config) => {
 
 const WEEK_LABELS = Array.from({ length: 15 }, (_, i) => `${i + 1}`);
 
+const ONLINE_TYPE_LABEL = {
+  ONLINE:  '온라인',
+  OFFLINE: '오프라인',
+  BLENDED: '온·오프혼합',
+};
+
 const getStatusDisplay = (code) => {
   switch (code) {
     case 1: return { label: '출', color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' };
@@ -100,15 +106,18 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
     setIsSelectModalOpen(true);
   };
 
+  // 명세서: GET /api/v1/search/course?courseId={courseId}
+  // 응답 data 각 항목: { studentId, engName, nationality, deptName, classSec,
+  //   totalCredits, gpa, courseId, courseName, totalAbsent, attendances:[{weekNo,status,statusLabel}] }
   const fetchCourseDetail = useCallback(async () => {
     if (!selectedCourseId) { setCourseData([]); return; }
     setIsLoading(true);
     try {
-      const res = await api.get(`/api/v1/courses/${selectedCourseId}/enrollments`, {
-        params: { semesterId: '2026-1' },
+      const res = await api.get('/api/v1/search/course', {
+        params: { courseId: selectedCourseId },
       });
-      const enrollments = res.data?.data || res.data || [];
-      setCourseData(Array.isArray(enrollments) ? enrollments : []);
+      const list = res.data?.data || res.data || [];
+      setCourseData(Array.isArray(list) ? list : []);
     } catch (error) {
       console.error(`❌ 과목 ID: ${selectedCourseId} 수강생 로드 실패`);
       setCourseData([]);
@@ -144,8 +153,10 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
   };
 
   const students = courseData;
-  const dangerCount  = students.filter(s => (s.totalAbsent || 0) >= policy.dangerThreshold).length;
-  const warningCount = students.filter(s => (s.totalAbsent || 0) >= policy.warningThreshold && (s.totalAbsent || 0) < policy.dangerThreshold).length;
+
+  // 결석일수(totalAbsent)는 이제 백엔드에서 직접 내려준 값을 그대로 사용
+  const dangerCount  = students.filter(s => (s.totalAbsent ?? 0) >= policy.dangerThreshold).length;
+  const warningCount = students.filter(s => (s.totalAbsent ?? 0) >= policy.warningThreshold && (s.totalAbsent ?? 0) < policy.dangerThreshold).length;
   const safeCount    = students.length - dangerCount - warningCount;
 
   const selectedCourse = [...availableCourses, ...allCourses].find(c => c.courseId === selectedCourseId);
@@ -156,12 +167,12 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&display=swap');
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
         .sbc-wrap { animation: fadeUp 0.28s ease; }
-        .sbc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+        .sbc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap; }
         .sbc-back { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; color: #374151; cursor: pointer; transition: all 0.15s; }
         .sbc-back:hover { background: #F9FAFB; border-color: #D1D5DB; }
         .sbc-title { font-size: 1.25rem; font-weight: 700; color: #0F172A; }
         .sbc-subtitle { font-size: 0.8rem; color: #94A3B8; margin-top: 3px; }
-        .sbc-policy-badge { display: inline-flex; align-items: center; gap: 6px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 5px 12px; font-size: 11px; color: #64748B; font-weight: 500; }
+        .sbc-policy-badge { display: inline-flex; align-items: center; gap: 6px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 5px 12px; font-size: 11px; color: #64748B; font-weight: 500; white-space: nowrap; }
         .sbc-stats { display: flex; gap: 10px; margin-bottom: 1.25rem; }
         .sbc-stat { background: #fff; border: 1px solid #F1F5F9; border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; gap: 10px; flex: 1; }
         .sbc-stat-dot { width: 8px; height: 8px; border-radius: 50%; }
@@ -178,17 +189,20 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
         .sbc-search-reset { background: #E2E8F0; color: #475569; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
         .sbc-card { background: #fff; border-radius: 12px; border: 1px solid #F1F5F9; overflow: hidden; }
         .sbc-table-wrap { overflow-x: auto; }
-        .sbc-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
-        .sbc-table th { padding: 10px 6px; font-size: 11px; font-weight: 700; color: #64748B; border-bottom: 1.5px solid #E2E8F0; text-align: center; background: #F8FAFC; }
-        .sbc-table th.th-name { text-align: left; padding-left: 14px; }
+        .sbc-table { width: 100%; min-width: 1700px; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+        .sbc-table th { padding: 10px 6px; font-size: 11px; font-weight: 700; color: #64748B; border-bottom: 1.5px solid #E2E8F0; text-align: center; background: #F8FAFC; white-space: nowrap; }
+        .sbc-table th.th-wide { width: 110px; }
+        .sbc-table th.th-name, .sbc-table th.th-left { text-align: left; padding-left: 14px; }
+        .sbc-table th.th-week { width: 26px; }
         .sbc-table td { padding: 9px 6px; border-bottom: 1px solid #F1F5F9; text-align: center; color: #374151; }
-        .sbc-table td.td-name { text-align: left; padding-left: 14px; font-weight: 600; color: #0F172A; position: sticky; left: 0; background: #fff; border-right: 1px solid #F1F5F9; }
+        .sbc-table td.td-name, .sbc-table td.td-left { text-align: left; padding-left: 14px; font-weight: 600; color: #0F172A; }
+        .sbc-table td.td-name { position: sticky; left: 0; background: #fff; border-right: 1px solid #F1F5F9; }
         .week-cell { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; font-size: 10px; font-weight: 700; }
         .absent-val { font-weight: 700; }
         .eval-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; }
-        .eval-danger  { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
-        .eval-warning { background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; }
-        .eval-caution { background: #FFF7ED; color: #EA580C; border: 1px solid #FDBA74; }
+        .eval-danger  { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; } /* 위험 */
+        .eval-caution { background: #FFEDD5; color: #EA580C; border: 1px solid #FED7AA; } /* 경고 */
+        .eval-warning { background: #FEF9C3; color: #CA8A04; border: 1px solid #FDE68A; } /* 주의 */
         .sbc-empty { padding: 3.5rem; text-align: center; color: #CBD5E1; }
         .sbc-loading { padding: 3rem; text-align: center; color: #64748B; font-size: 13px; }
         .sbc-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.4); display: flex; align-items: center; justify-content: center; z-index: 2100; }
@@ -218,7 +232,7 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
           </div>
           {/* 현재 적용 중인 정책 기준 표시 */}
           <div className="sbc-policy-badge">
-            ⚙️ 주의 {policy.warningThreshold}회 이상 · 위험 {policy.dangerThreshold}회 이상
+            ⚙️ 주의 {policy.warningThreshold}회 · 경고 {Math.max(policy.dangerThreshold - 1, policy.warningThreshold)}회 · 위험 {policy.dangerThreshold}회 이상
           </div>
         </div>
 
@@ -246,7 +260,7 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
           <div className="sbc-stats">
             <div className="sbc-stat"><div className="sbc-stat-dot" style={{ background: '#3B82F6' }} /><div className="sbc-stat-label">전체 수강생</div><div className="sbc-stat-val">{students.length}<span className="sbc-stat-unit"> 명</span></div></div>
             <div className="sbc-stat"><div className="sbc-stat-dot" style={{ background: '#10B981' }} /><div className="sbc-stat-label">정상</div><div className="sbc-stat-val" style={{ color: '#059669' }}>{safeCount}<span className="sbc-stat-unit"> 명</span></div></div>
-            <div className="sbc-stat"><div className="sbc-stat-dot" style={{ background: '#F59E0B' }} /><div className="sbc-stat-label">주의 ({policy.warningThreshold}회+)</div><div className="sbc-stat-val" style={{ color: '#D97706' }}>{warningCount}<span className="sbc-stat-unit"> 명</span></div></div>
+            <div className="sbc-stat"><div className="sbc-stat-dot" style={{ background: '#F59E0B' }} /><div className="sbc-stat-label">주의/경고 ({policy.warningThreshold}회+)</div><div className="sbc-stat-val" style={{ color: '#D97706' }}>{warningCount}<span className="sbc-stat-unit"> 명</span></div></div>
             <div className="sbc-stat"><div className="sbc-stat-dot" style={{ background: '#EF4444' }} /><div className="sbc-stat-label">위험 ({policy.dangerThreshold}회+)</div><div className="sbc-stat-val" style={{ color: '#EF4444' }}>{dangerCount}<span className="sbc-stat-unit"> 명</span></div></div>
           </div>
         )}
@@ -261,30 +275,52 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
               <table className="sbc-table">
                 <thead>
                   <tr>
-                    <th>No</th><th>학과</th><th>분반</th><th>학번</th><th className="th-name">성명</th><th>국적</th>
-                    {WEEK_LABELS.map(w => <th key={w}>{w}주</th>)}
-                    <th>결석</th><th>평가</th><th>평점</th><th>이수학점</th>
+                    <th>인원</th>
+                    <th className="th-left">학과</th>
+                    <th>학번</th>
+                    <th className="th-name">이름</th>
+                    {WEEK_LABELS.map(w => <th key={w} className="th-week">{w}주</th>)}
+                    <th>출석상황</th>
+                    <th>결석일</th>
+                    <th>출석평가</th>
+                    <th className="th-left th-wide">과목명</th>
+                    <th>담당교수</th>
+                    <th>학년반</th>
+                    <th>구분</th>
+                    <th>성별</th>
+                    <th>국적</th>
+                    <th className="th-left">출신</th>
+                    <th>평점</th>
                   </tr>
                 </thead>
                 <tbody>
                   {students.length > 0 ? students.map((student, idx) => {
-                    const calcAbsent = student.attendances?.filter(a => a.status === 2 || a.statusLabel === '결석').length || 0;
-                    const totalAbsent = student.totalAbsent !== undefined ? student.totalAbsent : calcAbsent;
+                    // 결석일수: 이제 백엔드에서 내려주는 totalAbsent 값을 그대로 사용 (프론트 재계산 제거)
+                    const totalAbsent = student.totalAbsent ?? 0;
+                    // 출석상황: 주차별 출결 중 '출석(status===1)' 횟수
+                    const presentCount = student.attendances?.filter(a => a.status === 1 || a.statusLabel === '출석').length ?? 0;
 
-                    // 명세서 기준 정책값으로 평가
+                    // 출석평가: 위험(danger 이상) / 경고(danger-1) / 주의(warning 이상)
                     const isDanger  = totalAbsent >= policy.dangerThreshold;
-                    const isWarning = totalAbsent >= policy.warningThreshold && totalAbsent < policy.dangerThreshold;
-                    const evalLabel = isDanger ? '위험' : isWarning ? '주의' : '';
-                    const evalClass = isDanger ? 'eval-danger' : isWarning ? 'eval-warning' : '';
+                    const isCaution = totalAbsent === policy.dangerThreshold - 1;
+                    const isWarning = !isDanger && !isCaution && totalAbsent >= policy.warningThreshold;
+                    const evalLabel = isDanger ? '위험' : isCaution ? '경고' : isWarning ? '주의' : '';
+                    const evalClass = isDanger ? 'eval-danger' : isCaution ? 'eval-caution' : isWarning ? 'eval-warning' : '';
+
+                    // 출신 어학원 / 담당교수: 명세서 필드 매핑 (topiks[].instituteName / consultations[].professorName)
+                    const instituteName  = student.topiks?.[0]?.instituteName ?? '–';
+                    const professorName  = student.consultations?.[0]?.professorName ?? '–';
+                    const courseTypeLabel = ONLINE_TYPE_LABEL[student.onlineType] || selectedCourse?.onlineType && ONLINE_TYPE_LABEL[selectedCourse.onlineType] || '–';
+                    const classDisplay = student.grade
+                      ? `${student.grade},${student.classSec ?? selectedCourse?.classSec ?? classSec ?? '–'}`
+                      : (student.classSec ?? selectedCourse?.classSec ?? classSec ?? '–');
 
                     return (
-                      <tr key={student.studentId || idx}>
+                      <tr key={`${student.studentId}-${student.courseId ?? idx}`}>
                         <td>{idx + 1}</td>
-                        <td>{student.deptName || '–'}</td>
-                        <td>{student.classSec || selectedCourse?.classSec || classSec || '–'}</td>
+                        <td className="td-left">{student.deptName || '–'}</td>
                         <td>{student.studentId}</td>
-                        <td className="td-name">{student.studentName}</td>
-                        <td>{student.nationality || '–'}</td>
+                        <td className="td-name">{student.engName}</td>
                         {Array.from({ length: 15 }).map((_, i) => {
                           const attendance = student.attendances?.find(a => a.weekNo === i + 1);
                           const d = getStatusDisplay(attendance?.status);
@@ -296,15 +332,22 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
                             </td>
                           );
                         })}
+                        <td>{presentCount}</td>
                         <td><span className="absent-val">{totalAbsent}</span></td>
                         <td>{evalLabel ? <span className={`eval-badge ${evalClass}`}>{evalLabel}</span> : '–'}</td>
-                        <td>{student.gpa || '–'}</td>
-                        <td>{student.credits || student.totalCredits || '–'}</td>
+                        <td className="td-left">{student.courseName || selectedCourse?.courseName || '–'}</td>
+                        <td>{professorName}</td>
+                        <td>{classDisplay}</td>
+                        <td>{courseTypeLabel}</td>
+                        <td>{student.gender || '–'}</td>
+                        <td>{student.nationality || '–'}</td>
+                        <td className="td-left">{instituteName}</td>
+                        <td>{student.gpa ?? '–'}</td>
                       </tr>
                     );
                   }) : (
                     <tr>
-                      <td colSpan={WEEK_LABELS.length + 10} style={{ padding: '3rem', color: '#94A3B8' }}>
+                      <td colSpan={WEEK_LABELS.length + 15} style={{ padding: '3rem', color: '#94A3B8' }}>
                         등록된 수강생 목록이 비어 있습니다.
                       </td>
                     </tr>

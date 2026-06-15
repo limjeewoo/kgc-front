@@ -171,6 +171,13 @@ export default function StudentList() {
     );
   };
 
+  // 📌 1. 수강/성적 관리 버튼 클릭 핸들러 추가
+  const handleGradeRegisterClick = () => {
+    if (!checkedStudentId) return alert('수강/성적을 관리할 학생을 먼저 체크해 주세요.');
+    // AdminDashboard가 알아들을 수 있게 이벤트를 보냅니다.
+    switchMenu('수강/성적', checkedStudentId);
+  };
+
   const handleTopikRegisterClick = () => {
     if (!checkedStudentId) return alert('TOPIK을 관리할 학생을 먼저 체크해 주세요.');
     switchMenu('학생 TOPIK 정보', checkedStudentId);
@@ -190,6 +197,10 @@ export default function StudentList() {
         
         .header-btn-group { display: flex; gap: 0.5rem; align-items: center; }
         
+        /* 📌 수강/성적 관리 버튼 스타일 추가 */
+        .btn-grade { background: #fff; color: #059669; border: 1px solid #A7F3D0; padding: 0.625rem 1.125rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-grade:hover { background: #ECFDF5; border-color: #34D399; }
+
         .btn-topik { background: #fff; color: #4B5563; border: 1px solid #D1D5DB; padding: 0.625rem 1.125rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
         .btn-topik:hover { background: #F9FAFB; border-color: #9CA3AF; color: #1F2937; }
         
@@ -240,6 +251,10 @@ export default function StudentList() {
       <div className="page-header">
         <h1 className="page-title">학생 목록 관리</h1>
         <div className="header-btn-group">
+          {/* 📌 2. TOPIK 관리 왼쪽에 수강/성적 관리 버튼 추가 */}
+          <button className="btn-grade" onClick={handleGradeRegisterClick}>
+            수강/성적 관리
+          </button>
           <button className="btn-topik" onClick={handleTopikRegisterClick}>
             TOPIK 관리
           </button>
