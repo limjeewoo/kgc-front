@@ -42,6 +42,12 @@ instance.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
 
+    // 로그인/MFA 로그인 요청의 401은 "인증 실패"이지 "토큰 만료"가 아니므로
+    // refresh/로그아웃 흐름을 타지 않고 그대로 에러를 반환한다.
+    if (originalRequest.url?.includes('/api/v1/auth/login')) {
+      return Promise.reject(error);
+    }
+
     // 401만 refresh 트리거. 403(권한 없음)은 refresh로 해결되지 않으므로 그대로 반환.
     if (status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
