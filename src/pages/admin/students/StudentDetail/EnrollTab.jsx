@@ -2,19 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-// const BASE_URL = 'https://api.kmgc.world'; // 배포용
-const BASE_URL = 'http://localhost:8080'; // 개발용
+const API_BASE_URL = 'http://localhost:8080';
 
 export default function EnrollTab({ onTabChange }) {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  // 상태 관리
   const [enrollments, setEnrollments] = useState([]);
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Axios 인스턴스 (인증 토큰 포함)
   const api = axios.create({
     baseURL: API_BASE_URL,
     headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
@@ -25,7 +22,6 @@ export default function EnrollTab({ onTabChange }) {
       try {
         setIsLoading(true);
 
-        // 명세서 11번(수강 목록)과 12번(학업 요약) 병렬 호출
         const [enrollRes, summaryRes] = await Promise.all([
           api.get(`/api/v1/students/${id}/enrollments`),
           api.get(`/api/v1/students/${id}/academic-summary`).catch(() => ({ data: { data: {} } }))
@@ -35,7 +31,6 @@ export default function EnrollTab({ onTabChange }) {
           setEnrollments(enrollRes.data.data);
         }
         
-        // 학업 요약 데이터가 있을 경우 세팅
         if (summaryRes.data && summaryRes.data.success) {
           setSummary(summaryRes.data.data);
         }
@@ -58,7 +53,6 @@ export default function EnrollTab({ onTabChange }) {
     );
   }
 
-  // API 데이터 매핑 안전 처리
   const currentSemester = summary?.semesterId || '-';
   const totalGpa = summary?.totalGpa || 0;
   const earnedCredits = summary?.totalCredits || 0;
@@ -74,18 +68,9 @@ export default function EnrollTab({ onTabChange }) {
       minHeight: '100vh'
     }}>
       <style>{`
-        .et-topbar { 
-          background: #fff; padding: 0 1.75rem; height: 3.625rem; 
-          display: flex; align-items: center; justify-content: space-between; 
-          border-bottom: 0.0625rem solid #E5E7EB; margin-bottom: 1.5rem; 
-        }
+        .et-topbar { background: #fff; padding: 0 1.75rem; height: 3.625rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 0.0625rem solid #E5E7EB; margin-bottom: 1.5rem; }
         .et-topbar-left { display: flex; align-items: center; gap: 0.625rem; }
-        .et-back-btn { 
-          width: 1.875rem; height: 1.875rem; border-radius: 0.4375rem; 
-          background: #F3F4F6; border: none; cursor: pointer; 
-          display: flex; align-items: center; justify-content: center; 
-          transition: background 0.15s; color: #374151; 
-        }
+        .et-back-btn { width: 1.875rem; height: 1.875rem; border-radius: 0.4375rem; background: #F3F4F6; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; color: #374151; }
         .et-back-btn:hover { background: #E5E7EB; }
         .et-breadcrumb { font-size: 0.8125rem; color: #9CA3AF; }
         .et-breadcrumb span { color: #111827; font-weight: 600; }
@@ -109,7 +94,6 @@ export default function EnrollTab({ onTabChange }) {
         .status-fail { color: #DC2626; font-weight: 500; }
       `}</style>
 
-      {/* 상단 네비게이션 */}
       <div className="et-topbar">
         <div className="et-topbar-left">
           <button className="et-back-btn" onClick={() => navigate('/admin/dashboard')} title="대시보드로 돌아가기">

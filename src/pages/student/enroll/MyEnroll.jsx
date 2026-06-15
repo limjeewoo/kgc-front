@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-// ── API 헬퍼 ──────────────────────────────────────────────
-const API_BASE = '/api/v1';
+const API_BASE = 'http://localhost:8080/api/v1';
 
 async function apiFetch(path) {
   const token = localStorage.getItem('accessToken');
@@ -16,11 +15,10 @@ async function apiFetch(path) {
 function toArray(val) {
   if (Array.isArray(val)) return val;
   if (val?.content && Array.isArray(val.content)) return val.content;
-  if (val?.list    && Array.isArray(val.list))    return val.list;
+  if (val?.list && Array.isArray(val.list)) return val.list;
   return [];
 }
 
-// ── CSS ───────────────────────────────────────────────────
 const CSS = `
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   
@@ -28,6 +26,7 @@ const CSS = `
   
   .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-bottom:1.25rem; }
   .stat-card { padding:1.25rem; background:#fff; border-radius:12px; border:1px solid #E2E8F0; }
+  .stat-card.summary { background:#F8FAFC; border-color:#CBD5E1; }
   .stat-lbl  { font-size:.8125rem; color:#64748B; font-weight:600; margin-bottom:.5rem; }
   .stat-val  { font-size:1.75rem; font-weight:700; color:#1E293B; display:flex; align-items:baseline; gap:2px; }
   .stat-val .unit { font-size:.875rem; font-weight:500; color:#94A3B8; margin-left:2px; }
@@ -37,7 +36,6 @@ const CSS = `
   .card-hd    { display:flex; align-items:center; justify-content:space-between; padding:1.25rem; border-bottom:1px solid #F1F5F9; flex-wrap:wrap; gap:.75rem; }
   .card-hd-title { font-size:1rem; font-weight:700; color:#1E293B; display:flex; align-items:center; gap:.5rem; }
   
-  /* 새로고침 버튼 스타일 */
   .btn-refresh { background:#F1F5F9; border:none; border-radius:6px; padding:6px 10px; font-size:.75rem; font-weight:600; color:#475569; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:background 0.2s; }
   .btn-refresh:hover { background:#E2E8F0; color:#0F172A; }
   .btn-refresh:disabled { opacity:0.5; cursor:not-allowed; }
@@ -66,7 +64,6 @@ const CSS = `
   .err-banner { padding:1rem; background:#FEF2F2; border:1px solid #FECACA; border-radius:12px; color:#DC2626; display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; font-size:.875rem; }
 `;
 
-// ── 하위 컴포넌트 ──────────────────────────────────────────
 function Skeleton({ h = '1rem', w = '100%' }) {
   return <div style={{ height:h, width:w, background:'#E2E8F0', borderRadius:'6px', animation:'pulse 1.5s infinite', marginTop:'4px' }} />;
 }
@@ -80,7 +77,6 @@ function ErrBanner({ msg, onRetry }) {
   );
 }
 
-// ── 유틸 ──────────────────────────────────────────────────
 const GPA_MAP   = { 'A+':4.5,'A':4.0,'B+':3.5,'B':3.0,'C+':2.5,'C':2.0,'D+':1.5,'D':1.0,'F':0 };
 const GRADE_PILL = { 'A+':'pill-green','A':'pill-green','B+':'pill-blue','B':'pill-blue','C+':'pill-gray','C':'pill-gray','D+':'pill-amber','D':'pill-amber','F':'pill-red' };
 const TYPE_LABEL = { ONLINE:'온라인', OFFLINE:'오프라인', BLENDED:'혼합' };
@@ -103,17 +99,16 @@ function GpaBar({ gpa, max = 4.5 }) {
   );
 }
 
-// ── 메인 컴포넌트 ───────────────────────────────────────────
 export default function MyEnroll() {
-  const [loading,     setLoading]     = useState(true);
+  const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error,       setError]       = useState(null);
-  const [studentId,   setStudentId]   = useState(null);
-  const [semesters,   setSemesters]   = useState([]);
-  const [selSem,      setSelSem]      = useState('');
+  const [error, setError] = useState(null);
+  const [studentId, setStudentId] = useState(null);
+  const [semesters, setSemesters] = useState([]);
+  const [selSem, setSelSem] = useState('');
   const [enrollments, setEnrollments] = useState([]);
+  const [summary, setSummary] = useState(null);
 
-  // 초기 렌더링: 사용자 정보와 학기 목록 세팅
   async function init() {
     setLoading(true);
     setError(null);
@@ -124,10 +119,15 @@ export default function MyEnroll() {
       if (!sid) throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
       setStudentId(sid);
 
-      const [semRes, curRes] = await Promise.allSettled([
+      const [semRes, curRes, summaryRes] = await Promise.allSettled([
         apiFetch('/semesters'),
         apiFetch('/semesters/current'),
+        apiFetch(`/students/${sid}/academic-summary`)
       ]);
+
+      if (summaryRes.status === 'fulfilled' && summaryRes.value) {
+        setSummary(summaryRes.value);
+      }
 
       const semList = semRes.status === 'fulfilled' ? toArray(semRes.value) : [];
       const sorted  = [...semList].sort((a, b) => b.semesterId - a.semesterId);
@@ -147,7 +147,6 @@ export default function MyEnroll() {
 
   useEffect(() => { init(); }, []);
 
-  // 성적/수강 내역 조회 로직 (독립된 함수로 분리하여 새로고침 버튼과 연동)
   const fetchEnrollments = useCallback(async (isManualRefresh = false) => {
     if (!studentId) return;
     
@@ -169,12 +168,10 @@ export default function MyEnroll() {
     }
   }, [studentId, selSem]);
 
-  // 학기 변경 시 데이터 자동 갱신
   useEffect(() => {
     fetchEnrollments(false);
   }, [fetchEnrollments]);
 
-  // 파생 통계 연산
   const gradedList    = enrollments.filter(e => e.grade);
   const totalCredits  = enrollments.reduce((s, e) => s + (e.credits ?? 0), 0);
   const onlineCredits = enrollments.filter(e => e.onlineType === 'ONLINE').reduce((s, e) => s + (e.credits ?? 0), 0);
@@ -192,18 +189,38 @@ export default function MyEnroll() {
       <div className="en-wrap">
         {error && <ErrBanner msg={error} onRetry={init} />}
 
-        {/* 요약 카드 */}
+        {summary && (
+          <div className="stat-grid" style={{ marginBottom: '1rem' }}>
+            <div className="stat-card summary">
+              <div className="stat-lbl">최근 학기</div>
+              <div className="stat-val">{summary.semesterId || '-'}</div>
+            </div>
+            <div className="stat-card summary">
+              <div className="stat-lbl">전체 평균 평점</div>
+              <div className="stat-val" style={{ color: '#3B82F6' }}>
+                {summary.totalGpa?.toFixed(2) || '0.00'}<span className="unit">/ 4.5</span>
+              </div>
+            </div>
+            <div className="stat-card summary">
+              <div className="stat-lbl">전체 취득 학점</div>
+              <div className="stat-val">
+                {summary.totalCredits || 0} <span className="unit">/ {summary.graduationCredits || 110}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="stat-grid">
           <div className="stat-card">
-            <div className="stat-lbl">수강 과목</div>
+            <div className="stat-lbl">선택 학기 수강 과목</div>
             <div className="stat-val">{loading ? <Skeleton h="2rem" w="50px"/> : enrollments.length}<span className="unit">개</span></div>
           </div>
           <div className="stat-card">
-            <div className="stat-lbl">총 학점</div>
+            <div className="stat-lbl">선택 학기 총 학점</div>
             <div className="stat-val">{loading ? <Skeleton h="2rem" w="50px"/> : totalCredits}<span className="unit">학점</span></div>
           </div>
           <div className="stat-card">
-            <div className="stat-lbl">학기 평균 학점</div>
+            <div className="stat-lbl">선택 학기 평균 평점</div>
             {loading
               ? <Skeleton h="2rem" w="80px"/>
               : semGpa !== null
@@ -215,17 +232,15 @@ export default function MyEnroll() {
             <div className="stat-lbl">온라인 학점</div>
             <div className="stat-val">{loading ? <Skeleton h="2rem" w="50px"/> : onlineCredits}<span className="unit">학점</span></div>
             {!loading && totalCredits > 0 && (
-              <div className="stat-sub">전체의 {Math.round((onlineCredits / totalCredits) * 100)}%</div>
+              <div className="stat-sub">해당 학기의 {Math.round((onlineCredits / totalCredits) * 100)}%</div>
             )}
           </div>
         </div>
 
-        {/* 수강 목록 테이블 */}
         <div className="data-card">
           <div className="card-hd">
             <div className="card-hd-title">
               수강 목록
-              {/* 새로고침 버튼 추가: 성적 엑셀 업로드 즉시 확인 용도 */}
               <button 
                 className="btn-refresh" 
                 onClick={() => fetchEnrollments(true)}
@@ -262,7 +277,6 @@ export default function MyEnroll() {
               <table className="base-tbl">
                 <thead>
                   <tr>
-                    {/* 요청하신 필드에 맞게 헤더 변경 */}
                     <th>과목명</th>
                     <th>이수구분</th> 
                     <th style={{ textAlign:'center' }}>학점</th>
@@ -276,23 +290,18 @@ export default function MyEnroll() {
                     const gpaNum = e.grade ? gpaToNum(e.grade) : null;
                     return (
                       <tr key={e.enrollId ?? i}>
-                        {/* courseName 매핑 */}
                         <td style={{ fontWeight:700, color:'#1E293B' }}>{e.courseName}</td>
-                        {/* courseType 매핑 */}
                         <td style={{ color:'#64748B', fontSize:'.8125rem' }}>
                           <span style={{ background:'#F1F5F9', padding:'4px 8px', borderRadius:'4px', fontWeight:600 }}>
                             {e.courseType ?? '—'}
                           </span>
                         </td>
-                        {/* credits 매핑 */}
                         <td style={{ textAlign:'center', fontWeight:600 }}>{e.credits ?? '—'}</td>
-                        {/* onlineType 매핑 */}
                         <td style={{ textAlign:'center' }}>
                           <span className={`pill ${TYPE_PILL[e.onlineType] ?? 'pill-gray'}`}>
                             {TYPE_LABEL[e.onlineType] ?? e.onlineType ?? '—'}
                           </span>
                         </td>
-                        {/* grade 매핑 */}
                         <td style={{ textAlign:'center' }}>
                           {e.grade
                             ? <span className={`pill ${GRADE_PILL[e.grade] ?? 'pill-gray'}`} style={{ minWidth:'24px', justifyContent:'center' }}>{e.grade}</span>
@@ -312,7 +321,7 @@ export default function MyEnroll() {
 
           {!loading && semGpa !== null && (
             <div style={{ padding:'1rem 1.5rem', background:'#F8FAFC', borderTop:'1px solid #E2E8F0', display:'flex', justifyContent:'flex-end', alignItems:'center', gap:'1rem' }}>
-              <span style={{ fontSize:'.8125rem', color:'#64748B', fontWeight:700 }}>학기 평균 GPA</span>
+              <span style={{ fontSize:'.8125rem', color:'#64748B', fontWeight:700 }}>선택 학기 평균 GPA</span>
               <div style={{ width:'150px' }}>
                 <GpaBar gpa={semGpa} />
               </div>
