@@ -1,29 +1,30 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import api from '../../../api/axios.js'; // 기존에 설정하신 axios 인스턴스
-import { useNavigate } from 'react-router-dom';
+import api from '../../../api/axios.js';
 
 export default function StudentList() {
-  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [departments, setDepartments] = useState([]);
+  
+  // 🎯 학생별 실시간 비자 상태를 저장할 상태값 추가
+  const [visaMap, setVisaMap] = useState({});
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // 학과 필터 초기값을 'all'로 설정하여 진입 시 바로 데이터가 보이도록 수정
   const [filters, setFilters] = useState({ dept: 'all', year: 'all', visa: 'all' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const [checkedStudentId, setCheckedStudentId] = useState(null);
+
+  // 1. 초기 학생 전체 목록 및 학과 목록 로드
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
-        // 1. 학생 목록 및 학과 목록 API 병렬 호출
         const [studentRes, deptRes] = await Promise.all([
           api.get('/api/v1/students'),
           api.get('/api/v1/depts').catch(() => null)
@@ -34,16 +35,13 @@ export default function StudentList() {
           fetchedStudents = studentRes.data.data || [];
           setStudents(fetchedStudents);
         } else if (Array.isArray(studentRes.data)) {
-          // 응답이 바로 배열로 올 경우 대비
           fetchedStudents = studentRes.data;
           setStudents(fetchedStudents);
         }
 
-        // 2. 학과 데이터 세팅
         if (deptRes && deptRes.data?.success) {
           setDepartments(deptRes.data.data || []);
         } else {
-          // 학과 API가 준비되지 않은 경우, 학생 데이터에서 고유 학과명 추출 (Fallback)
           const uniqueDepts = Array.from(
             new Set(fetchedStudents.map(s => s.department || s.deptName).filter(Boolean))
           );
@@ -61,7 +59,7 @@ export default function StudentList() {
     fetchData();
   }, []);
 
-  // 필터링 로직: filters.dept가 'all'이므로 진입 시 모든 학생이 필터를 통과함
+  // 검색 및 필터링 로직
   const filteredData = useMemo(() => {
     return students.filter(student => {
       const studentId = student.studentId?.toString() || '';
@@ -75,23 +73,68 @@ export default function StudentList() {
                           
       const matchDept = filters.dept === 'all' || studentDept === filters.dept;
       const matchYear = filters.year === 'all' || student.grade?.toString() === filters.year;
+      // 필터링은 기존 student.visaType을 우선 참고 (목록 데이터 기준)
       const matchVisa = filters.visa === 'all' || student.visaType === filters.visa;
       
       return matchSearch && matchDept && matchYear && matchVisa;
     });
   }, [students, searchTerm, filters]);
 
-  // 페이지네이션 로직
+  // 페이지네이션 연산
   const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
   const currentData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredData.slice(start, start + itemsPerPage);
   }, [filteredData, currentPage, itemsPerPage]);
 
+  // 🎯 2. 현재 페이지의 학생들 비자 정보만 백엔드에서 실시간 조회 (isCurrent 체크)
+  useEffect(() => {
+    const fetchVisasForCurrentPage = async () => {
+      const newVisaMap = { ...visaMap };
+      let hasChanges = false;
+
+      const fetchPromises = currentData.map(async (student) => {
+        const id = student.studentId;
+        
+        // 이미 API로 불러온 기록이 있으면 통과 (최적화)
+        if (newVisaMap[id] !== undefined) return;
+
+        try {
+          const res = await api.get(`/api/v1/students/${id}/visas`);
+          const visaList = res.data?.success ? res.data.data : res.data;
+
+          if (Array.isArray(visaList) && visaList.length > 0) {
+            // isCurrent가 true인 현재 비자를 찾음. 없으면 최신(첫번째) 비자 적용
+            const currentVisa = visaList.find(v => v.isCurrent) || visaList[0];
+            newVisaMap[id] = currentVisa.visaType; 
+          } else {
+            newVisaMap[id] = null; // 비자 데이터가 아예 없는 경우
+          }
+          hasChanges = true;
+        } catch (err) {
+          // 비자 이력이 없거나 에러 발생 시 처리
+          newVisaMap[id] = null;
+          hasChanges = true;
+        }
+      });
+
+      await Promise.all(fetchPromises);
+
+      if (hasChanges) {
+        setVisaMap(newVisaMap);
+      }
+    };
+
+    if (currentData.length > 0) {
+      fetchVisasForCurrentPage();
+    }
+  }, [currentData, visaMap]); // 화면에 보이는 데이터(currentData)가 바뀔 때마다 실행
+
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
-    setCurrentPage(1); // 필터 변경 시 1페이지로 리셋
+    setCurrentPage(1);
+    setCheckedStudentId(null);
   };
 
   const handlePageChange = (newPage) => {
@@ -100,12 +143,39 @@ export default function StudentList() {
     }
   };
 
+  const switchMenu = (menuName, studentId = null) => {
+    window.dispatchEvent(
+      new CustomEvent('switch-admin-menu', {
+        detail: { menu: menuName, studentId }
+      })
+    );
+  };
+
+  const handleTopikRegisterClick = () => {
+    if (!checkedStudentId) return alert('TOPIK 급수를 등록할 학생을 먼저 체크해 주세요.');
+    switchMenu('학생 TOPIK 정보', checkedStudentId);
+  };
+
+  const handleVisaRegisterClick = () => {
+    if (!checkedStudentId) return alert('비자를 등록할 학생을 먼저 체크해 주세요.');
+    switchMenu('학생 비자 정보', checkedStudentId);
+  };
+
   return (
     <div className="main-content">
       <style>{`
         .main-content { padding: 1.5rem 1.75rem; background: #F0F2F7; min-height: 100vh; font-family: 'DM Sans', 'Noto Sans KR', sans-serif; }
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
         .page-title { font-size: 1.375rem; font-weight: 700; color: #111827; }
+        
+        .header-btn-group { display: flex; gap: 0.5rem; align-items: center; }
+        
+        .btn-topik { background: #fff; color: #4B5563; border: 1px solid #D1D5DB; padding: 0.625rem 1.125rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-topik:hover { background: #F9FAFB; border-color: #9CA3AF; color: #1F2937; }
+        
+        .btn-visa { background: #fff; color: #1D4ED8; border: 1px solid #BFDBFE; padding: 0.625rem 1.125rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-visa:hover { background: #EFF6FF; border-color: #93C5FD; }
+
         .btn-register { background: #1A3A5C; color: #fff; padding: 0.625rem 1.125rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s; }
         .btn-register:hover { background: #112740; }
 
@@ -121,6 +191,9 @@ export default function StudentList() {
         .data-table th { background: #F9FAFB; color: #6B7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; padding: 1rem 1.25rem; border-bottom: 1px solid #F3F4F6; }
         .data-table td { padding: 1rem 1.25rem; border-bottom: 1px solid #F9FAFB; font-size: 0.875rem; }
         .data-table tr:hover { background: #F9FAFB; cursor: pointer; }
+        
+        .checkbox-cell { width: 3%; text-align: center; }
+        .custom-checkbox { width: 1.125rem; height: 1.125rem; cursor: pointer; accent-color: #1A3A5C; }
 
         .student-info-cell { display: flex; align-items: center; gap: 0.75rem; }
         .avatar { width: 2.25rem; height: 2.25rem; border-radius: 0.625rem; background: #EFF6FF; color: #3B82F6; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.875rem; }
@@ -133,7 +206,6 @@ export default function StudentList() {
         .chip-status-off { background: #FEF2F2; color: #DC2626; }
         .chip-status-pause { background: #FFFBEB; color: #D97706; }
 
-        /* 페이지네이션 버튼을 정중앙 정렬로 스타일 수정 */
         .pagination { display: flex; justify-content: center; align-items: center; padding: 1rem 1.25rem; border-top: 1px solid #F3F4F6; }
         .page-btns { display: flex; gap: 0.25rem; }
         .page-num { width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; border-radius: 0.375rem; border: 1px solid #E5E7EB; font-size: 0.8125rem; cursor: pointer; background: #fff; transition: all 0.2s; }
@@ -144,7 +216,17 @@ export default function StudentList() {
 
       <div className="page-header">
         <h1 className="page-title">학생 목록 관리</h1>
-        <button className="btn-register" onClick={() => navigate('/admin/students/new')}>+ 신규 학생 등록</button>
+        <div className="header-btn-group">
+          <button className="btn-topik" onClick={handleTopikRegisterClick}>
+            + TOPIK 급수 등록
+          </button>
+          <button className="btn-visa" onClick={handleVisaRegisterClick}>
+            + 비자 등록
+          </button>
+          <button className="btn-register" onClick={() => switchMenu('학생 기본 정보', 'new')}>
+            + 신규 학생 등록
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -166,6 +248,7 @@ export default function StudentList() {
             onChange={(e) => {
               setSearchTerm(e.target.value);
               setCurrentPage(1);
+              setCheckedStudentId(null);
             }}
           />
         </div>
@@ -195,6 +278,7 @@ export default function StudentList() {
         <table className="data-table">
           <thead>
             <tr>
+              <th className="checkbox-cell">선택</th>
               <th>학번</th>
               <th>이름 / 국적</th>
               <th>학과 / 학년</th>
@@ -206,7 +290,7 @@ export default function StudentList() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan="6" style={{textAlign:'center', padding:'4rem', color:'#9CA3AF'}}>
+                <td colSpan="7" style={{textAlign:'center', padding:'4rem', color:'#9CA3AF'}}>
                   데이터를 불러오는 중입니다...
                 </td>
               </tr>
@@ -216,8 +300,27 @@ export default function StudentList() {
                   student.enrollmentStatus === '재학' || student.enrollStatus === '등록' ? 'chip-status-on' :
                   student.enrollmentStatus === '휴학' || student.enrollStatus === '휴학' ? 'chip-status-pause' : 'chip-status-off';
                 
+                // 🎯 실시간 조회된 비자 정보 (로딩 중이거나 없으면 기존데이터 혹은 미등록 처리)
+                const displayVisa = visaMap[student.studentId] !== undefined 
+                                    ? (visaMap[student.studentId] || '미등록') 
+                                    : (student.visaType || '로딩중...');
+
                 return (
-                  <tr key={student.studentId} onClick={() => navigate(`/admin/students/${student.studentId}`)}>
+                  <tr 
+                    key={student.studentId} 
+                    onClick={() => switchMenu('학생 기본 정보', student.studentId)}
+                    style={{ backgroundColor: checkedStudentId === student.studentId ? '#F3F4F6' : '' }}
+                  >
+                    <td className="checkbox-cell" onClick={(e) => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        className="custom-checkbox"
+                        checked={checkedStudentId === student.studentId}
+                        onChange={() => {
+                          setCheckedStudentId(checkedStudentId === student.studentId ? null : student.studentId);
+                        }}
+                      />
+                    </td>
                     <td style={{color:'#6B7280', fontWeight:500}}>{student.studentId}</td>
                     <td>
                       <div className="student-info-cell">
@@ -235,11 +338,15 @@ export default function StudentList() {
                       </div>
                     </td>
                     <td>
+                      {/* 🎯 비자 칩 */}
                       <span 
                         className="chip chip-visa" 
-                        onClick={(e) => { e.stopPropagation(); navigate(`/admin/students/${student.studentId}/visa`); }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          switchMenu('학생 비자 정보', student.studentId); 
+                        }}
                       >
-                        {student.visaType || '미등록'}
+                        {displayVisa}
                       </span>
                     </td>
                     <td style={{fontWeight:700, color:'#1A3A5C'}}>
@@ -255,7 +362,7 @@ export default function StudentList() {
               })
             ) : (
               <tr>
-                <td colSpan="6" style={{textAlign:'center', padding:'4rem', color:'#9CA3AF'}}>
+                <td colSpan="7" style={{textAlign:'center', padding:'4rem', color:'#9CA3AF'}}>
                   조회된 학생이 없습니다.
                 </td>
               </tr>

@@ -17,11 +17,7 @@ import SearchByDept from './pages/admin/search/SearchByDept.jsx';
 import SearchByClass from './pages/admin/search/SearchByClass.jsx';
 import CourseList from './pages/admin/courses/CourseList.jsx';
 import OnlineViolation from './pages/admin/search/OnlineViolation.jsx';
-import BasicTab from "./pages/admin/students/StudentDetail/BasicTab.jsx";
-import VisaTab from "./pages/admin/students/StudentDetail/VisaTab.jsx";
-import TopikTab from "./pages/admin/students/StudentDetail/TopikTab.jsx";
-import EnrollTab from "./pages/admin/students/StudentDetail/EnrollTab.jsx";
-import AttendTab from "./pages/admin/students/StudentDetail/AttendTab.jsx";
+// 🎯 [수정됨] 대시보드 내부에서 렌더링될 하위 탭(VisaTab, TopikTab 등)의 개별 import를 제거했습니다.
 
 // 조교 컴포넌트
 import StaffDashboard from './pages/staff/dashboard/StaffDashboard.jsx';
@@ -35,7 +31,7 @@ import ProfStudentDetail from './pages/professor/students/StudentDetail/index.js
 import AttendanceInput from './pages/professor/attendance/AttendanceInput.jsx';
 import ConsultTab from './pages/professor/students/StudentDetail/ConsultTab.jsx';
 
-// 🎯 학생 컴포넌트 일괄 추가 (중앙 집중 라우팅 이식)
+// 학생 컴포넌트
 import MyDashboard from "./pages/student/dashboard/MyDashboard.jsx";
 import MyProfile from "./pages/student/profile/MyProfile.jsx";
 import MyEnroll from "./pages/student/enroll/MyEnroll.jsx";
@@ -67,12 +63,8 @@ function App() {
         <Route path="/admin/courses" element={<PrivateRoute allowedRoles={['ADMIN']}><CourseList /></PrivateRoute>} />
         <Route path="/admin/search/online-violation" element={<PrivateRoute allowedRoles={['ADMIN']}><OnlineViolation /></PrivateRoute>} />
 
-        <Route path="/admin/students/:id" element={<Navigate replace to="basic" />} />
-        <Route path="/admin/students/:id/basic" element={<PrivateRoute allowedRoles={['ADMIN']}><BasicTab /></PrivateRoute>} />
-        <Route path="/admin/students/:id/visa" element={<PrivateRoute allowedRoles={['ADMIN']}><VisaTab /></PrivateRoute>} />
-        <Route path="/admin/students/:id/topik" element={<PrivateRoute allowedRoles={['ADMIN']}><TopikTab /></PrivateRoute>} />
-        <Route path="/admin/students/:id/enroll" element={<PrivateRoute allowedRoles={['ADMIN']}><EnrollTab /></PrivateRoute>} />
-        <Route path="/admin/students/:id/attendance" element={<PrivateRoute allowedRoles={['ADMIN']}><AttendTab /></PrivateRoute>} />
+        {/* 🎯 [수정됨] 화면을 튕기게 만들었던 아래의 가변 변수(:id) 라우트들과 단독 visa/topik 라우트들을 과감히 삭제했습니다.
+            이제 AdminDashboard 컴포넌트가 알아서 탭 형태로 품게 됩니다. */}
 
         {/* --- PROFESSOR 권한 그룹 --- */}
         <Route 
@@ -94,7 +86,7 @@ function App() {
         </Route>
         <Route path="/professor/*" element={<Navigate to="/professor/dashboard" replace />} />
 
-        {/* 🎯 --- STUDENT 권한 그룹 (교수자 레이아웃과 동일한 표준 중첩 구조로 변경) --- */}
+        {/* --- STUDENT 권한 그룹 --- */}
         <Route 
           path="/student" 
           element={
