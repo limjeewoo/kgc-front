@@ -17,12 +17,13 @@ import SearchByDept from './pages/admin/search/SearchByDept.jsx';
 import SearchByClass from './pages/admin/search/SearchByClass.jsx';
 import CourseList from './pages/admin/courses/CourseList.jsx';
 import OnlineViolation from './pages/admin/search/OnlineViolation.jsx';
-// 🎯 [수정됨] 대시보드 내부에서 렌더링될 하위 탭(VisaTab, TopikTab 등)의 개별 import를 제거했습니다.
 
 // 조교 컴포넌트
 import StaffDashboard from './pages/staff/dashboard/StaffDashboard.jsx';
 import StaffStudentList from './pages/staff/students/StaffStudentList.jsx';
 import StaffBasicTab from './pages/staff/students/StudentDetail/StaffBasicTab.jsx';
+// 📌 [추가됨] 수강/성적 관리 탭 컴포넌트 import
+import StaffGradeTab from './pages/staff/students/StudentDetail/StaffGradeTab.jsx';
 
 // 교수 컴포넌트
 import ProfDashboard from './pages/professor/dashboard/ProfDashboard.jsx';
@@ -53,6 +54,8 @@ function App() {
         <Route path="/staff/students"  element={<PrivateRoute allowedRoles={['STAFF']}><StaffStudentList /></PrivateRoute>} />
         <Route path="/staff/students/:id" element={<Navigate replace to="basic" />} />
         <Route path="/staff/students/:id/basic" element={<PrivateRoute allowedRoles={['STAFF']}><StaffBasicTab /></PrivateRoute>} />
+        {/* 📌 [추가됨] 수강/성적 관리 페이지 라우팅 추가 */}
+        <Route path="/staff/students/:id/grade" element={<PrivateRoute allowedRoles={['STAFF']}><StaffGradeTab /></PrivateRoute>} />
 
         {/* --- ADMIN 권한 그룹 --- */}
         <Route path="/admin/dashboard" element={<PrivateRoute allowedRoles={['ADMIN']}><AdminDashboard /></PrivateRoute>} />
@@ -62,9 +65,6 @@ function App() {
         <Route path="/admin/search/class" element={<PrivateRoute allowedRoles={['ADMIN']}><SearchByClass /></PrivateRoute>} />
         <Route path="/admin/courses" element={<PrivateRoute allowedRoles={['ADMIN']}><CourseList /></PrivateRoute>} />
         <Route path="/admin/search/online-violation" element={<PrivateRoute allowedRoles={['ADMIN']}><OnlineViolation /></PrivateRoute>} />
-
-        {/* 🎯 [수정됨] 화면을 튕기게 만들었던 아래의 가변 변수(:id) 라우트들과 단독 visa/topik 라우트들을 과감히 삭제했습니다.
-            이제 AdminDashboard 컴포넌트가 알아서 탭 형태로 품게 됩니다. */}
 
         {/* --- PROFESSOR 권한 그룹 --- */}
         <Route 

@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom'; // 📌 라우팅을 위한 useNavigate 추가
 import api from '../../../api/axios';
 
 export default function StaffStudentList({ onStudentClick, permissions }) {
+  const navigate = useNavigate(); // 📌 navigate 객체 생성
+
   const [students, setStudents]       = useState([]);
   const [departments, setDepartments] = useState([]);
   const [isLoading, setIsLoading]     = useState(true);
@@ -11,6 +14,9 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
   const [filters, setFilters]         = useState({ dept:'all', year:'all' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // 📌 선택된 학생 ID 상태
+  const [checkedStudentId, setCheckedStudentId] = useState(null);
 
   const can = (key) => permissions?.find(p => p.permissionKey === key)?.isEnabled === true;
 
@@ -99,6 +105,15 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
     finally { setForeignUploading(false); }
   };
 
+  // 📌 수강/성적 관리 클릭 핸들러 (라우팅 적용)
+  const handleGradeRegisterClick = () => {
+    if (!checkedStudentId) return alert('수강/성적을 관리할 학생을 먼저 체크해 주세요.');
+    
+    // 선택된 학생의 ID를 파라미터로 넘기며 라우팅합니다. 
+    // (경로는 실제 라우터 설정에 맞춰 수정하세요)
+    navigate(`/staff/students/${checkedStudentId}/grade`);
+  };
+
   return (
     <div className="ssl-wrap">
       <style>{`
@@ -107,6 +122,11 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
         .ssl-title  { font-size:1.375rem; font-weight:700; color:#111827; }
         .ssl-btn { background:#1A3A5C; color:#fff; padding:0.625rem 1.125rem; border-radius:0.5rem; font-size:0.8125rem; font-weight:600; border:none; cursor:pointer; font-family:inherit; }
         .ssl-btn:hover { background:#112740; }
+        
+        /* 📌 수강/성적 관리 버튼 전용 디자인 (돋보이도록 파란색 계열 적용) */
+        .ssl-btn-grade { background:#3B82F6; color:#fff; padding:0.625rem 1.125rem; border-radius:0.5rem; font-size:0.8125rem; font-weight:600; border:none; cursor:pointer; font-family:inherit; transition: 0.2s; }
+        .ssl-btn-grade:hover { background:#2563EB; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2); }
+        
         .ssl-btn-outline { background:#fff; color:#1A3A5C; padding:0.625rem 1.125rem; border-radius:0.5rem; font-size:0.8125rem; font-weight:600; border:1.5px solid #1A3A5C; cursor:pointer; font-family:inherit; }
         .ssl-btn-outline:hover { background:#F0F4F8; }
         .ssl-btn-group { display:flex; gap:0.5rem; }
@@ -149,15 +169,21 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
         .ssl-modal-confirm:disabled { background:#9CA3AF; cursor:not-allowed; }
         .ssl-modal-badge { display:inline-block; background:#EFF6FF; color:#1D4ED8; font-size:0.6875rem; font-weight:700; padding:2px 8px; border-radius:4px; margin-bottom:1rem; }
       `}</style>
-
+      
       <div className="ssl-header">
         <h1 className="ssl-title">학생 목록 관리</h1>
-        {can('STUDENT_UPLOAD') && (
-          <div className="ssl-btn-group">
-            <button className="ssl-btn-outline" onClick={() => setShowForeign(true)}>외국인현황 업데이트</button>
-            <button className="ssl-btn" onClick={() => setShowUpload(true)}>+ 학생 일괄 등록</button>
-          </div>
-        )}
+        <div className="ssl-btn-group">
+          {/* 📌 수강/성적 관리 버튼 */}
+          <button className="ssl-btn-grade" onClick={handleGradeRegisterClick}>
+            수강/성적 관리
+          </button>
+          {can('STUDENT_UPLOAD') && (
+            <>
+              <button className="ssl-btn-outline" onClick={() => setShowForeign(true)}>외국인현황 업데이트</button>
+              <button className="ssl-btn" onClick={() => setShowUpload(true)}>+ 학생 일괄 등록</button>
+            </>
+          )}
+        </div>
       </div>
 
       {error && <div style={{ background:'#FEF2F2', color:'#DC2626', padding:'1rem', borderRadius:'0.5rem', marginBottom:'1rem' }}>{error}</div>}
@@ -168,13 +194,13 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input className="ssl-search-input" placeholder="이름 또는 학번 검색..." value={searchTerm}
-            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }} />
+            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); setCheckedStudentId(null); }} />
         </div>
-        <select className="ssl-select" value={filters.dept} onChange={e => { setFilters(p=>({...p,dept:e.target.value})); setCurrentPage(1); }}>
+        <select className="ssl-select" value={filters.dept} onChange={e => { setFilters(p=>({...p,dept:e.target.value})); setCurrentPage(1); setCheckedStudentId(null); }}>
           <option value="all">전체 학과</option>
           {departments.map(d => <option key={d.deptId} value={d.deptName}>{d.deptName}</option>)}
         </select>
-        <select className="ssl-select" value={filters.year} onChange={e => { setFilters(p=>({...p,year:e.target.value})); setCurrentPage(1); }}>
+        <select className="ssl-select" value={filters.year} onChange={e => { setFilters(p=>({...p,year:e.target.value})); setCurrentPage(1); setCheckedStudentId(null); }}>
           <option value="all">전체 학년</option>
           {[1,2,3,4].map(y => <option key={y} value={y}>{y}학년</option>)}
         </select>
@@ -183,15 +209,34 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
       <div className="ssl-table-card">
         <table className="ssl-table">
           <thead>
-            <tr><th>학번</th><th>이름 / 국적</th><th>학과 / 학년</th><th>비자</th><th>학적상태</th></tr>
+            <tr>
+              <th style={{width: '3%', textAlign: 'center'}}>선택</th>
+              <th>학번</th>
+              <th>이름 / 국적</th>
+              <th>학과 / 학년</th>
+              <th>비자</th>
+              <th>학적상태</th>
+            </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan="5" style={{textAlign:'center',padding:'4rem',color:'#9CA3AF'}}>불러오는 중...</td></tr>
+              <tr><td colSpan="6" style={{textAlign:'center',padding:'4rem',color:'#9CA3AF'}}>불러오는 중...</td></tr>
             ) : currentData.length > 0 ? currentData.map(s => {
               const statusClass = s.enrollStatus==='재학' ? 'chip-on' : s.enrollStatus==='휴학' ? 'chip-pause' : 'chip-off';
               return (
-                <tr key={s.studentId} onClick={() => onStudentClick(s.studentId, s.korName || s.engName)}>
+                <tr 
+                  key={s.studentId} 
+                  onClick={() => onStudentClick(s.studentId, s.korName || s.engName)}
+                  style={{ backgroundColor: checkedStudentId === s.studentId ? '#F3F4F6' : '' }}
+                >
+                  <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <input 
+                      type="checkbox" 
+                      style={{ width: '1.125rem', height: '1.125rem', cursor: 'pointer', accentColor: '#1A3A5C' }}
+                      checked={checkedStudentId === s.studentId}
+                      onChange={() => setCheckedStudentId(checkedStudentId === s.studentId ? null : s.studentId)}
+                    />
+                  </td>
                   <td style={{color:'#6B7280',fontWeight:500}}>{s.studentId}</td>
                   <td>
                     <div style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
@@ -211,25 +256,26 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
                 </tr>
               );
             }) : (
-              <tr><td colSpan="5" style={{textAlign:'center',padding:'4rem',color:'#9CA3AF'}}>조회된 학생이 없습니다.</td></tr>
+              <tr><td colSpan="6" style={{textAlign:'center',padding:'4rem',color:'#9CA3AF'}}>조회된 학생이 없습니다.</td></tr>
             )}
           </tbody>
         </table>
+        
         {!isLoading && (
           <div className="ssl-pagination">
             <div className="ssl-page-info">{filteredData.length > 0 ? `${(currentPage-1)*itemsPerPage+1}–${Math.min(currentPage*itemsPerPage,filteredData.length)} / 총 ${filteredData.length}명` : '0명'}</div>
             <div className="ssl-page-btns">
-              <button className="ssl-page-num" onClick={()=>setCurrentPage(p=>p-1)} disabled={currentPage===1}>&lt;</button>
+              <button className="ssl-page-num" onClick={()=>{setCurrentPage(p=>p-1); setCheckedStudentId(null);}} disabled={currentPage===1}>&lt;</button>
               {[...Array(totalPages)].map((_,i)=>(
-                <button key={i+1} className={`ssl-page-num ${currentPage===i+1?'active':''}`} onClick={()=>setCurrentPage(i+1)}>{i+1}</button>
+                <button key={i+1} className={`ssl-page-num ${currentPage===i+1?'active':''}`} onClick={()=>{setCurrentPage(i+1); setCheckedStudentId(null);}}>{i+1}</button>
               ))}
-              <button className="ssl-page-num" onClick={()=>setCurrentPage(p=>p+1)} disabled={currentPage===totalPages}>&gt;</button>
+              <button className="ssl-page-num" onClick={()=>{setCurrentPage(p=>p+1); setCheckedStudentId(null);}} disabled={currentPage===totalPages}>&gt;</button>
             </div>
           </div>
         )}
       </div>
 
-      {/* 학생 일괄 등록 모달 */}
+      {/* 모달 관련 코드 (동일하므로 생략하지 않고 유지) */}
       {showUpload && (
         <div className="ssl-modal-bg" onClick={()=>setShowUpload(false)}>
           <div className="ssl-modal" onClick={e=>e.stopPropagation()}>
@@ -255,7 +301,6 @@ export default function StaffStudentList({ onStudentClick, permissions }) {
         </div>
       )}
 
-      {/* 외국인현황 업데이트 모달 */}
       {showForeign && (
         <div className="ssl-modal-bg" onClick={()=>setShowForeign(false)}>
           <div className="ssl-modal" onClick={e=>e.stopPropagation()}>
