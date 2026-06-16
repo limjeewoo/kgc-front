@@ -6,22 +6,12 @@ import StaffStudentList    from '../students/StaffStudentList.jsx';
 import StaffStudentDetail  from '../students/StudentDetail/StaffStudentDetail.jsx';
 import StaffVisaExpirePage from '../visa/StaffVisaExpirePage.jsx';
 
-import SearchByStudent  from '../../admin/search/SearchByStudent.jsx';
-import SearchByDept     from '../../admin/search/SearchByDept.jsx';
-import SearchByClass    from '../../admin/search/SearchByClass.jsx';
-import SearchByCourse   from '../../admin/search/SearchByCourse.jsx';
-import OnlineViolation  from '../../admin/search/OnlineViolation.jsx';
 import StaffJobPendingPage from '../jobs/StaffJobPendingPage.jsx';
 import StaffMileagePage    from '../jobs/StaffMileagePage.jsx';
-
-const SEARCH_SUB_MENUS = [
-  '개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색',
-];
 
 export default function StaffDashboard() {
   const [activeMenu, setActiveMenu]               = useState('대시보드');
   const [loading, setLoading]                     = useState(true);
-  const [searchOpen, setSearchOpen]               = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [selectedStudentName, setSelectedStudentName] = useState(null);
   const [selectedStudentTab, setSelectedStudentTab]   = useState('basic');
@@ -122,10 +112,8 @@ export default function StaffDashboard() {
   };
 
   const handleMenuClick = (name) => {
-    if (name === '통합 검색') { setSearchOpen(p => !p); return; }
     setSelectedStudentId(null); setSelectedStudentName(null); setSelectedStudentTab('basic');
     setActiveMenu(name);
-    if (!SEARCH_SUB_MENUS.includes(name)) setSearchOpen(false);
   };
 
   if (loading && activeMenu === '대시보드') return (
@@ -139,7 +127,6 @@ export default function StaffDashboard() {
   );
 
   const semLabel = currentSemester ? `${currentSemester.year}년 ${currentSemester.term}학기` : '학기 정보 없음';
-  const isSearchActive = SEARCH_SUB_MENUS.includes(activeMenu);
   const can = (key) => permissions.find(p => p.permissionKey === key)?.isEnabled === true;
 
   const visaDanger  = visaList.filter(v => v.dDay <= 30);
@@ -147,7 +134,6 @@ export default function StaffDashboard() {
   const attendDanger  = attendanceList.filter(a => a.warningLevel === '위험');
   const attendWarning = attendanceList.filter(a => a.warningLevel === '주의');
 
-  // 오늘 날짜
   const today = new Date();
   const todayStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
   const days = ['일','월','화','수','목','금','토'];
@@ -165,7 +151,6 @@ export default function StaffDashboard() {
         *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
         body { font-family:'DM Sans','Noto Sans KR',sans-serif; background:#F0F2F7; color:#111827; }
 
-        /* 사이드바 */
         .sw-wrap { display:flex; min-height:100vh; }
         .sw-sidebar { width:230px; background:var(--sidebar); display:flex; flex-direction:column; position:sticky; top:0; height:100vh; flex-shrink:0; overflow-y:auto; }
         .sw-logo { display:flex; align-items:center; gap:10px; padding:24px 20px; border-bottom:1px solid rgba(255,255,255,0.08); }
@@ -177,26 +162,16 @@ export default function StaffDashboard() {
         .sw-nav { display:flex; align-items:center; width:100%; border:none; background:transparent; padding:10px 12px; border-radius:8px; color:rgba(255,255,255,0.65); font-size:0.8125rem; cursor:pointer; transition:0.2s; margin-bottom:2px; text-align:left; gap:8px; font-family:inherit; }
         .sw-nav:hover { background:rgba(255,255,255,0.08); color:#fff; }
         .sw-nav.active { background:var(--primary); color:#fff; font-weight:600; }
-        .sw-nav.parent-active { background:rgba(59,130,246,0.15); color:#fff; }
         .sw-nav-badge { margin-left:auto; background:#EF4444; color:#fff; font-size:0.625rem; padding:1px 6px; border-radius:10px; font-weight:700; }
-        .sw-nav-arrow { margin-left:auto; font-size:0.625rem; color:rgba(255,255,255,0.4); transition:transform 0.2s; }
-        .sw-nav-arrow.open { transform:rotate(180deg); }
-        .sw-sub { overflow:hidden; transition:max-height 0.25s ease, opacity 0.2s; max-height:0; opacity:0; }
-        .sw-sub.open { max-height:300px; opacity:1; }
-        .sw-sub-btn { display:flex; align-items:center; width:100%; border:none; background:transparent; padding:8px 12px 8px 32px; border-radius:8px; color:rgba(255,255,255,0.5); font-size:0.75rem; cursor:pointer; transition:0.15s; margin-bottom:1px; font-family:inherit; text-align:left; }
-        .sw-sub-btn:hover { background:rgba(255,255,255,0.06); color:#fff; }
-        .sw-sub-btn.active { color:#93C5FD; font-weight:600; }
         .sw-sidebar-footer { margin-top:auto; padding:16px; border-top:1px solid rgba(255,255,255,0.08); font-size:0.6875rem; color:rgba(255,255,255,0.3); line-height:1.6; }
         .sw-sidebar-footer strong { color:rgba(255,255,255,0.6); display:block; margin-bottom:2px; }
 
-        /* 메인 */
         .sw-main { flex:1; overflow-y:auto; }
         .sw-topbar { background:#fff; padding:0 28px; height:56px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #E5E7EB; position:sticky; top:0; z-index:10; }
         .sw-topbar-title { font-size:0.9375rem; font-weight:700; color:#111827; }
         .sw-semester-badge { font-size:0.75rem; background:#EFF6FF; color:#1D4ED8; padding:4px 12px; border-radius:20px; font-weight:600; }
         .sw-content { padding:24px 28px; animation:fadeUp 0.25s ease; }
 
-        /* 배너 */
         .staff-banner { background:linear-gradient(135deg, #1A3A5C 0%, #1e5fa8 100%); border-radius:16px; padding:26px 28px; margin-bottom:22px; display:flex; align-items:center; gap:20px; position:relative; overflow:hidden; }
         .staff-banner::before { content:''; position:absolute; top:-40px; right:-40px; width:200px; height:200px; border-radius:50%; background:rgba(255,255,255,0.05); }
         .staff-banner::after { content:''; position:absolute; bottom:-60px; right:80px; width:160px; height:160px; border-radius:50%; background:rgba(255,255,255,0.04); }
@@ -210,7 +185,6 @@ export default function StaffDashboard() {
         .bstat-val { font-size:1.375rem; font-weight:700; color:#fff; line-height:1; }
         .bstat-lbl { font-size:0.625rem; color:rgba(255,255,255,0.6); margin-top:4px; white-space:nowrap; }
 
-        /* 할 일 카드 */
         .todo-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:22px; }
         .todo-card { background:#fff; border-radius:14px; border:1px solid #F3F4F6; padding:18px 20px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; text-align:left; font-family:inherit; }
         .todo-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; border-radius:4px 0 0 4px; }
@@ -228,13 +202,10 @@ export default function StaffDashboard() {
         .todo-title { font-size:0.875rem; font-weight:700; color:#111827; margin-bottom:4px; }
         .todo-desc  { font-size:0.75rem; color:#9CA3AF; }
 
-        /* 섹션 레이블 */
         .sec-lbl { font-size:0.6875rem; font-weight:700; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 12px; }
 
-        /* 2단 그리드 */
         .two-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
 
-        /* 데이터 카드 */
         .dc { background:#fff; border-radius:14px; border:1px solid #F3F4F6; overflow:hidden; }
         .dc-hd { padding:14px 18px; border-bottom:1px solid #F3F4F6; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:background 0.12s; }
         .dc-hd:hover { background:#F8FAFC; }
@@ -257,7 +228,6 @@ export default function StaffDashboard() {
         .dc-link { padding:10px 18px; font-size:0.75rem; color:#3B82F6; cursor:pointer; border-top:1px solid #F3F4F6; display:flex; align-items:center; justify-content:flex-end; gap:4px; }
         .dc-link:hover { background:#F8FAFC; }
 
-        /* 근로 승인 */
         .job-row { display:flex; align-items:center; gap:12px; padding:12px 18px; border-bottom:1px solid #F9FAFB; cursor:pointer; transition:background 0.12s; }
         .job-row:last-child { border-bottom:none; }
         .job-row:hover { background:#F8FAFC; }
@@ -267,7 +237,6 @@ export default function StaffDashboard() {
         .job-meta { font-size:0.6875rem; color:#9CA3AF; margin-top:2px; }
         .empty-box { padding:28px; text-align:center; color:#9CA3AF; font-size:0.8125rem; }
 
-        /* 엑셀 업로드 */
         .upload-grid { display:grid; gap:12px; margin-bottom:22px; }
         .upload-card { background:#fff; border-radius:12px; border:1.5px dashed #CBD5E1; padding:16px 18px; display:flex; align-items:center; gap:14px; cursor:pointer; transition:all 0.15s; font-family:inherit; text-align:left; }
         .upload-card:hover { border-color:#93C5FD; background:#F8FBFF; }
@@ -320,19 +289,6 @@ export default function StaffDashboard() {
               )}
             </div>
           )}
-
-          <div className="sw-sec">
-            <div className="sw-lbl">통합 검색</div>
-            <button className={`sw-nav ${isSearchActive?'parent-active':''}`} onClick={() => handleMenuClick('통합 검색')}>
-              통합 검색
-              <span className={`sw-nav-arrow ${searchOpen?'open':''}`}>▼</span>
-            </button>
-            <div className={`sw-sub ${searchOpen?'open':''}`}>
-              {SEARCH_SUB_MENUS.map(m => (
-                <button key={m} className={`sw-sub-btn ${activeMenu===m?'active':''}`} onClick={() => handleMenuClick(m)}>{m}</button>
-              ))}
-            </div>
-          </div>
 
           <div className="sw-sidebar-footer">
             <strong>STAFF 계정</strong>
@@ -453,7 +409,7 @@ export default function StaffDashboard() {
                     </div>
                     <div className="sum-body">
                       {visaList.length === 0 ? (
-                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>만료 임박 학생이 없습니다. </div>
+                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>만료 임박 학생이 없습니다.</div>
                       ) : (
                         <>
                           <div className="sum-row"><span className="sum-lbl">위험 (D-30 이내)</span><span className="sum-badge sb-red">{visaDanger.length}명</span></div>
@@ -478,7 +434,7 @@ export default function StaffDashboard() {
                     </div>
                     <div className="sum-body">
                       {attendanceList.length === 0 ? (
-                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>출결 위험군이 없습니다. </div>
+                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>출결 위험군이 없습니다.</div>
                       ) : (
                         <>
                           <div className="sum-row"><span className="sum-lbl">위험 (결석 4회+)</span><span className="sum-badge sb-red">{attendDanger.length}명</span></div>
@@ -505,7 +461,7 @@ export default function StaffDashboard() {
                       </div>
                     </div>
                     {pendingJobs.length === 0 ? (
-                      <div className="empty-box">처리 대기 중인 근로 신청이 없습니다. </div>
+                      <div className="empty-box">처리 대기 중인 근로 신청이 없습니다.</div>
                     ) : pendingJobs.slice(0,5).map(job => (
                       <div key={job.jobId} className="job-row" onClick={() => handleMenuClick('근로 승인')}>
                         <div className="job-av">{job.studentName?.[0] ?? '?'}</div>
@@ -563,14 +519,9 @@ export default function StaffDashboard() {
               onBack={() => { setSelectedStudentId(null); setSelectedStudentName(null); setSelectedStudentTab('basic'); }}
             />
           )}
-          {activeMenu === '비자 만료 현황'        && <StaffVisaExpirePage />}
-          {activeMenu === '근로 승인'             && <StaffJobPendingPage permissions={permissions} />}
-          {activeMenu === '마일리지'              && <StaffMileagePage    permissions={permissions} />}
-          {activeMenu === '개인별 검색'           && <div style={{ padding:'1.25rem 1.75rem' }}><SearchByStudent onBack={() => setActiveMenu('대시보드')} /></div>}
-          {activeMenu === '학과별 검색'           && <SearchByDept        onBack={() => setActiveMenu('대시보드')} />}
-          {activeMenu === '학과-반별 검색'        && <SearchByClass       onBack={() => setActiveMenu('대시보드')} />}
-          {activeMenu === '과목별 검색'           && <div style={{ padding:'1.25rem 1.75rem' }}><SearchByCourse  onBack={() => setActiveMenu('대시보드')} /></div>}
-          {activeMenu === '온라인 30% 초과 검색'  && <div style={{ padding:'1.25rem 1.75rem' }}><OnlineViolation onBack={() => setActiveMenu('대시보드')} /></div>}
+          {activeMenu === '비자 만료 현황' && <StaffVisaExpirePage />}
+          {activeMenu === '근로 승인'      && <StaffJobPendingPage permissions={permissions} />}
+          {activeMenu === '마일리지'       && <StaffMileagePage    permissions={permissions} />}
 
           {/* ── 엑셀 업로드 모달 ── */}
           {uploadModal && UPLOAD_META[uploadModal] && (() => {
