@@ -8,9 +8,11 @@ export default function ProfessorLayout() {
   const [isStudentMenuOpen, setIsStudentMenuOpen] = useState(true);
   const [isAttendConsultOpen, setIsAttendConsultOpen] = useState(true);
 
-  // 현재 경로 활성화 표시용 헬퍼 함수
   const isActive = (path) => location.pathname === path;
   const isSubActive = (path) => location.pathname.startsWith(path);
+
+  const userName = localStorage.getItem('userName') || '교수';
+  const userId   = localStorage.getItem('userId')   || '';
 
   const SidebarArrow = ({ open }) => (
     <svg className={`arrow-icon ${open ? 'open' : ''}`} viewBox="0 0 20 20" fill="currentColor" style={{ marginLeft:'auto', width:12, height:12, transition:'transform .2s', opacity:.5, transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>
@@ -35,10 +37,14 @@ export default function ProfessorLayout() {
         .pl-sub-ni { font-size:12px; color:rgba(255,255,255,.55); padding:6px 10px; cursor:pointer; border-radius:6px; transition:all .15s; display:flex; align-items:center; justify-content:space-between; }
         .pl-sub-ni:hover { background:rgba(255,255,255,.05); color:rgba(255,255,255,.9); }
         .pl-sub-ni.active { color:#60A5FA; font-weight:600; background:rgba(255,255,255,.03); }
+        .pl-sidebar-bottom { margin-top:auto; padding:0.75rem; border-top:1px solid rgba(255,255,255,0.08); }
+        .pl-user-info { display:flex; align-items:center; gap:0.625rem; padding:0.625rem; border-radius:0.5rem; }
+        .pl-user-avatar { width:2rem; height:2rem; border-radius:50%; background:#3B82F6; display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700; color:#fff; flex-shrink:0; }
+        .pl-user-name { font-size:0.8125rem; font-weight:600; color:#fff; }
+        .pl-user-role { font-size:0.6875rem; color:rgba(255,255,255,0.4); margin-top:0.125rem; }
         .pl-main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 100vh; overflow-x: hidden; }
       `}</style>
 
-      {/* ── 고정 왼쪽 사이드바 ── */}
       <div className="pl-sidebar">
         <div className="pl-logo" onClick={() => navigate('/professor/dashboard')}>
           <img src="/logo-fff.png" alt="Logo" className="pl-logo-img" onError={(e) => e.target.style.display='none'} />
@@ -55,7 +61,6 @@ export default function ProfessorLayout() {
         <div className="pl-sec">
           <div className="pl-lbl">업무 메뉴</div>
 
-          {/* 대메뉴 1 */}
           <div className="pl-ni" onClick={() => setIsStudentMenuOpen(p => !p)}>
             지도학생 관리 <SidebarArrow open={isStudentMenuOpen} />
           </div>
@@ -67,7 +72,6 @@ export default function ProfessorLayout() {
             </div>
           )}
 
-          {/* 대메뉴 2 */}
           <div className="pl-ni" onClick={() => setIsAttendConsultOpen(p => !p)}>
             출결 및 상담 관리 <SidebarArrow open={isAttendConsultOpen} />
           </div>
@@ -82,9 +86,19 @@ export default function ProfessorLayout() {
             </div>
           )}
         </div>
+
+        {/* ── 사이드바 하단 로그인 계정 ── */}
+        <div className="pl-sidebar-bottom">
+          <div className="pl-user-info">
+            <div className="pl-user-avatar">{userName.charAt(0)}</div>
+            <div>
+              <div className="pl-user-name">{userName}</div>
+              <div className="pl-user-role">PROFESSOR{userId ? ` · ${userId}` : ''}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ── 우측 가변 메인 컨텐츠 컴포넌트 출력 영역 ── */}
       <div className="pl-main-content">
         <Outlet />
       </div>
