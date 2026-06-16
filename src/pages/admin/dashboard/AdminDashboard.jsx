@@ -31,7 +31,7 @@ import GradeTab from '../students/StudentDetail/GradeTab.jsx';
 const NOT_IMPLEMENTED = new Set(['상담 내역']);
 const SEARCH_SUB_MENUS = ['개인별 검색', '학과별 검색', '학과-반별 검색', '과목별 검색', '온라인 30% 초과 검색'];
 const JOB_SUB_MENUS   = ['학생 근로', '학생 근로 현황'];
-const PROF_SUB_MENUS  = ['전체 교수 목록', '학생-지도교수 배정 관리'];
+const PROF_SUB_MENUS  = ['전체 교수 목록', '전담교수 관리'];
 
 export default function AdminDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();

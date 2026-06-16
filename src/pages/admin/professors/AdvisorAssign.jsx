@@ -1,265 +1,213 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../../api/axios';
 
 export default function AdvisorAssign() {
-  // 데이터 상태
-  const [students, setStudents] = useState([]);
+  const [depts, setDepts] = useState([]);
   const [professors, setProfessors] = useState([]);
-  const [assignments, setAssignments] = useState([]); // 최근 배정 내역 (검색 결과)
-  
-  // 폼 상태
-  const [selectedStudent, setSelectedStudent] = useState('');
-  const [selectedProfessor, setSelectedProfessor] = useState('');
-  const [assignedDate, setAssignedDate] = useState(new Date().toISOString().split('T')[0]);
-  
+  const [selectedDeptId, setSelectedDeptId] = useState('');
   const [loading, setLoading] = useState(false);
-  const [searchId, setSearchId] = useState(''); // 교수 또는 학생 ID로 배정 내역 조회용
+  const [toggling, setToggling] = useState(null); // 처리 중인 professorId
 
-  // 1. 초기 데이터 로드 (학생/교수 목록)
+  // 학과 목록 + 전체 교수 목록 초기 로드
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchInit = async () => {
       try {
-        const [stuRes, profRes] = await Promise.all([
-          api.get('/api/v1/students'),
-          api.get('/api/v1/professors')
+        const [deptRes, profRes] = await Promise.all([
+          api.get('/api/v1/depts'),
+          api.get('/api/v1/professors'),
         ]);
-        if (stuRes.data.success) setStudents(stuRes.data.data);
-        if (profRes.data.success) setProfessors(profRes.data.data);
-      } catch (error) {
-        console.error("데이터 로드 실패", error);
+        if (deptRes.data.success) setDepts(deptRes.data.data || []);
+        if (profRes.data.success) setProfessors(profRes.data.data || []);
+      } catch (e) {
+        console.error('초기 데이터 로드 실패', e);
       }
     };
-    fetchData();
+    fetchInit();
   }, []);
 
-  // 2. 지도교수 배정 실행 (POST /api/v1/advisors)
-  const handleAssign = async (e) => {
-    e.preventDefault();
-    if (!selectedStudent || !selectedProfessor) {
-      alert("학생과 교수를 모두 선택해주세요.");
-      return;
-    }
+  // 학과 필터링된 교수 목록
+  const filtered = selectedDeptId
+    ? professors.filter(p => String(p.deptId) === String(selectedDeptId) || String(p.departmentId) === String(selectedDeptId))
+    : professors;
+
+  // 전담교수 토글: PATCH /api/v1/professors/{professorId}/dedicated?isDedicated={true|false}
+  const handleToggle = async (prof) => {
+    const next = !prof.isDedicated;
+    if (!window.confirm(`${prof.name} 교수를 ${next ? '전담교수로 지정' : '전담교수에서 해제'}하시겠습니까?`)) return;
 
     try {
-      setLoading(true);
-      const response = await api.post('/api/v1/advisors', {
-        studentId: selectedStudent,
-        professorId: selectedProfessor,
-        assignedDate: assignedDate
+      setToggling(prof.professorId);
+      const res = await api.patch(`/api/v1/professors/${prof.professorId}/dedicated`, null, {
+        params: { isDedicated: next },
       });
-
-      if (response.data.success) {
-        alert("지도교수 배정이 완료되었습니다.");
-        // 배정 후 리스트 갱신
-        fetchAdvisorList(selectedProfessor, 'professor');
-        // 폼 초기화
-        setSelectedStudent('');
+      if (res.data.success) {
+        setProfessors(prev =>
+          prev.map(p => p.professorId === prof.professorId ? { ...p, isDedicated: next } : p)
+        );
+      } else {
+        alert(res.data.message || '처리 중 오류가 발생했습니다.');
       }
-    } catch (error) {
-      alert(error.response?.data?.message || "배정 중 오류가 발생했습니다.");
+    } catch (e) {
+      alert(e.response?.data?.message || '처리 중 오류가 발생했습니다.');
     } finally {
-      setLoading(false);
+      setToggling(null);
     }
   };
 
-  // 3. 배정 내역 조회 (교수별 또는 학생별)
-  const fetchAdvisorList = async (id, type) => {
-    if(!id) { alert("조회할 ID를 입력해주세요."); return; }
-    try {
-      setLoading(true);
-      const url = type === 'professor' 
-        ? `/api/v1/advisors/professor/${id}` 
-        : `/api/v1/advisors/student/${id}`;
-      const response = await api.get(url);
-      if (response.data.success) {
-        setAssignments(Array.isArray(response.data.data) ? response.data.data : [response.data.data]);
-      }
-    } catch (error) {
-      setAssignments([]);
-      alert("조회된 결과가 없거나 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 4. 배정 해제 (DELETE /api/v1/advisors/{id})
-  const handleDelete = async (advisorId) => {
-    if (!window.confirm("정말 배정을 해제하시겠습니까?")) return;
-    try {
-      const response = await api.delete(`/api/v1/advisors/${advisorId}`);
-      if (response.data.success) {
-        setAssignments(assignments.filter(a => a.advisorId !== advisorId));
-        alert("해제되었습니다.");
-      }
-    } catch (error) {
-      alert("해제 실패");
-    }
-  };
+  const dedicatedCount = filtered.filter(p => p.isDedicated).length;
 
   return (
-    <div className="advisor-container">
+    <div style={{ fontFamily: "'DM Sans','Noto Sans KR',sans-serif", color: '#111827', padding: '1.75rem 2rem' }}>
       <style>{`
-        .advisor-container { animation: fadeIn 0.3s ease; width: 100%; padding: 30px; box-sizing: border-box; background: #f8fafc; min-height: 100vh; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .page-header { margin-bottom: 25px; }
-        .page-title { font-size: 1.6rem; font-weight: 800; color: #1e293b; }
-        
-        /* 수직 스택 레이아웃 */
-        .stack-layout { display: flex; flex-direction: column; gap: 25px; }
-        
-        .card { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        .card-title { font-size: 1.1rem; font-weight: 700; color: #334155; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
-        
-        /* 등록 폼 한 줄 배치 */
-        .assign-form-row { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
-        .form-group { flex: 1; min-width: 200px; margin-bottom: 0; }
-        .form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 8px; }
-        
-        .select-input, .date-input { 
-          width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 0.95rem; outline: none; transition: all 0.2s; background-color: #fcfcfc;
-        }
-        .select-input:focus, .date-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
-        
-        .btn-assign-submit { 
-          background: #2563eb; color: #fff; border: none; padding: 0 25px; height: 46px; border-radius: 10px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.2s;
-        }
-        .btn-assign-submit:hover { background: #1d4ed8; }
-        .btn-assign-submit:disabled { background: #94a3b8; cursor: not-allowed; }
-        
-        /* 조회 영역 스타일 */
-        .search-section { display: flex; gap: 10px; margin-bottom: 25px; background: #f1f5f9; padding: 20px; border-radius: 12px; align-items: center; }
-        .search-section input { flex: 1; padding: 12px 15px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; }
-        .btn-search { padding: 12px 20px; border-radius: 8px; border: none; font-weight: 700; cursor: pointer; font-size: 0.9rem; transition: 0.2s; }
-        .btn-search.prof { background: #334155; color: white; }
-        .btn-search.stu { background: #64748b; color: white; }
-        .btn-search:hover { opacity: 0.9; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .dp-wrap { animation: fadeUp 0.28s ease; }
+        .dp-header { margin-bottom: 1.5rem; }
+        .dp-title { font-size: 1.375rem; font-weight: 800; color: #0F172A; }
+        .dp-subtitle { font-size: 0.8125rem; color: #94A3B8; margin-top: 4px; }
 
-        /* 테이블 스타일 */
-        .data-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        .data-table th { background: #f8fafc; padding: 10px 0px; font-size: 0.9rem; font-weight: 600; color: #475569; text-align: left; border-bottom: 2px solid #e2e8f0; }
-        .data-table td { padding: 18px 20px; font-size: 0.95rem; color: #334155; border-bottom: 1px solid #f1f5f9; }
-        
-        .badge-stu { background: #eff6ff; color: #1e40af; padding: 4px 8px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; }
-        .badge-prof { background: #fdf2f8; color: #9d174d; padding: 4px 8px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; }
-        
-        .btn-delete { color: #ef4444; background: #fff1f2; border: 1px solid #fecdd3; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.6rem; font-weight: 600; transition: 0.2s; }
-        .btn-delete:hover { background: #fee2e2; }
+        .dp-filter-card { background: #fff; border-radius: 12px; border: 1px solid #F1F5F9; padding: 1rem 1.25rem; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        .dp-filter-label { font-size: 0.75rem; font-weight: 600; color: #94A3B8; white-space: nowrap; }
+        .dp-select { padding: 0.55rem 0.875rem; border: 1.5px solid #E5E7EB; border-radius: 8px; font-size: 0.875rem; font-family: inherit; color: #374151; background: #fff; cursor: pointer; outline: none; min-width: 220px; }
+        .dp-select:focus { border-color: #3B82F6; }
+
+        .dp-stat-row { display: flex; gap: 10px; margin-bottom: 1.25rem; }
+        .dp-stat { background: #fff; border: 1px solid #F1F5F9; border-radius: 10px; padding: 0.875rem 1.25rem; display: flex; align-items: center; gap: 10px; }
+        .dp-stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .dp-stat-label { font-size: 0.75rem; color: #64748B; font-weight: 500; }
+        .dp-stat-val { font-size: 1.25rem; font-weight: 700; color: #0F172A; margin-left: auto; padding-left: 1.5rem; }
+
+        .dp-card { background: #fff; border-radius: 12px; border: 1px solid #F1F5F9; overflow: hidden; }
+        .dp-card-header { padding: 0.9375rem 1.25rem; border-bottom: 1px solid #F1F5F9; display: flex; align-items: center; justify-content: space-between; }
+        .dp-card-title { font-size: 0.875rem; font-weight: 700; color: #0F172A; display: flex; align-items: center; gap: 8px; }
+        .dp-card-title::before { content:''; display:inline-block; width:3px; height:1rem; background:#3B82F6; border-radius:2px; }
+
+        .dp-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+        .dp-table th { padding: 0.65rem 1rem; background: #F9FAFB; color: #6B7280; font-weight: 600; text-align: left; border-bottom: 1px solid #F1F5F9; white-space: nowrap; font-size: 0.75rem; }
+        .dp-table th.center { text-align: center; }
+        .dp-table td { padding: 0.875rem 1rem; border-bottom: 1px solid #F9FAFB; vertical-align: middle; color: #374151; }
+        .dp-table td.center { text-align: center; }
+        .dp-table tr:last-child td { border-bottom: none; }
+        .dp-table tr:hover td { background: #FAFBFD; }
+
+        .dp-badge { display: inline-block; font-size: 0.6875rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+        .dp-badge-dedicated { background: #EFF6FF; color: #1D4ED8; }
+        .dp-badge-normal { background: #F3F4F6; color: #6B7280; }
+
+        /* 토글 스위치 */
+        .dp-toggle-wrap { display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .dp-toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+        .dp-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .dp-toggle-slider { position: absolute; inset: 0; border-radius: 999px; background: #E5E7EB; cursor: pointer; transition: background 0.2s; }
+        .dp-toggle-slider::after { content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: #fff; top: 3px; left: 3px; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+        .dp-toggle input:checked + .dp-toggle-slider { background: #3B82F6; }
+        .dp-toggle input:checked + .dp-toggle-slider::after { transform: translateX(20px); }
+        .dp-toggle input:disabled + .dp-toggle-slider { opacity: 0.5; cursor: not-allowed; }
+        .dp-toggle-label { font-size: 0.75rem; font-weight: 600; color: #6B7280; min-width: 36px; }
+        .dp-toggle-label.on { color: #1D4ED8; }
+
+        .dp-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #3B82F6, #1A3A5C); display: inline-flex; align-items: center; justify-content: center; font-size: 0.8125rem; font-weight: 700; color: #fff; flex-shrink: 0; margin-right: 10px; vertical-align: middle; }
+
+        .dp-empty { padding: 3.5rem; text-align: center; color: #CBD5E1; font-size: 0.8125rem; }
       `}</style>
 
-      <header className="page-header">
-        <h1 className="page-title">지도교수 배정 관리</h1>
-      </header>
-
-      <div className="stack-layout">
-        {/* 상단: 배정 등록 폼 (수평 구조) */}
-        <div className="card">
-          <h3 className="card-title">신규 배정 등록</h3>
-          <form onSubmit={handleAssign} className="assign-form-row">
-            <div className="form-group">
-              <label>교수 선택</label>
-              <select 
-                className="select-input"
-                value={selectedProfessor}
-                onChange={(e) => setSelectedProfessor(e.target.value)}
-              >
-                <option value="">교수를 선택하세요</option>
-                {professors.map(p => (
-                  <option key={p.professorId} value={p.professorId}>
-                    [{p.professorId}] {p.name} - {p.deptName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>학생 선택</label>
-              <select 
-                className="select-input"
-                value={selectedStudent}
-                onChange={(e) => setSelectedStudent(e.target.value)}
-              >
-                <option value="">학생을 선택하세요</option>
-                {students.map(s => (
-                  <option key={s.studentId} value={s.studentId}>
-                    [{s.studentId}] {s.korName} ({s.nationality})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>배정 일자</label>
-              <input 
-                type="date" 
-                className="date-input"
-                value={assignedDate}
-                onChange={(e) => setAssignedDate(e.target.value)}
-              />
-            </div>
-
-            <button type="submit" className="btn-assign-submit" disabled={loading}>
-              {loading ? "처리 중..." : "배정 실행"}
-            </button>
-          </form>
+      <div className="dp-wrap">
+        <div className="dp-header">
+          <div className="dp-title">전담교수 관리</div>
+          <div className="dp-subtitle">학과별 교수 목록에서 전담교수를 지정하거나 해제합니다.</div>
         </div>
 
-        {/* 하단: 배정 현황 리스트 (전체 너비 가로 확장) */}
-        <div className="card">
-          <h3 className="card-title">배정 현황 조회</h3>
-          
-          <div className="search-section">
-            <input 
-              type="text" 
-              placeholder="조회할 교수의 사번 또는 학생의 학번을 입력하세요" 
-              value={searchId}
-              onChange={(e) => setSearchId(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && fetchAdvisorList(searchId, 'professor')}
-            />
-            <button className="btn-search prof" onClick={() => fetchAdvisorList(searchId, 'professor')}>사번으로 조회</button>
-            <button className="btn-search stu" onClick={() => fetchAdvisorList(searchId, 'student')}>학번으로 조회</button>
+        {/* 학과 필터 */}
+        <div className="dp-filter-card">
+          <span className="dp-filter-label">학과 선택</span>
+          <select
+            className="dp-select"
+            value={selectedDeptId}
+            onChange={e => setSelectedDeptId(e.target.value)}
+          >
+            <option value="">전체 학과</option>
+            {depts.map(d => (
+              <option key={d.deptId} value={d.deptId}>{d.deptName}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 통계 */}
+        <div className="dp-stat-row">
+          <div className="dp-stat">
+            <div className="dp-stat-dot" style={{ background: '#3B82F6' }} />
+            <div className="dp-stat-label">전체 교수</div>
+            <div className="dp-stat-val">{filtered.length}<span style={{ fontSize: '0.75rem', color: '#94A3B8', marginLeft: 3 }}>명</span></div>
+          </div>
+          <div className="dp-stat">
+            <div className="dp-stat-dot" style={{ background: '#1D4ED8' }} />
+            <div className="dp-stat-label">전담교수 지정</div>
+            <div className="dp-stat-val" style={{ color: '#1D4ED8' }}>{dedicatedCount}<span style={{ fontSize: '0.75rem', color: '#94A3B8', marginLeft: 3 }}>명</span></div>
+          </div>
+          <div className="dp-stat">
+            <div className="dp-stat-dot" style={{ background: '#E5E7EB' }} />
+            <div className="dp-stat-label">미지정</div>
+            <div className="dp-stat-val" style={{ color: '#94A3B8' }}>{filtered.length - dedicatedCount}<span style={{ fontSize: '0.75rem', color: '#94A3B8', marginLeft: 3 }}>명</span></div>
+          </div>
+        </div>
+
+        {/* 교수 목록 테이블 */}
+        <div className="dp-card">
+          <div className="dp-card-header">
+            <div className="dp-card-title">교수 목록</div>
+            <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
+              {selectedDeptId ? depts.find(d => String(d.deptId) === String(selectedDeptId))?.deptName : '전체'} · {filtered.length}명
+            </span>
           </div>
 
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th style={{width: '25%'}}>학생 정보 (학번/이름)</th>
-                <th style={{width: '25%'}}>지도교수 정보 (사번/이름)</th>
-                <th style={{width: '20%'}}>배정일</th>
-                <th style={{width: '15%', textAlign: 'center'}}>상태</th>
-                <th style={{width: '15%', textAlign: 'center'}}>관리</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assignments.length === 0 ? (
+          {filtered.length === 0 ? (
+            <div className="dp-empty">해당 학과에 등록된 교수가 없습니다.</div>
+          ) : (
+            <table className="dp-table">
+              <thead>
                 <tr>
-                  <td colSpan="5" style={{textAlign: 'center', padding: '80px', color: '#94a3b8'}}>
-                    조회된 데이터가 없습니다. 사번 또는 학번을 입력하여 검색해주세요.
-                  </td>
+                  <th>교수 정보</th>
+                  <th>소속 학과</th>
+                  <th>이메일</th>
+                  <th className="center">전담교수 여부</th>
+                  <th className="center">전담교수 지정</th>
                 </tr>
-              ) : (
-                assignments.map((item) => (
-                  <tr key={item.advisorId}>
+              </thead>
+              <tbody>
+                {filtered.map(prof => (
+                  <tr key={prof.professorId}>
                     <td>
-                      <span className="badge-stu">{item.studentId}</span>
-                      <span style={{fontWeight: 700, marginLeft: '10px'}}>{item.studentName}</span>
+                      <span className="dp-avatar">{prof.name?.[0] ?? '?'}</span>
+                      <span style={{ fontWeight: 700, color: '#111827' }}>{prof.name}</span>
+                      <span style={{ fontSize: '0.75rem', color: '#9CA3AF', marginLeft: 6 }}>#{prof.professorId}</span>
                     </td>
-                    <td>
-                      <span className="badge-prof">{item.professorId}</span>
-                      <span style={{fontWeight: 700, marginLeft: '10px'}}>{item.professorName}</span>
+                    <td>{prof.deptName || '–'}</td>
+                    <td style={{ color: '#64748B' }}>{prof.email || '–'}</td>
+                    <td className="center">
+                      <span className={`dp-badge ${prof.isDedicated ? 'dp-badge-dedicated' : 'dp-badge-normal'}`}>
+                        {prof.isDedicated ? '전담교수' : '일반'}
+                      </span>
                     </td>
-                    <td>{item.assignedDate}</td>
-                    <td style={{textAlign: 'center'}}>
-                      <span style={{fontSize: '0.85rem', color: '#10b981', fontWeight: 600}}>연결됨</span>
-                    </td>
-                    <td style={{textAlign: 'center'}}>
-                      <button className="btn-delete" onClick={() => handleDelete(item.advisorId)}>배정 해제</button>
+                    <td className="center">
+                      <div className="dp-toggle-wrap">
+                        <label className="dp-toggle">
+                          <input
+                            type="checkbox"
+                            checked={!!prof.isDedicated}
+                            disabled={toggling === prof.professorId}
+                            onChange={() => handleToggle(prof)}
+                          />
+                          <span className="dp-toggle-slider" />
+                        </label>
+                        <span className={`dp-toggle-label ${prof.isDedicated ? 'on' : ''}`}>
+                          {toggling === prof.professorId ? '...' : prof.isDedicated ? 'ON' : 'OFF'}
+                        </span>
+                      </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
