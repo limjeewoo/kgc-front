@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 
 export default function StudentLayout() {
@@ -8,12 +8,12 @@ export default function StudentLayout() {
   const [isAcademyOpen, setIsAcademyOpen] = useState(true);
   const [isActivityOpen, setIsActivityOpen] = useState(true);
 
-  // 현재 정확한 경로 일치 확인
   const isActive = (path) => location.pathname === path;
-  // 하위 경로 포함 일치 확인 (예: /student/jobs/upload 등)
   const isSubActive = (path) => location.pathname.startsWith(path);
 
-  // 아코디언 메뉴 토글 시 브라우저 레이아웃 깨짐 방지용 헬퍼
+  const userName = localStorage.getItem('userName') || '학생';
+  const userId   = localStorage.getItem('userId')   || '';
+
   const toggleAcademy = (e) => {
     e.preventDefault();
     setIsAcademyOpen(p => !p);
@@ -24,7 +24,6 @@ export default function StudentLayout() {
     setIsActivityOpen(p => !p);
   };
 
-  // 내부 화살표 컴포넌트
   const SidebarArrow = ({ open }) => (
     <svg 
       className={`arrow-icon ${open ? 'open' : ''}`} 
@@ -60,12 +59,15 @@ export default function StudentLayout() {
         .sl-sub-ni { font-size:12px; color:rgba(255,255,255,.55); padding:6px 10px; cursor:pointer; border-radius:6px; transition:all .15s; display:flex; align-items:center; justify-content:space-between; user-select:none; }
         .sl-sub-ni:hover { background:rgba(255,255,255,.05); color:rgba(255,255,255,.9); }
         .sl-sub-ni.active { color:#60A5FA; font-weight:600; background:rgba(255,255,255,.03); }
+        .sl-sidebar-bottom { margin-top:auto; padding:0.75rem; border-top:1px solid rgba(255,255,255,0.08); }
+        .sl-user-info { display:flex; align-items:center; gap:0.625rem; padding:0.625rem; border-radius:0.5rem; }
+        .sl-user-avatar { width:2rem; height:2rem; border-radius:50%; background:#3B82F6; display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700; color:#fff; flex-shrink:0; }
+        .sl-user-name { font-size:0.8125rem; font-weight:600; color:#fff; }
+        .sl-user-role { font-size:0.6875rem; color:rgba(255,255,255,0.4); margin-top:0.125rem; }
         .sl-main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 100vh; overflow-x: hidden; }
       `}</style>
 
-      {/* ── 고정 왼쪽 사이드바 ── */}
       <div className="sl-sidebar">
-        {/* 로고 영역 */}
         <div className="sl-logo" onClick={() => navigate('/student/dashboard')}>
           <img 
             src="/logo-fff.png" 
@@ -76,7 +78,6 @@ export default function StudentLayout() {
           <div className="sl-logo-text">KGC <span>경민대학교 국제교육원</span></div>
         </div>
 
-        {/* 메인 허브 섹션 */}
         <div className="sl-sec">
           <div className="sl-lbl">메인</div>
           <div className={`sl-ni ${isActive('/student/dashboard') ? 'active' : ''}`} onClick={() => navigate('/student/dashboard')}>
@@ -87,11 +88,9 @@ export default function StudentLayout() {
           </div>
         </div>
 
-        {/* 업무 및 활동 관리 섹션 */}
         <div className="sl-sec">
           <div className="sl-lbl">메뉴</div>
 
-          {/* 대메뉴 1 - 학업 */}
           <div className="sl-ni" onClick={toggleAcademy}>
             학업 및 출결 관리 <SidebarArrow open={isAcademyOpen} />
           </div>
@@ -106,7 +105,6 @@ export default function StudentLayout() {
             </div>
           )}
 
-          {/* 대메뉴 2 - 취업 */}
           <div className="sl-ni" onClick={toggleActivity}>
             근로 및 마일리지 관리 <SidebarArrow open={isActivityOpen} />
           </div>
@@ -121,9 +119,19 @@ export default function StudentLayout() {
             </div>
           )}
         </div>
+
+        {/* ── 사이드바 하단 로그인 계정 ── */}
+        <div className="sl-sidebar-bottom">
+          <div className="sl-user-info">
+            <div className="sl-user-avatar">{userName.charAt(0)}</div>
+            <div>
+              <div className="sl-user-name">{userName}</div>
+              <div className="sl-user-role">STUDENT{userId ? ` · ${userId}` : ''}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ── 우측 가변 메인 컨텐츠 컴포넌트 출력 영역 ── */}
       <div className="sl-main-content">
         <Outlet />
       </div>
