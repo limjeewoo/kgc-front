@@ -1,15 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback } from 'react';
+import api from '../../../api/axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-// ── API 헬퍼 ──────────────────────────────────────────────
-const API_BASE = '/api/v1';
-
 async function apiFetch(path) {
-  const token = localStorage.getItem('accessToken');
-  const res = await axios.get(`${API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await api.get(path);
   return res.data?.data ?? res.data;
 }
 
@@ -20,10 +14,9 @@ function toArray(val) {
   return [];
 }
 
-// ── CSS ───────────────────────────────────────────────────
 const CSS = `
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-  .at-wrap { padding: 4px 22px 24px; } /* 👈 이 부분을 수정했습니다 */
+  .at-wrap { padding: 4px 22px 24px; }
   .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1.5rem; }
   .stat-card { padding:1.25rem; background:#fff; border-radius:12px; border:1px solid #E2E8F0; }
   .stat-lbl  { font-size:.8125rem; color:#64748B; font-weight:600; margin-bottom:.5rem; }
@@ -60,7 +53,6 @@ const CSS = `
   .err-banner { padding:1rem; background:#FEF2F2; border:1px solid #FECACA; border-radius:12px; color:#DC2626; display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; font-size:.875rem; }
 `;
 
-// ── 하위 컴포넌트 ──────────────────────────────────────────
 function Skeleton({ h = '1rem', w = '100%' }) {
   return <div style={{ height:h, width:w, background:'#E2E8F0', borderRadius:'6px', animation:'pulse 1.5s infinite', marginTop:'2px' }} />;
 }
@@ -117,52 +109,46 @@ function AttendProgress({ total, absent, late, dangerCount, warningCount }) {
   );
 }
 
-// ── 메인 컴포넌트 ───────────────────────────────────────────
 export default function MyAttendance() {
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState(null);
-  const [studentId,    setStudentId]    = useState(null);
-  const [semesters,    setSemesters]    = useState([]);
-  const [selSem,       setSelSem]       = useState('');
-  const [allEnrollments, setAllEnrollments] = useState([]);
-  const [enrollments,  setEnrollments]  = useState([]);
-  const [attendMap,    setAttendMap]    = useState({});
-  
-  const [dangerCount]  = useState(4);
-  const [warningCount] = useState(2);
-  const [totalWeeks,   setTotalWeeks]   = useState(15);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [studentId, setStudentId] = useState(null);
+  const [semesters, setSemesters] = useState([]);
+  const [selSem, setSelSem] = useState('');
+  const [summary, setSummary] = useState(null);
+  const [courses, setCourses] = useState([]);
 
   async function init() {
     setLoading(true);
     setError(null);
     try {
-      const me = await apiFetch('/auth/me');
+      const me = await apiFetch('/api/v1/auth/me');
       const sid = me?.userId ?? me?.studentId ?? (typeof me === 'string' || typeof me === 'number' ? String(me) : null);
+
       if (!sid) throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
       setStudentId(sid);
 
-      let fetchedSemesters = [];
-      try {
-        const semData = await apiFetch('/semesters');
-        fetchedSemesters = toArray(semData).sort((a, b) => b.semesterId - a.semesterId);
-        setSemesters(fetchedSemesters);
-      } catch (e) {
-        console.warn('학기 목록을 불러오지 못했습니다.', e);
+      const [semRes, curRes, summaryRes] = await Promise.allSettled([
+        apiFetch('/api/v1/semesters'),
+        apiFetch('/api/v1/semesters/current'),
+        apiFetch(`/api/v1/students/${sid}/academic-summary`)
+      ]);
+
+      if (summaryRes.status === 'fulfilled' && summaryRes.value) {
+        setSummary(summaryRes.value);
       }
 
-      const enrollData = await apiFetch(`/students/${sid}/enrollments`);
-      const list = toArray(enrollData);
-      setAllEnrollments(list);
+      const semList = semRes.status === 'fulfilled' ? toArray(semRes.value) : [];
+      const sorted  = [...semList].sort((a, b) => b.semesterId - a.semesterId);
+      setSemesters(sorted);
 
-      if (fetchedSemesters.length > 0) {
-        setSelSem(String(fetchedSemesters[0].semesterId));
-      } else if (list.length > 0) {
-        const fallbackSemId = list[0].semesterId ?? list[0].semester?.semesterId;
-        if (fallbackSemId) setSelSem(String(fallbackSemId));
-      } else {
-        setLoading(false);
+      let defaultId = sorted[0]?.semesterId ?? '';
+      if (curRes.status === 'fulfilled' && curRes.value?.semesterId) {
+        defaultId = curRes.value.semesterId;
       }
+      setSelSem(String(defaultId));
     } catch (err) {
+      console.error(err);
       setError(err.message || '데이터를 불러오지 못했습니다.');
       setLoading(false);
     }
@@ -170,57 +156,31 @@ export default function MyAttendance() {
 
   useEffect(() => { init(); }, []);
 
-  useEffect(() => {
-    if (!selSem && allEnrollments.length === 0) return;
-
-    const curSemObj = semesters.find(s => String(s.semesterId) === selSem);
-    setTotalWeeks(curSemObj?.totalWeeks ?? 15);
-
-    const currentList = selSem 
-      ? allEnrollments.filter(e => String(e.semesterId ?? e.semester?.semesterId) === selSem)
-      : allEnrollments;
-      
-    setEnrollments(currentList);
-
-    if (currentList.length === 0) {
+  const fetchAttendance = useCallback(async () => {
+    if (!studentId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const query = selSem ? `?semesterId=${selSem}` : '';
+      const data  = await apiFetch(`/api/v1/students/${studentId}/attendance${query}`);
+      setCourses(toArray(data));
+    } catch (err) {
+      console.error(err);
+      setError('출석 정보를 불러오지 못했습니다.');
+    } finally {
       setLoading(false);
-      return;
     }
+  }, [studentId, selSem]);
 
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const results = await Promise.allSettled(
-          currentList.map(e => apiFetch(`/enrollments/${e.enrollId}/attendances`))
-        );
-        
-        const map = {};
-        currentList.forEach((e, i) => {
-          map[e.enrollId] = results[i].status === 'fulfilled' ? toArray(results[i].value) : [];
-        });
-        setAttendMap(map);
-      } catch {
-        setError('출결 정보를 불러오지 못했습니다.');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [selSem, allEnrollments, semesters]);
+  useEffect(() => {
+    fetchAttendance();
+  }, [fetchAttendance]);
 
-  const dangerCourses  = enrollments.filter(e => (attendMap[e.enrollId] ?? []).filter(a => a.status === 2).length >= dangerCount).length;
-  const warningCourses = enrollments.filter(e => {
-    const absent = (attendMap[e.enrollId] ?? []).filter(a => a.status === 2).length;
-    return absent >= warningCount && absent < dangerCount;
-  }).length;
-
-  const LEGEND = [
-    { cls:'wc-present',  label:'출석' },
-    { cls:'wc-late',     label:'지각' },
-    { cls:'wc-absent',   label:'결석' },
-    { cls:'wc-official', label:'공결' },
-    { cls:'wc-future',   label:'미진행' },
-  ];
+  const totalAbsent = courses.reduce((s, c) => s + (c.absentCount ?? 0), 0);
+  const totalLate   = courses.reduce((s, c) => s + (c.lateCount ?? 0), 0);
+  const totalItems  = courses.reduce((s, c) => s + (c.totalHours ?? 0), 0);
+  const totalPresent = totalItems - totalAbsent - totalLate;
+  const overallRate = totalItems ? Math.round((totalPresent / totalItems) * 100) : 100;
 
   return (
     <>

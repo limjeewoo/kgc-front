@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../../api/axios'; // 🚀 공통 API 인스턴스 하나로 통일!
 import TopBar from '../../../components/layout/TopBar.jsx';
 
 const api = axios.create({
