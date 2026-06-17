@@ -463,9 +463,9 @@ export default function AdminDashboard() {
             {activeMenu === '과목 관리'                && <CourseList key={courseListRefreshKey} />}
             {activeMenu === '학과 관리'                && <DeptManagement />}
             {activeMenu === '마일리지 조회'            && <MileageManage />}
-            {activeMenu === '전담교수 관리'            && <AdvisorAssign />}
+            {activeMenu === '전체 교수 목록'           && <ProfessorList />}
             {activeMenu === '교수 등록'                && <ProfessorRegister />}
-            {activeMenu === '전담 교수 배정 관리'  && <AdvisorAssign />}
+            {activeMenu === '전담교수 관리'            && <AdvisorAssign />}
             {activeMenu === '학과/학기 관리'           && <SemesterManagement />}
             {activeMenu === '학생 근로'                && <JobPending />}
             {activeMenu === '학생 근로 현황'           && <JobTab />}
