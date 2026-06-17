@@ -11,16 +11,27 @@ const STATUS_MAP = {
   4: { label: '공', class: 'wc-pub' }
 };
 
+// API 값을 숫자/null로 정규화
+const normalizeStatus = (val) => {
+  if (val === null || val === undefined || val === '') return null;
+  const n = Number(val);
+  return isNaN(n) ? null : n;
+};
+
+// STATUS_MAP 안전 조회
+const getMapping = (val) => {
+  const key = val === null || val === undefined ? 'null' : val;
+  return STATUS_MAP[key] || STATUS_MAP['null'];
+};
+
 export default function AttendanceInput() {
   const navigate = useNavigate();
   
   const [courses, setCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [studentsData, setStudentsData] = useState([]);
-  
   const [originalStudentsData, setOriginalStudentsData] = useState([]);
-  const [modifiedCells, setModifiedCells] = useState(new Set()); 
-
+  const [modifiedCells, setModifiedCells] = useState(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -28,7 +39,6 @@ export default function AttendanceInput() {
     const fetchInitialData = async () => {
       try {
         const courseRes = await api.get('/api/v1/courses?semesterId=2026-1');
-        
         if (courseRes.data?.success && courseRes.data.data) {
           setCourses(courseRes.data.data);
           if (courseRes.data.data.length > 0) {
@@ -39,22 +49,26 @@ export default function AttendanceInput() {
         console.error("초기 데이터 로드 실패:", error);
       }
     };
-
     fetchInitialData();
   }, [navigate]);
 
   useEffect(() => {
     if (!selectedCourseId) return;
-    
+
     const fetchAttendance = async () => {
       try {
         setIsLoading(true);
         setModifiedCells(new Set());
-        
+
         const res = await api.get(`/api/v1/courses/${selectedCourseId}/attendances`);
         if (res.data?.success && res.data.data) {
-          setStudentsData(res.data.data);
-          setOriginalStudentsData(JSON.parse(JSON.stringify(res.data.data)));
+          // attend 배열의 각 값을 숫자/null로 정규화
+          const normalized = res.data.data.map(student => ({
+            ...student,
+            attend: (student.attend || []).map(normalizeStatus),
+          }));
+          setStudentsData(normalized);
+          setOriginalStudentsData(JSON.parse(JSON.stringify(normalized)));
         } else {
           setStudentsData([]);
           setOriginalStudentsData([]);
@@ -75,14 +89,13 @@ export default function AttendanceInput() {
     setStudentsData(prev => prev.map(student => {
       if (student.studentId === studentId) {
         const newAttend = [...student.attend];
-        const current = newAttend[weekIndex];
-        const next = current === null ? 1 : current === 4 ? null : current + 1;
+        const current = normalizeStatus(newAttend[weekIndex]);
+        const next = current === null ? 1 : current >= 4 ? null : current + 1;
         newAttend[weekIndex] = next;
-        
-        const cellKey = `${studentId}_${weekIndex}`;
+
         setModifiedCells(prevSet => {
           const newSet = new Set(prevSet);
-          newSet.add(cellKey);
+          newSet.add(`${studentId}_${weekIndex}`);
           return newSet;
         });
 
@@ -94,10 +107,8 @@ export default function AttendanceInput() {
 
   const handleSave = async () => {
     if (modifiedCells.size === 0) return;
-
     try {
       setIsSaving(true);
-      
       const savePromises = [];
 
       studentsData.forEach(student => {
@@ -106,8 +117,7 @@ export default function AttendanceInput() {
 
         student.attend.forEach((currentStatus, weekIdx) => {
           if (currentStatus !== originalStudent.attend[weekIdx]) {
-            const attendId = student.attendIds ? student.attendIds[weekIdx] : null; 
-
+            const attendId = student.attendIds ? student.attendIds[weekIdx] : null;
             if (attendId) {
               savePromises.push(
                 api.patch(`/api/v1/attendances/${attendId}`, { status: currentStatus })
@@ -118,7 +128,6 @@ export default function AttendanceInput() {
       });
 
       await Promise.all(savePromises);
-      
       alert('출결 변경 사항이 성공적으로 반영되었습니다.');
       setModifiedCells(new Set());
       setOriginalStudentsData(JSON.parse(JSON.stringify(studentsData)));
@@ -135,7 +144,6 @@ export default function AttendanceInput() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
         @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        
         .ai-body { padding: 2rem; flex: 1; overflow-y: auto; animation: fadeUp 0.3s ease; font-family:'DM Sans','Noto Sans KR',sans-serif; }
         .ai-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.5rem; }
         .ai-title { font-size: 1.5rem; font-weight: 700; color: #111827; margin-bottom: 0.5rem; }
@@ -169,9 +177,8 @@ export default function AttendanceInput() {
         .wc-none { background: #F3F4F6; color: #D1D5DB; border-color: #E5E7EB; }
       `}</style>
 
-      {/* TopBar 컴포넌트 유지 */}
       <TopBar title="출결 관리" />
-      
+
       <div className="ai-body">
         <div className="ai-header">
           <div>
@@ -179,16 +186,15 @@ export default function AttendanceInput() {
             <p className="ai-desc">학기별 개설 교과목을 선택하고 출결 상태를 클릭하여 수정하세요.</p>
           </div>
           <div className="ai-controls">
-            {/* 명세서의 GET /api/v1/courses 데이터 바인딩 */}
             <select className="ai-select" value={selectedCourseId} onChange={(e) => setSelectedCourseId(e.target.value)}>
               {courses.length === 0 && <option value="">개설된 과목 데이터를 불러올 수 없습니다</option>}
               {courses.map(course => (
                 <option key={course.courseId} value={course.courseId}>{course.courseName} ({course.courseId})</option>
               ))}
             </select>
-            <button 
-              className={`ai-btn-save ${modifiedCells.size > 0 ? 'active' : 'disabled'}`} 
-              onClick={handleSave} 
+            <button
+              className={`ai-btn-save ${modifiedCells.size > 0 ? 'active' : 'disabled'}`}
+              onClick={handleSave}
               disabled={modifiedCells.size === 0 || isSaving}
             >
               {isSaving ? '저장 중...' : '변경사항 저장'}
@@ -225,13 +231,13 @@ export default function AttendanceInput() {
                         <div className="student-name">{student.studentName}</div>
                         <div className="student-id">{student.department || '학과 정보 없음'} · {student.studentId}</div>
                       </td>
-                      {student.attend.map((statusValue, weekIdx) => {
-                        const mapping = STATUS_MAP[statusValue] || STATUS_MAP.null;
+                      {(student.attend || []).map((statusValue, weekIdx) => {
+                        const mapping = getMapping(statusValue);
                         const isModified = modifiedCells.has(`${student.studentId}_${weekIdx}`);
                         return (
                           <td key={weekIdx}>
-                            <div 
-                              className={`click-cell ${mapping.class} ${isModified ? 'modified' : ''}`} 
+                            <div
+                              className={`click-cell ${mapping.class} ${isModified ? 'modified' : ''}`}
                               onClick={() => toggleAttendance(student.studentId, weekIdx)}
                             >
                               {mapping.label}
