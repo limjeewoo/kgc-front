@@ -2,24 +2,6 @@ import React, { useState, useEffect } from 'react';
 import api from '../../../api/axios'; // 🚀 전역 공통 API 인스턴스 하나로 통일
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-const api = axios.create({
-  baseURL: '/api/v1',
-  headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      const backupToken = localStorage.getItem('token');
-      if (backupToken) config.headers.Authorization = `Bearer ${backupToken}`;
-    } else {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
 
 const GLOBAL_MILEAGE_CSS = `
   .sw-content { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; animation: mileageFadeUp 0.28s ease; }

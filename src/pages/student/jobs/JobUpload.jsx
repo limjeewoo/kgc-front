@@ -3,24 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../../api/axios'; // 🚀 공통 API 인스턴스 하나로 통일!
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-const api = axios.create({
-  baseURL: '/api/v1',
-  headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      const backupToken = localStorage.getItem('token');
-      if (backupToken) config.headers.Authorization = `Bearer ${backupToken}`;
-    } else {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
 
 const GLOBAL_STYLE_CSS = `
   .sw-content { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; animation: uploadFadeUp 0.28s ease; }

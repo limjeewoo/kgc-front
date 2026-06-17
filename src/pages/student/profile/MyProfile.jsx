@@ -4,16 +4,6 @@ import TopBar from '../../../components/layout/TopBar.jsx';
 
 const SERVER_URL = api.defaults.baseURL?.replace(/\/api\/v1\/?$/, '') || '';
 
-const api = axios.create({
-  baseURL: '/api/v1',
-  headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
 
 const GLOBAL_PROFILE_CSS = `
   .sw-content { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; }

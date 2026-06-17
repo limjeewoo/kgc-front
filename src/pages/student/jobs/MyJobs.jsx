@@ -3,22 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../../api/axios'; // 🚀 전역 공통 API 인스턴스 임포트
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-// 1. 공통 Axios 인스턴스 설정 (토큰 자동 주입)
-const api = axios.create({
-  baseURL: '/api/v1',
-  headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken'); 
-  if (!token) {
-    const backupToken = localStorage.getItem('token');
-    if (backupToken) config.headers.Authorization = `Bearer ${backupToken}`;
-  } else {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 // 2. 전역 CSS 스타일
 const GLOBAL_STYLE_CSS = `
