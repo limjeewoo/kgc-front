@@ -1,13 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-const BASE_URL = 'http://localhost:8080';
+import api from '../../../api/axios';
 
 export default function SearchByDept({ onBack }) {
   const navigate = useNavigate();
-  const accessToken = localStorage.getItem('accessToken');
-
   const [depts, setDepts] = useState([]);
   const [nationalities, setNationalities] = useState([]);
   const [students, setStudents] = useState([]);
@@ -20,11 +16,6 @@ export default function SearchByDept({ onBack }) {
     deptId: '', studentId: '', name: '', gender: '', nationality: '', grade: '', classSec: '',
   });
 
-  const api = axios.create({
-    baseURL: BASE_URL,
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
   const fetchStudents = useCallback(async (currentFilters) => {
     setIsLoading(true);
     setSelected(new Set());
@@ -35,6 +26,7 @@ export default function SearchByDept({ onBack }) {
           params[key] = String(val).trim();
         }
       });
+      // 🚀 2. 주소 앞부분을 지우고 공통 인스턴스(api.get)로 호출
       const res = await api.get('/api/v1/search/dept', { params });
       if (res.data.success) setStudents(res.data.data || []);
     } catch (err) {
@@ -43,11 +35,12 @@ export default function SearchByDept({ onBack }) {
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken]);
+  }, []); // 💡 accessToken 의존성도 필요 없어졌습니다.
 
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
+        // 🚀 3. 초기 로드 주소들도 앞부분 하드코딩 제거
         const [deptRes, natRes] = await Promise.allSettled([
           api.get('/api/v1/depts'),
           api.get('/api/v1/nationalities'),
@@ -79,6 +72,7 @@ export default function SearchByDept({ onBack }) {
     if (!notifyMsg.trim()) return alert('메시지를 입력해주세요.');
     try {
       const targetIds = selected.size > 0 ? [...selected] : students.map(s => s.studentId);
+      // 🚀 4. 알림 전송 주소도 앞부분 하드코딩 제거 및 공통 인스턴스(api.post) 사용
       await api.post('/api/v1/notifications', {
         studentIds: targetIds, message: notifyMsg, type: 'ADMIN_NOTICE',
       });

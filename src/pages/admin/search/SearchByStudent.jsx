@@ -1,16 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: 'http://localhost:8080',
-  headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+import api from '../../../api/axios';
 
 const APPROVAL_STATUS_LABEL = {
   PENDING:  { label: '대기중',  bg: '#FFFBEB', color: '#D97706' },
@@ -42,7 +31,6 @@ export default function SearchByStudent() {
     try {
       const res = await api.get(`/api/v1/search/student/${query.trim()}`);
       if (res.data.success) {
-        console.log("🔍 백엔드 응답 학생 데이터:", res.data.data);
         setResult(res.data.data);
       } else {
         setResult(null);

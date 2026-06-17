@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../../api/axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-const BASE_URL = 'http://localhost:8080';
-
-// 📌 명세서 기준 매핑: 1=출석, 2=결석, 3=지각, 4=공결
 const STATUS_MAP = {
   null: { label: '-', class: 'wc-none' },
   1: { label: '출', class: 'wc-ok' },
@@ -17,38 +14,22 @@ const STATUS_MAP = {
 export default function AttendanceInput() {
   const navigate = useNavigate();
   
-  // 상태 관리
   const [courses, setCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [studentsData, setStudentsData] = useState([]);
   
-  // 📌 단건 PATCH 수정을 위해 원본 데이터를 보관하고 변경된 내역을 추적할 세트
   const [originalStudentsData, setOriginalStudentsData] = useState([]);
   const [modifiedCells, setModifiedCells] = useState(new Set()); 
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const token = localStorage.getItem('accessToken');
-
-  const api = axios.create({
-    baseURL: BASE_URL,
-    headers: { Authorization: `Bearer ${token}` }
-  });
-
-  // 1. 초기 로드 시 학기별 과목 전체 조회 (명세서: GET /api/v1/courses?semesterId=)
   useEffect(() => {
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
     const fetchInitialData = async () => {
       try {
-        // SQL 스크립트에 기재된 2026-1 학기 파라미터 동적 매핑
         const courseRes = await api.get('/api/v1/courses?semesterId=2026-1');
         
-        if (courseRes.data && courseRes.data.success && courseRes.data.data) {
+        if (courseRes.data?.success && courseRes.data.data) {
           setCourses(courseRes.data.data);
           if (courseRes.data.data.length > 0) {
             setSelectedCourseId(courseRes.data.data[0].courseId);
@@ -60,21 +41,19 @@ export default function AttendanceInput() {
     };
 
     fetchInitialData();
-  }, [token, navigate]);
+  }, [navigate]);
 
-  // 2. 과목 선택 시 과목별 전체 출결 조회 (명세서: GET /api/v1/courses/{courseId}/attendances)
   useEffect(() => {
     if (!selectedCourseId) return;
     
     const fetchAttendance = async () => {
       try {
         setIsLoading(true);
-        setModifiedCells(new Set()); // 과목 변경 시 변경 사항 초기화
+        setModifiedCells(new Set());
         
         const res = await api.get(`/api/v1/courses/${selectedCourseId}/attendances`);
-        if (res.data && res.data.success && res.data.data) {
+        if (res.data?.success && res.data.data) {
           setStudentsData(res.data.data);
-          // 원본 데이터를 깊은 복사(Deep Copy)하여 백업 보관
           setOriginalStudentsData(JSON.parse(JSON.stringify(res.data.data)));
         } else {
           setStudentsData([]);
@@ -92,17 +71,14 @@ export default function AttendanceInput() {
     fetchAttendance();
   }, [selectedCourseId]);
 
-  // 3. 셀 클릭 시 상태 순환 토글 및 변경 내역 추적
   const toggleAttendance = (studentId, weekIndex) => {
     setStudentsData(prev => prev.map(student => {
       if (student.studentId === studentId) {
         const newAttend = [...student.attend];
         const current = newAttend[weekIndex];
-        // null -> 1(출석) -> 2(결석) -> 3(지각) -> 4(공결) -> null 순환
         const next = current === null ? 1 : current === 4 ? null : current + 1;
         newAttend[weekIndex] = next;
         
-        // 변경된 셀의 고유 식별 키 생성 (학생ID_주차인덱스)
         const cellKey = `${studentId}_${weekIndex}`;
         setModifiedCells(prevSet => {
           const newSet = new Set(prevSet);
@@ -116,14 +92,12 @@ export default function AttendanceInput() {
     }));
   };
 
-  // 4. 변경된 내역만 필터링하여 단건 PATCH 호출 (명세서: PATCH /api/v1/attendances/{attendId})
   const handleSave = async () => {
     if (modifiedCells.size === 0) return;
 
     try {
       setIsSaving(true);
       
-      // 변경 사항이 생긴 학생과 주차만 골라내어 개별 전송 프로세스 빌드
       const savePromises = [];
 
       studentsData.forEach(student => {
@@ -131,10 +105,7 @@ export default function AttendanceInput() {
         if (!originalStudent) return;
 
         student.attend.forEach((currentStatus, weekIdx) => {
-          // 상태가 실제로 변경되었는지 교차 검증
           if (currentStatus !== originalStudent.attend[weekIdx]) {
-            // 백엔드가 제공하는 해당 주차 출결 데이터 고유의 ID(attendId)가 student 객체 내부에 포함되어 있어야 합니다.
-            // 보통 응답 객체 배열 구조 내에 매핑된 attendId를 할당하여 전달합니다.
             const attendId = student.attendIds ? student.attendIds[weekIdx] : null; 
 
             if (attendId) {
@@ -146,16 +117,14 @@ export default function AttendanceInput() {
         });
       });
 
-      // 백엔드가 비동기 배열 일괄 요청을 완전히 소화할 때까지 대기
       await Promise.all(savePromises);
       
-      alert('출결 변경 사항이 성공적으로 백엔드에 반영되었습니다.');
+      alert('출결 변경 사항이 성공적으로 반영되었습니다.');
       setModifiedCells(new Set());
-      // 현재 데이터를 새로운 원본 데이터 스냅샷으로 갱신
       setOriginalStudentsData(JSON.parse(JSON.stringify(studentsData)));
     } catch (error) {
       console.error("출결 데이터 수정 실패:", error);
-      alert('일부 출결 데이터를 수정하는 중에 오류가 발생했습니다.');
+      alert('데이터 수정 중 오류가 발생했습니다.');
     } finally {
       setIsSaving(false);
     }

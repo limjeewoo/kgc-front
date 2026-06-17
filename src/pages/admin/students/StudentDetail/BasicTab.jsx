@@ -3,8 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../../../api/axios';
 import VisaRegisterModal from './VisaRegisterModal';
 
-const SERVER_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/v1\/?$/, '') : 'http://localhost:8080';
-
 export default function BasicTab({ readOnly = false, onTabChange, studentId: studentIdProp }) {
   const params = useParams();
   const navigate = useNavigate();
@@ -36,7 +34,7 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
       return url;
     }
-    return `${SERVER_URL}${url}`;
+    return url; 
   };
 
   const fetchCurrentVisa = async () => {
@@ -118,7 +116,6 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
       }
 
       if (!id || id === 'undefined') {
-        console.warn('유효하지 않은 학생 ID:', params);
         setIsLoading(false);
         return;
       }
@@ -136,14 +133,12 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
 
         let fetchedTopikLevel = '-';
         if (topikRes && topikRes.data?.success && topikRes.data.data?.length > 0) {
-          // 가장 최신 이력 혹은 첫 번째 항목을 기준 데이터로 바인딩합니다.
           fetchedTopikLevel = topikRes.data.data[0].topikLevel || '-';
         }
 
         let fetchedMaxWorkHours = '-';
         if (workHoursRes && workHoursRes.data?.success) {
           const whData = workHoursRes.data.data;
-          // API 응답 형태가 단일 필드값 또는 객체일 경우를 모두 유연하게 방어 처리합니다.
           const hours = typeof whData === 'object' && whData !== null ? (whData.maxWorkHours ?? whData.workHours) : whData;
           fetchedMaxWorkHours = hours !== undefined && hours !== null ? `${hours}시간` : '-';
         }
@@ -221,7 +216,6 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         setStudent(p => ({ ...p, photoUrl: originalStudent.photoUrl }));
       }
     } catch (error) {
-      console.error("사진 업로드 에러 상세 데이터:", error.response || error);
       const serverMessage = error.response?.data?.message || error.response?.data?.error;
       alert(serverMessage || '사진 업로드 중 오류가 발생했습니다.');
       setStudent(p => ({ ...p, photoUrl: originalStudent.photoUrl }));

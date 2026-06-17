@@ -1,20 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-const BASE_URL = 'http://localhost:8080';
-
-const api = axios.create({
-  baseURL: BASE_URL,
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import api from '../../../../api/axios'; // 🚀 공통 API 인스턴스 가져오기
 
 export default function VisaTab() {
   const { studentId } = useParams();
@@ -88,7 +74,6 @@ export default function VisaTab() {
     : { chipClass: 'vt-chip-blue', barColor: '#E5E7EB', label: '정보 없음', textColor: '#6B7280' };
     
   const progress = currentVisa ? Math.max(0, Math.min(100, (currentVisa.dDay / 365) * 100)) : 0;
-
   return (
     <div style={{ fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", fontSize: '14px', color: '#111827', padding: '0 22px' }}>
       <style>{`
