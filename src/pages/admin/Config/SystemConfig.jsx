@@ -105,9 +105,9 @@ function RolePermissionManagement() {
       </div>
 
       <div className="tab-bar">
-        {['조교', '교수', 'SETTING'].map(tab => (
+        {['STAFF', 'PROFESSOR', 'SETTING'].map(tab => (
           <button key={tab} className={`tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
-            {tab === 'SETTING' ? '알림 설정' : tab}
+            {tab === 'STAFF' ? '조교' : tab === 'PROFESSOR' ? '교수' : '알림 설정'}
           </button>
         ))}
       </div>
