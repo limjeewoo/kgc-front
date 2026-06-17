@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../../api/axios';
 import MileageTab from '../students/StudentDetail/MileageTab'; 
 
 export default function MileageManage() {
@@ -16,14 +16,6 @@ export default function MileageManage() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [detailsStudent, setDetailsStudent] = useState(null);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-    };
-  };
-
   const getStudentMileage = (student) => {
     return student.mileage !== undefined ? student.mileage : (student.totalMileage || 0);
   };
@@ -31,9 +23,7 @@ export default function MileageManage() {
   const initFetch = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/v1/students', {
-        headers: getAuthHeaders()
-      });
+      const response = await api.get('/api/v1/students');
       
       const resData = response.data?.data ?? response.data;
       const isSuccess = response.data?.success;
@@ -71,7 +61,6 @@ export default function MileageManage() {
     setIsDetailsModalOpen(true);
   };
 
-  // 관리자/조교 마일리지 수동 추가/차감 처리 API
   const handleAdjustPoints = async (e) => {
     e.preventDefault();
     if (!points || isNaN(points)) {
@@ -93,13 +82,7 @@ export default function MileageManage() {
         reason: reason.trim()
       };
 
-      const targetUrl = `/api/v1/students/${targetStudentId}/mileage`;
-
-      const response = await axios.post(
-        targetUrl, 
-        requestBody,
-        { headers: getAuthHeaders() }
-      );
+      const response = await api.post(`/api/v1/students/${targetStudentId}/mileage`, requestBody);
 
       if (response.data && response.data.success === false) {
         throw new Error(response.data.message || "서버 유효성 검증 실패");
