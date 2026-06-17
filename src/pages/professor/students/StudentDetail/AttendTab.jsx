@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../../../../api/axios';
 
 const LABELS = { ok: '출', abs: '결', late: '지', pub: '공', none: '-' };
+
 const getStatusKey = (code) => {
   if (code === 1) return 'ok';
   if (code === 2) return 'abs';
@@ -18,81 +19,86 @@ export default function AttendTab({ studentId: propsStudentId }) {
   const [attendData, setAttendData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchAttendanceData = async () => {
-      try {
-        setIsLoading(true);
+  const fetchAttendanceData = useCallback(async () => {
+    if (!studentId) return;
+    try {
+      setIsLoading(true);
 
-        const enrollRes = await api.get(`/api/v1/students/${studentId}/enrollments`);
-        const enrollments = enrollRes.data.success ? enrollRes.data.data : [];
+      const enrollRes = await api.get(`/api/v1/students/${studentId}/enrollments`);
+      const enrollments = enrollRes.data?.success ? enrollRes.data.data : [];
 
-        const courseAttendances = await Promise.all(
-          enrollments.map(async (enroll) => {
-            try {
-              const attRes = await api.get(`/api/v1/enrollments/${enroll.enrollId}/attendances`);
-              if (attRes.data.success) {
-                const attData = attRes.data.data;
-                const attendArray = Array(15).fill(null); 
-                
-                (attData.attendances || []).forEach(att => {
-                  attendArray[att.weekNo - 1] = att.status;
-                });
+      const courseAttendances = await Promise.all(
+        enrollments.map(async (enroll) => {
+          let attendArray = Array(15).fill(0);
+          let totalAttend = 0, totalAbsent = 0, totalLate = 0;
 
-                return {
-                  id: enroll.enrollId,
-                  name: enroll.courseName,
-                  code: enroll.courseId,
-                  attend: attendArray,
-                  totalAbsent: attData.totalAbsent || 0,
-                  totalAttend: attData.totalAttend || 0,
-                  totalLate: attData.totalLate || 0
-                };
-              }
-            } catch (err) {
-              console.warn(`[${enroll.courseId}] 출결 로드 실패`, err);
-            }
+          try {
+            const attRes = await api.get(`/api/v1/enrollments/${enroll.enrollId}/attendances`);
             
-            return {
-              id: enroll.enrollId,
-              name: enroll.courseName,
-              code: enroll.courseId,
-              attend: Array(15).fill(null),
-              totalAbsent: 0, totalAttend: 0, totalLate: 0
-            };
-          })
-        );
+            if (attRes.data?.success) {
+              const attList = Array.isArray(attRes.data.data) 
+                ? attRes.data.data 
+                : (attRes.data.data?.attendances || []);
+                
+              attList.forEach(att => {
+                const weekIdx = (att.weekNo || 1) - 1;
+                const status = att.status || 0;
+                
+                if (weekIdx >= 0 && weekIdx < 15) {
+                  attendArray[weekIdx] = status;
+                }
 
-        let sumAttend = 0;
-        let sumAbsent = 0;
-        let sumLate = 0;
-        courseAttendances.forEach(c => {
-          sumAttend += c.totalAttend;
-          sumAbsent += c.totalAbsent;
-          sumLate += c.totalLate;
-        });
+                if (status === 1 || status === 4) totalAttend++;
+                else if (status === 2) totalAbsent++;
+                else if (status === 3) totalLate++;
+              });
+            }
+          } catch (err) {
+            console.warn(`[${enroll.courseId}] 출결 로드 실패`, err);
+          }
+          
+          return {
+            id: enroll.enrollId,
+            name: enroll.courseName,
+            code: enroll.courseId,
+            attend: attendArray,
+            totalAbsent,
+            totalAttend,
+            totalLate
+          };
+        })
+      );
 
-        const totalHours = sumAttend + sumAbsent + sumLate;
-        const currentRate = totalHours > 0 ? Math.round((sumAttend / totalHours) * 100) : 0;
+      let sumAttend = 0, sumAbsent = 0, sumLate = 0;
+      courseAttendances.forEach(c => {
+        sumAttend += c.totalAttend;
+        sumAbsent += c.totalAbsent;
+        sumLate += c.totalLate;
+      });
 
-        setAttendData({
-          currentRate,
-          totalRequiredHours: totalHours,
-          currentAttendedHours: sumAttend,
-          visaThreshold: 70,
-          courses: courseAttendances
-        });
+      const totalHours = sumAttend + sumAbsent + sumLate;
+      const currentRate = totalHours > 0 ? Math.round((sumAttend / totalHours) * 100) : 0;
 
-      } catch (error) {
-        console.error("데이터 로드 실패:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      setAttendData({
+        currentRate,
+        totalRequiredHours: totalHours,
+        currentAttendedHours: sumAttend,
+        visaThreshold: 70,
+        courses: courseAttendances
+      });
 
-    if (studentId) fetchAttendanceData();
+    } catch (error) {
+      console.error("출결 데이터 로드 실패:", error);
+    } finally {
+      setIsLoading(false);
+    }
   }, [studentId]);
 
-  if (isLoading) return <div style={{ padding: '4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.875rem' }}>데이터 로딩 중...</div>;
+  useEffect(() => {
+    fetchAttendanceData();
+  }, [fetchAttendanceData]);
+
+  if (isLoading) return <div style={{ padding: '4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.875rem' }}>출결 데이터를 불러오는 중입니다...</div>;
   if (!attendData) return <div style={{ padding: '4rem', textAlign: 'center', color: '#EF4444', fontSize: '0.875rem' }}>데이터를 불러올 수 없습니다.</div>;
 
   const renderAbsBadge = (count) => {
@@ -109,7 +115,7 @@ export default function AttendTab({ studentId: propsStudentId }) {
       fontSize: '0.875rem', 
       color: '#111827',
       animation: 'fadeUp 0.28s ease',
-      padding: '0 22px' // 💾 요청하신 양옆 패딩 22px를 적용했습니다.
+      padding: '0 22px'
     }}>
       <style>{`
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
@@ -118,7 +124,8 @@ export default function AttendTab({ studentId: propsStudentId }) {
         .at-rate-card { flex: 1; background: #fff; border-radius: 0.875rem; border: 1px solid #E5E7EB; padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.01); }
         .at-visa-banner { flex: 2; display: flex; align-items: center; gap: 1rem; padding: 1.5rem; border-radius: 0.875rem; background: ${isVisaSafe ? '#F0FDF4' : '#FEF2F2'}; border: 1px solid ${isVisaSafe ? '#DCFCE7' : '#FEE2E2'}; color: ${isVisaSafe ? '#16A34A' : '#DC2626'}; }
 
-        .legend-bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; padding: 0 0.25rem; }
+        .legend-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding: 0 0.25rem; }
+        .legend-items { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
         .legend-item { display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: #6B7280; white-space: nowrap; }
         .legend-cell { width: 1.375rem; height: 1.375rem; border-radius: 0.3125rem; display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 700; }
         
@@ -158,6 +165,9 @@ export default function AttendTab({ studentId: propsStudentId }) {
         .ab-danger { background: #FEF2F2; color: #DC2626; }
         .ab-warn { background: #FFFBEB; color: #D97706; }
         .ab-ok { background: #F0FDF4; color: #16A34A; }
+        
+        .refresh-btn { background: #fff; border: 1px solid #E5E7EB; color: #374151; font-size: 0.75rem; font-weight: 600; padding: 0.375rem 0.75rem; border-radius: 0.5rem; cursor: pointer; display: flex; align-items: center; gap: 0.375rem; transition: background 0.2s; }
+        .refresh-btn:hover { background: #F9FAFB; }
       `}</style>
 
       <div className="at-summary-container">
@@ -178,11 +188,20 @@ export default function AttendTab({ studentId: propsStudentId }) {
       </div>
 
       <div className="legend-bar">
-        <div className="legend-item"><div className="legend-cell lc-ok">출</div>출석</div>
-        <div className="legend-item"><div className="legend-cell lc-abs">결</div>결석</div>
-        <div className="legend-item"><div className="legend-cell lc-late">지</div>지각</div>
-        <div className="legend-item"><div className="legend-cell lc-pub">공</div>공결</div>
-        <div className="legend-item"><div className="legend-cell lc-none">-</div>미입력</div>
+        <div className="legend-items">
+          <div className="legend-item"><div className="legend-cell lc-ok">출</div>출석(1)</div>
+          <div className="legend-item"><div className="legend-cell lc-abs">결</div>결석(2)</div>
+          <div className="legend-item"><div className="legend-cell lc-late">지</div>지각(3)</div>
+          <div className="legend-item"><div className="legend-cell lc-pub">공</div>공결(4)</div>
+          <div className="legend-item"><div className="legend-cell lc-none">-</div>미입력(0)</div>
+        </div>
+        
+        <button onClick={fetchAttendanceData} className="refresh-btn">
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          최신 데이터 갱신
+        </button>
       </div>
 
       <div className="attend-table-wrap">

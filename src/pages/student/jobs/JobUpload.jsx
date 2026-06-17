@@ -23,7 +23,6 @@ api.interceptors.request.use(
 );
 
 const GLOBAL_STYLE_CSS = `
-  /* 🛠️ 대시보드 및 수강 내역과 동일하게 좌우 여백 22px 조정 및 화면 밖 잘림 방지 속성 적용 */
   .sw-content { box-sizing: border-box; width: 100%; padding: 4px 22px 24px; animation: uploadFadeUp 0.28s ease; }
   
   @keyframes uploadFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -68,7 +67,6 @@ export default function JobUpload() {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
 
-  // 📝 수정포인트: workplaceAddr를 workAddress로 변경
   const [form, setForm] = useState({
     industry: '',          
     wage: '',              
@@ -94,8 +92,12 @@ export default function JobUpload() {
           .then(res => res.data?.data ?? res.data)
           .catch(() => null);
 
-        if (hoursRes !== null) {
-          setMaxHours(Number(hoursRes));
+        // 🟢 NaN 방지: 값이 정상적으로 존재하고 유효한 숫자로 변환될 때만 세팅
+        if (hoursRes !== null && hoursRes !== undefined && hoursRes !== '') {
+          const parsedHours = Number(hoursRes);
+          if (!isNaN(parsedHours)) {
+            setMaxHours(parsedHours);
+          }
         }
       }
     } catch (err) {
@@ -110,7 +112,6 @@ export default function JobUpload() {
   function set(field, value) {
     setForm(prev => {
       const next = { ...prev, [field]: value };
-      // 시작일이 바뀔 때 종료일이 새 시작일보다 이전이면 초기화
       if (field === 'startDate' && next.endDate && next.endDate < value) {
         next.endDate = '';
       }
@@ -156,7 +157,6 @@ export default function JobUpload() {
     setError(null);
 
     try {
-      // 📝 수정포인트: 백엔드 API 명세에 맞춰 workAddress로 매핑
       const requestBody = {
         industry: form.industry.trim(),       
         wage: wageNum,                        
@@ -220,7 +220,6 @@ export default function JobUpload() {
               </button>
               <button className="btn-primary" onClick={() => { 
                 setDone(false); 
-                // 📝 수정포인트: 초기화 시에도 workAddress로 반영
                 setForm({ companyName: '', industry: '', wage: '', workAddress: '', workHoursPerWeek: '', startDate: '', endDate: '', file: null }); 
               }}>
                 추가 등록하기
@@ -254,7 +253,7 @@ export default function JobUpload() {
               <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" strokeLinecap="round" />
               </svg>
-              <span>현재 고객님의 TOPIK 자격 기준 <strong>주당 최대 {maxHours}시간</strong>까지 근무 가능합니다.</span>
+              <span>현재 보유하신 TOPIK 자격 기준 <strong>주당 최대 {maxHours}시간</strong>까지 근무 가능합니다.</span>
             </div>
           )}
 
@@ -280,7 +279,6 @@ export default function JobUpload() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">근무지 주소</label>
-                  {/* 📝 수정포인트: input의 value와 onChange에 매핑된 키를 workAddress로 변경 */}
                   <input className="form-input" placeholder="정확한 근무지 소재지 주소를 입력하세요" value={form.workAddress}
                     onChange={e => set('workAddress', e.target.value)} />
                 </div>

@@ -16,6 +16,7 @@ function toArray(val) {
   if (Array.isArray(val)) return val;
   if (val?.content && Array.isArray(val.content)) return val.content;
   if (val?.list    && Array.isArray(val.list))    return val.list;
+  if (val?.history && Array.isArray(val.history)) return val.history;
   return [];
 }
 
@@ -96,6 +97,7 @@ export default function MyDashboard() {
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState(null);
   const [visas,       setVisas]       = useState([]);
+  const [topiks,      setTopiks]      = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [mileage,     setMileage]     = useState(null);
   const [onlineLimit, setOnlineLimit] = useState(30);
@@ -118,14 +120,18 @@ export default function MyDashboard() {
         throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
       }
 
-      const [visaRes, enrollRes, mileRes] = await Promise.allSettled([
+      const [visaRes, topikRes, enrollRes, mileRes] = await Promise.allSettled([
         apiFetch(`/students/${sid}/visas`),
+        apiFetch(`/students/${sid}/topik`),
         apiFetch(`/students/${sid}/enrollments`),
         apiFetch(`/students/${sid}/mileage`),
       ]);
 
       if (visaRes.status === 'fulfilled' && visaRes.value?.success) {
         setVisas(toArray(visaRes.value.data));
+      }
+      if (topikRes.status === 'fulfilled' && topikRes.value?.success) {
+        setTopiks(toArray(topikRes.value.data));
       }
       if (enrollRes.status === 'fulfilled' && enrollRes.value?.success) {
         setEnrollments(toArray(enrollRes.value.data));
@@ -167,17 +173,20 @@ export default function MyDashboard() {
   useEffect(() => { loadAll(); }, []);
 
   const currentVisa = visas.find(v => v.isCurrent) ?? visas[0] ?? null;
-  const dDay = currentVisa
+  const dDay = currentVisa?.expireDate
     ? Math.max(0, Math.ceil((new Date(currentVisa.expireDate) - Date.now()) / 86400000))
     : null;
+
+  const latestTopik = topiks[0] ?? null;
 
   const totalCredits  = enrollments.reduce((s, e) => s + (e.credits ?? 0), 0);
   const onlineCredits = enrollments.filter(e => e.onlineType === 'ONLINE').reduce((s, e) => s + (e.credits ?? 0), 0);
   const onlinePct     = totalCredits > 0 ? Math.round((onlineCredits / totalCredits) * 100) : 0;
   const onlineColor   = onlinePct > onlineLimit ? '#EF4444' : onlinePct > onlineLimit * 0.8 ? '#F59E0B' : '#3B82F6';
 
-  const totalMileage    = mileage?.totalMileage    ?? mileage?.total    ?? 0;
-  const semesterMileage = mileage?.semesterMileage ?? mileage?.semester ?? 0;
+  const totalMileage    = mileage?.totalScore ?? mileage?.totalMileage ?? mileage?.total ?? 0;
+  const semesterMileage = mileage?.semesterScore ?? mileage?.semesterMileage ?? mileage?.semester ?? 0;
+  const mileageHistory  = toArray(mileage);
 
   return (
     <>
@@ -185,7 +194,6 @@ export default function MyDashboard() {
         @keyframes fadeUp  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         @keyframes shimmer { from{background-position:200% 0} to{background-position:-200% 0} }
 
-        /* 🛠️ 레이아웃 일관성 유지: 박스 모델 규격 교정 및 여백 조정 */
         .db-wrap{animation:fadeUp .28s ease;width:100%;box-sizing:border-box;font-family:'DM Sans','Noto Sans KR',sans-serif;color:#111827;padding:4px 22px 24px}
         .sec-lbl{font-size:.6875rem;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem}
 
@@ -194,6 +202,7 @@ export default function MyDashboard() {
         .stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px}
         .stat-card.c-blue::after{background:#3B82F6}
         .stat-card.c-violet::after{background:#8B5CF6}
+        .stat-card.c-green::after{background:#10B981}
         .stat-card:hover{transform:translateY(-3px);box-shadow:0 10px 28px -6px rgba(0,0,0,.09)}
         .stat-lbl{font-size:.75rem;color:#64748B;margin-bottom:.6rem;font-weight:500}
 
@@ -224,7 +233,7 @@ export default function MyDashboard() {
         .mile-history{display:flex;flex-direction:column;gap:.5rem}
         .mile-item{display:flex;align-items:center;justify-content:space-between;padding:.625rem .875rem;background:#FAFBFD;border-radius:.625rem;gap:1rem}
         .mile-item-name{font-size:.8125rem;color:#374151;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
-        .mile-item-pts{font-size:.8125rem;font-weight:700;color:#3B82F6}
+        .mile-item-pts{font-size:.8125rem;font-weight:700;}
         .mile-item-date{font-size:.6875rem;color:#94A3B8}
 
         .pill{font-size:.6875rem;padding:3px 9px;border-radius:6px;font-weight:700;display:inline-block;white-space:nowrap}
@@ -252,6 +261,7 @@ export default function MyDashboard() {
 
         <div className="sec-lbl">주요 현황</div>
         <div className="stat-grid">
+          
           <div className="stat-card c-blue">
             <div className="stat-lbl">체류 비자 만료</div>
             {loading ? (
@@ -262,6 +272,27 @@ export default function MyDashboard() {
               <VisaCountdown dDay={dDay} expireDate={currentVisa.expireDate} visaType={currentVisa.visaType ?? '일반유학(D-2)'} />
             ) : (
               <div style={{ fontSize:'.875rem', color:'#94A3B8' }}>비자 정보 없음</div>
+            )}
+          </div>
+
+          <div className="stat-card c-green">
+            <div className="stat-lbl">한국어 능력 (TOPIK)</div>
+            {loading ? (
+              <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+                <Skeleton h="2.5rem" w="50%"/><Skeleton h="1rem" w="70%"/>
+              </div>
+            ) : latestTopik ? (
+              <>
+                <div style={{ fontSize:'2.25rem', fontWeight:700, color:'#0F172A', lineHeight:1 }}>
+                  {latestTopik.topikLevel}
+                  <span style={{ fontSize:'.875rem', fontWeight:400, color:'#94A3B8', marginLeft:'3px' }}>급</span>
+                </div>
+                <div style={{ fontSize:'.6875rem', color:'#94A3B8', marginTop:'.5rem' }}>
+                  시험일: <strong style={{ color:'#10B981' }}>{latestTopik.examDate ?? '정보 없음'}</strong>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize:'.875rem', color:'#94A3B8' }}>어학 성적 없음</div>
             )}
           </div>
 
@@ -280,17 +311,27 @@ export default function MyDashboard() {
                 <div style={{ fontSize:'.6875rem', color:'#94A3B8', marginTop:'.5rem' }}>
                   이번 학기 취득: <strong style={{ color:'#8B5CF6' }}>+{semesterMileage}점</strong>
                 </div>
-                {mileage?.history?.length > 0 && (
+                {mileageHistory.length > 0 && (
                   <div className="mile-history" style={{ marginTop:'.875rem' }}>
-                    {mileage.history.slice(0, 2).map((h, i) => (
-                      <div className="mile-item" key={i}>
-                        <span className="mile-item-name">{h.activityName ?? h.title}</span>
-                        <div style={{ textAlign:'right', flexShrink:0 }}>
-                          <div className="mile-item-pts">+{h.points ?? h.point}점</div>
-                          <div className="mile-item-date">{h.earnedDate ?? h.date}</div>
+                    {mileageHistory.slice(0, 2).map((h, i) => {
+                      const title = h.reason ?? h.activityName ?? h.title ?? '마일리지 변동';
+                      const amount = h.changeAmount ?? h.points ?? h.point ?? 0;
+                      const amountStr = amount > 0 ? `+${amount}` : amount;
+                      const amountColor = amount > 0 ? '#3B82F6' : '#EF4444';
+                      
+                      const rawDate = h.createdAt ?? h.earnedDate ?? h.date;
+                      const dateStr = rawDate && typeof rawDate === 'string' ? rawDate.split('T')[0] : rawDate;
+
+                      return (
+                        <div className="mile-item" key={i}>
+                          <span className="mile-item-name" title={title}>{title}</span>
+                          <div style={{ textAlign:'right', flexShrink:0 }}>
+                            <div className="mile-item-pts" style={{ color: amountColor }}>{amountStr}점</div>
+                            <div className="mile-item-date">{dateStr}</div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </>

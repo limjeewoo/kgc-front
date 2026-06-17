@@ -15,7 +15,6 @@ import ProfessorList from '../professors/ProfessorList.jsx';
 import ProfessorRegister from '../professors/ProfessorRegister.jsx';
 import AdvisorAssign from '../professors/AdvisorAssign.jsx';
 import JobTab from '../students/StudentDetail/JobTab.jsx';
-import MileageTab from '../students/StudentDetail/MileageTab.jsx';
 import SemesterManagement from "../semesters/SemestersManagement.jsx";
 import JobPending from "../jobs/JobPending.jsx";
 import MileageManage from "../jobs/MileageManage.jsx";
@@ -132,7 +131,7 @@ export default function AdminDashboard() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght=300;400;500;700&family=DM+Sans:wght=300;400;500;600;700&display=swap');
+
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
         :root { font-size: 16px; --primary: #3B82F6; --sidebar-bg: #1A3A5C; }
@@ -272,7 +271,6 @@ export default function AdminDashboard() {
 
           <div className="sb-sec">
             <div className="sb-lbl">활동 및 시스템</div>
-            <button className={`nav-btn ${activeMenu === '마일리지 승인' ? 'active' : ''}`} onClick={() => handleMenuClick('마일리지 승인')}>마일리지 승인</button>
             <button className={`nav-btn ${activeMenu === '마일리지 조회' ? 'active' : ''}`} onClick={() => handleMenuClick('마일리지 조회')}>마일리지 조회</button>
             <button className={`nav-btn ${isProfMenuActive ? 'parent-active' : ''}`} onClick={() => handleMenuClick('교수 관리')}>
               교수 관리
@@ -383,7 +381,7 @@ export default function AdminDashboard() {
                     </div>
                     <div style={{padding:'16px 18px'}}>
                       {visaList.length === 0 ? (
-                        <div className="empty-box">만료 임박 학생이 없습니다. ✅</div>
+                        <div className="empty-box">만료 임박 학생이 없습니다.</div>
                       ) : (
                         <>
                           <div className="summary-row"><span style={{fontSize:'0.8125rem', color:'#374151', fontWeight:500}}>위험 (D-14 이내)</span><span style={{fontSize:'0.6875rem', fontWeight:700, padding:'3px 10px', borderRadius:20, background:'#FEF2F2', color:'#DC2626'}}>{visaDanger.length}명</span></div>
@@ -409,7 +407,7 @@ export default function AdminDashboard() {
                     </div>
                     <div style={{padding:'16px 18px'}}>
                       {attendanceList.length === 0 ? (
-                        <div className="empty-box">출결 위험군이 없습니다. ✅</div>
+                        <div className="empty-box">출결 위험군이 없습니다. </div>
                       ) : (
                         <>
                           <div className="summary-row"><span style={{fontSize:'0.8125rem', color:'#374151', fontWeight:500}}>위험 (결석 4회+)</span><span style={{fontSize:'0.6875rem', fontWeight:700, padding:'3px 10px', borderRadius:20, background:'#FEF2F2', color:'#DC2626'}}>{attendDanger.length}명</span></div>
@@ -430,7 +428,7 @@ export default function AdminDashboard() {
                     <span className="count-pill">{onlineList.length}명</span>
                   </div>
                   {onlineList.length === 0
-                    ? <div className="empty-box">초과 학생이 없습니다. ✅</div>
+                    ? <div className="empty-box">초과 학생이 없습니다.</div>
                     : onlineList.map(o => (
                       <div key={o.studentId} className="online-row">
                         <div className="online-name">{o.korName}</div>
@@ -459,7 +457,6 @@ export default function AdminDashboard() {
             {activeMenu === '전체 교수 목록'           && <ProfessorList   onRegisterClick={() => setActiveMenu('교수 등록')} />}
             {activeMenu === '학생-지도교수 배정 관리'  && <AdvisorAssign />}
             {activeMenu === '교수 등록'                && <ProfessorRegister onComplete={() => setActiveMenu('전체 교수 목록')} onCancel={() => setActiveMenu('전체 교수 목록')} />}
-            {activeMenu === '마일리지 승인'            && <MileageTab      onBack={() => setActiveMenu('대시보드')} />}
             {activeMenu === '마일리지 조회'            && <MileageManage />}
             {activeMenu === '학과/학기 관리'           && <SemesterManagement />}
             {activeMenu === '권한 관리'                && <SystemConfig />}

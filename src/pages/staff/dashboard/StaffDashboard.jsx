@@ -432,7 +432,7 @@ export default function StaffDashboard() {
                 )}
                 {[can('VISA_VIEW') && visaList.length > 0, can('ATTEND_VIEW') && attendanceList.length > 0, can('JOB_VIEW') && pendingJobs.length > 0].every(v => !v) && (
                   <div style={{ gridColumn:'1/-1', background:'#fff', borderRadius:14, border:'1px solid #F3F4F6', padding:'2rem', textAlign:'center', color:'#9CA3AF', fontSize:'0.875rem' }}>
-                    ✅ 오늘 처리할 긴급 항목이 없습니다
+                    오늘 처리할 긴급 항목이 없습니다
                   </div>
                 )}
               </div>
@@ -453,7 +453,7 @@ export default function StaffDashboard() {
                     </div>
                     <div className="sum-body">
                       {visaList.length === 0 ? (
-                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>만료 임박 학생이 없습니다. ✅</div>
+                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>만료 임박 학생이 없습니다. </div>
                       ) : (
                         <>
                           <div className="sum-row"><span className="sum-lbl">위험 (D-30 이내)</span><span className="sum-badge sb-red">{visaDanger.length}명</span></div>
@@ -478,7 +478,7 @@ export default function StaffDashboard() {
                     </div>
                     <div className="sum-body">
                       {attendanceList.length === 0 ? (
-                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>출결 위험군이 없습니다. ✅</div>
+                        <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'0.8125rem' }}>출결 위험군이 없습니다. </div>
                       ) : (
                         <>
                           <div className="sum-row"><span className="sum-lbl">위험 (결석 4회+)</span><span className="sum-badge sb-red">{attendDanger.length}명</span></div>
@@ -505,7 +505,7 @@ export default function StaffDashboard() {
                       </div>
                     </div>
                     {pendingJobs.length === 0 ? (
-                      <div className="empty-box">처리 대기 중인 근로 신청이 없습니다. ✅</div>
+                      <div className="empty-box">처리 대기 중인 근로 신청이 없습니다. </div>
                     ) : pendingJobs.slice(0,5).map(job => (
                       <div key={job.jobId} className="job-row" onClick={() => handleMenuClick('근로 승인')}>
                         <div className="job-av">{job.studentName?.[0] ?? '?'}</div>

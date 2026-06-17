@@ -1,69 +1,70 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-// const BASE_URL = 'https://api.kmgc.world'; // 배포용
-const BASE_URL = 'http://localhost:8080'; // 개발용
+const BASE_URL = 'http://localhost:8080';
+
+const api = axios.create({
+  baseURL: BASE_URL,
+});
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('accessToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 export default function VisaTab() {
   const { studentId } = useParams();
-  const id = studentId;
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   
   const [visaData, setVisaData] = useState({ currentVisa: null, history: [] });
   const [isLoading, setIsLoading] = useState(true);
 
-  const api = axios.create({
-    baseURL: BASE_URL,
-    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
-  });
+  const fetchVisaData = useCallback(async () => {
+    if (!studentId) return;
+    try {
+      setIsLoading(true);
+      const response = await api.get(`/api/v1/students/${studentId}/visas`);
+
+      if (response.data?.success) {
+        const visas = response.data.data || [];
+        
+        if (visas.length > 0) {
+          const current = visas.find(v => v.isCurrent) || visas[0];
+          const history = visas.filter(v => v.visaId !== current.visaId);
+
+          let dDay = current.dDay;
+          if (dDay === undefined && current.expireDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const expDate = new Date(current.expireDate);
+            const diffTime = expDate.getTime() - today.getTime();
+            dDay = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          }
+
+          setVisaData({
+            currentVisa: {
+              ...current,
+              dDay: dDay || 0
+            },
+            history: history
+          });
+        }
+      }
+    } catch (error) {
+      console.error("비자 정보 로드 실패:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [studentId]);
 
   useEffect(() => {
-    const fetchVisaData = async () => {
-      try {
-        setIsLoading(true);
-        // 비자 정보 목록 조회 API 호출
-        const response = await api.get(`/api/v1/students/${id}/visas`);
-
-        if (response.data?.success) {
-          const visas = response.data.data || [];
-          
-          if (visas.length > 0) {
-            // 최신(현재) 비자와 과거 이력 분리
-            const current = visas.find(v => v.isCurrent) || visas[0];
-            const history = visas.filter(v => v.visaId !== current.visaId);
-
-            // D-Day 계산 (API 응답에 dDay가 없을 경우 대비)
-            let dDay = current.dDay;
-            const expireDate = current.expiryDate || current.expireDate;
-            if (dDay === undefined && expireDate) {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0); // 시간 제외, 자정 기준
-              const expDate = new Date(expireDate);
-              const diffTime = expDate.getTime() - today.getTime();
-              dDay = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            }
-
-            setVisaData({
-              currentVisa: {
-                ...current,
-                dDay: dDay || 0,
-                expireDate: expireDate // 통일된 필드명 사용
-              },
-              history: history
-            });
-          }
-        }
-      } catch (error) {
-        console.error("비자 정보 로드 실패:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (id) fetchVisaData();
-  }, [id]);
+    fetchVisaData();
+  }, [fetchVisaData]);
 
   if (isLoading) {
     return (
@@ -103,8 +104,6 @@ export default function VisaTab() {
         .vt-btn { padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: inherit; display: flex; align-items: center; gap: 5px; }
         .vt-btn-secondary { background: #F9FAFB; border: 1px solid #E5E7EB; color: #374151; }
         .vt-btn-secondary:hover { background: #F3F4F6; }
-        .vt-btn-primary { background: #1A3A5C; border: 1px solid #1A3A5C; color: #fff; }
-        .vt-btn-primary:hover { background: #153150; }
 
         .vt-chip { font-size: 11.5px; font-weight: 500; padding: 4px 10px; border-radius: 20px; }
         .vt-chip-blue   { background: #EFF6FF; color: #1D4ED8; }
@@ -134,13 +133,12 @@ export default function VisaTab() {
         .vt-tl-item:last-child { border-left: 2px solid transparent; padding-bottom: 0; }
         .vt-tl-item::before { content: ''; position: absolute; left: -7px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid #CBD5E1; }
         .vt-tl-item.active::before { background: #1A3A5C; border-color: #1A3A5C; }
-        .vt-tl-main { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 2px; }
+        .vt-tl-main { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
         .vt-tl-main.active { color: #1D4ED8; }
         .vt-tl-sub { font-size: 12px; color: #9CA3AF; }
 
         .vt-file-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .vt-file-box { border: 1.5px dashed #E5E7EB; padding: 20px 12px; border-radius: 10px; text-align: center; cursor: pointer; transition: all 0.15s; background: #FAFAFA; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-        .vt-file-box:hover { border-color: #3B82F6; background: #EFF6FF; }
+        .vt-file-box { border: 1.5px dashed #E5E7EB; padding: 20px 12px; border-radius: 10px; text-align: center; background: #FAFAFA; display: flex; flex-direction: column; align-items: center; gap: 8px; }
         .vt-file-name { font-size: 12.5px; font-weight: 500; color: #374151; }
 
         @media (max-width: 768px) {
@@ -152,11 +150,6 @@ export default function VisaTab() {
         }
       `}</style>
 
-      {/* 숨겨진 파일 인풋 */}
-      <input type="file" ref={fileInputRef} style={{ display: 'none' }}
-        onChange={(e) => console.log('파일 업로드 준비:', e.target.files[0])} />
-
-      {/* 탑바 */}
       <div className="vt-topbar">
         <div className="vt-topbar-left">
           <button className="vt-back-btn" onClick={() => navigate(-1)}>
@@ -169,24 +162,17 @@ export default function VisaTab() {
           </div>
         </div>
         <div className="vt-topbar-right">
-          <button className="vt-btn vt-btn-secondary">
+          <button className="vt-btn vt-btn-secondary" onClick={fetchVisaData}>
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            갱신 이력
-          </button>
-          <button className="vt-btn vt-btn-primary">
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M12 4v16m8-8H4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            비자 등록
+            새로고침
           </button>
         </div>
       </div>
 
       {currentVisa ? (
         <>
-          {/* D-Day 배너 */}
           <div className="vt-dday-banner">
             <div className="vt-dday-left">
               <div className="vt-dday-label">체류 만료 D-Day</div>
@@ -226,23 +212,25 @@ export default function VisaTab() {
             </div>
           </div>
 
-          {/* 하단 2열 */}
           <div className="vt-grid">
-            {/* 갱신 이력 타임라인 */}
             <div className="vt-card">
               <div className="vt-card-title">갱신 이력</div>
               <div className="vt-timeline">
                 <div className="vt-tl-item active">
-                  <div className="vt-tl-main active">현재 · {currentVisa.visaType} 등록 완료</div>
+                  <div className="vt-tl-main active">
+                    <span>현재 · {currentVisa.visaType} 등록 완료</span>
+                  </div>
                   <div className="vt-tl-sub">승인일 {currentVisa.issueDate || '-'}</div>
                 </div>
-                {history.map((h, i) => (
-                  <div key={h.visaId || i} className="vt-tl-item">
+                {history.map((h) => (
+                  <div key={h.visaId} className="vt-tl-item">
                     <div className="vt-tl-main">
-                      이전 · {h.visaType}
-                      <span className="vt-chip vt-chip-red" style={{ fontSize: '11px', marginLeft: 6 }}>만료</span>
+                      <span>
+                        이전 · {h.visaType}
+                        <span className="vt-chip vt-chip-red" style={{ fontSize: '11px', marginLeft: 6 }}>만료</span>
+                      </span>
                     </div>
-                    <div className="vt-tl-sub">만료일 {h.expiryDate || h.expireDate}</div>
+                    <div className="vt-tl-sub">만료일 {h.expireDate}</div>
                   </div>
                 ))}
                 {history.length === 0 && (
@@ -251,17 +239,16 @@ export default function VisaTab() {
               </div>
             </div>
 
-            {/* 서류 업로드 */}
             <div className="vt-card">
               <div className="vt-card-title">
-                증명 서류 업로드
+                등록된 증명 서류
                 <span className="vt-chip vt-chip-blue" style={{ fontSize: '11px' }}>3개 항목</span>
               </div>
               <div className="vt-file-grid">
                 {['등록증 (앞면)', '등록증 (뒷면)', '여권 사본'].map((label) => (
-                  <div key={label} className="vt-file-box" onClick={() => fileInputRef.current.click()}>
-                    <svg width="22" height="22" fill="none" stroke="#3B82F6" strokeWidth="2" viewBox="0 0 24 24">
-                      <path d="M12 4v16m8-8H4" strokeLinecap="round" strokeLinejoin="round"/>
+                  <div key={label} className="vt-file-box">
+                    <svg width="22" height="22" fill="none" stroke="#9CA3AF" strokeWidth="2" viewBox="0 0 24 24">
+                      <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                     <span className="vt-file-name">{label}</span>
                   </div>
@@ -271,8 +258,10 @@ export default function VisaTab() {
           </div>
         </>
       ) : (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#9CA3AF', background: '#fff', borderRadius: '14px', border: '1px solid #F3F4F6' }}>
-          등록된 비자 정보가 없습니다. 상단의 '비자 등록' 버튼을 눌러 정보를 추가해주세요.
+        <div style={{ textAlign: 'center', padding: '60px 0', color: '#9CA3AF', background: '#fff', borderRadius: '14px', border: '1px solid #F3F4F6', lineHeight: '1.6' }}>
+          <div style={{ fontSize: '24px', marginBottom: '8px' }}>📂</div>
+          등록된 비자 정보가 없습니다.<br />
+          <span style={{ fontSize: '13px' }}>관리자 또는 담당 부서에서 비자를 등록하면 이곳에 반영됩니다.</span>
         </div>
       )}
     </div>
