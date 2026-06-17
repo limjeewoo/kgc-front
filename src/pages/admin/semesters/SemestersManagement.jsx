@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from '../../../api/axios'; 
 
 const GLOBAL_STYLE_CSS = `
   .sw-content { padding: 4px 4px 24px; animation: jobsFadeUp 0.28s ease; }
@@ -66,21 +66,11 @@ export default function SemesterManagement() {
   const seasons = ['1학기', '여름학기', '2학기', '겨울학기'];
   const yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - 2 + i);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-    return {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      }
-    };
-  };
-
   const loadSemesters = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get('/api/v1/semesters', getAuthHeaders());
+      const res = await api.get('/api/v1/semesters');
       
       if (res.data && res.data.success) {
         const dataList = res.data.data || [];
@@ -123,7 +113,7 @@ export default function SemesterManagement() {
         endDate: form.endDate
       };
 
-      const res = await axios.post('/api/v1/semesters', payload, getAuthHeaders());
+      const res = await api.post('/api/v1/semesters', payload);
       
       if (res.data && res.data.success) {
         setForm(prev => ({ ...prev, season: '1학기', startDate: '', endDate: '' }));
@@ -143,7 +133,7 @@ export default function SemesterManagement() {
     
     setError(null);
     try {
-      const res = await axios.patch(`/api/v1/semesters/${semesterId}/current`, {}, getAuthHeaders());
+      const res = await api.patch(`/api/v1/semesters/${semesterId}/current`, {});
       
       if (res.data && res.data.success) {
         loadSemesters();
@@ -160,7 +150,7 @@ export default function SemesterManagement() {
 
     setError(null);
     try {
-      const res = await axios.delete(`/api/v1/semesters/${semesterId}`, getAuthHeaders());
+      const res = await api.delete(`/api/v1/semesters/${semesterId}`);
       
       if (res.data && res.data.success) {
         loadSemesters();
