@@ -1,18 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-// 1. API 인스턴스 설정 (공통 설정)
-const api = axios.create({
-  baseURL: 'http://localhost:8080',
-  headers: { 'Content-Type': 'application/json' },
-});
-
-// 인터셉터: 로그인된 토큰을 헤더에 자동 포함
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+import api from '../../../api/axios'; // 🚀 공통 API 인스턴스 가져오기 (경로 주의!)
 
 const ProfessorRegister = ({ onComplete, onCancel }) => {
   // 2. 폼 데이터 상태 관리
@@ -31,6 +18,7 @@ const ProfessorRegister = ({ onComplete, onCancel }) => {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
+        // 🚀 주소 앞부분 지우고 api 인스턴스 사용
         const response = await api.get('/api/v1/professors');
         
         if (response.data.success) {
@@ -40,7 +28,6 @@ const ProfessorRegister = ({ onComplete, onCancel }) => {
           const deptMap = new Map();
           professors.forEach(prof => {
             if (prof.deptId && !deptMap.has(prof.deptId)) {
-              // 백엔드 응답에 deptName이나 departmentName이 포함되어 있다고 가정 (없을 시 deptId로 폴백)
               const deptName = prof.deptName || prof.departmentName || prof.deptId;
               deptMap.set(prof.deptId, deptName);
             }
@@ -78,9 +65,7 @@ const ProfessorRegister = ({ onComplete, onCancel }) => {
 
     setIsLoading(true);
     try {
-      /** * [명세서 6.1] 교수 등록 API 호출
-       * 성공 시 백엔드 DB에 데이터가 INSERT 됨
-       */
+      // 🚀 주소 앞부분 지우고 공통 api.post 사용
       const response = await api.post('/api/v1/professors', formData);
 
       if (response.data.success) {
@@ -88,7 +73,7 @@ const ProfessorRegister = ({ onComplete, onCancel }) => {
         
         // 4. 등록 완료 후 처리 (목록 새로고침 로직 호출)
         if (onComplete) {
-          onComplete(); // 부모 컴포넌트(목록 화면)를 리프레시하게 만듦
+          onComplete(); 
         }
       }
     } catch (error) {

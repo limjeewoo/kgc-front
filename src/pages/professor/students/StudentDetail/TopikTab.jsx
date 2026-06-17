@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const BASE_URL = 'http://localhost:8080';
+import api from '../../../../api/axios'; // 🚀 공통 API 인스턴스 사용
 
 const fmt = (d) => d ? d.replace(/-/g, '. ') : '–';
 
@@ -21,11 +19,6 @@ export default function TopikTab({ studentId }) {
       })
     );
   };
-
-  const api = axios.create({
-    baseURL: BASE_URL,
-    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
-  });
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');

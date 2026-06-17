@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-// const BASE_URL = 'https://api.kmgc.world'; // 배포용
-const API_BASE_URL = 'http://localhost:8080';
+import api from '../../../../api/axios';
 
 const LABELS = { ok: '출', abs: '결', late: '지', pub: '공', none: '-' };
+
 const getStatusKey = (code) => {
   if (code === 1) return 'ok';
   if (code === 2) return 'abs';
@@ -19,11 +17,6 @@ export default function AttendTab() {
   const navigate = useNavigate();
   const [attendData, setAttendData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
-  });
 
   useEffect(() => {
     const fetchAttendanceData = async () => {
@@ -56,7 +49,7 @@ export default function AttendTab() {
                 };
               }
             } catch (err) {
-              console.warn(`[${enroll.courseId}] 출결 로드 실패 (미구현 예상)`, err);
+              console.warn(`[${enroll.courseId}] 출결 로드 실패`, err);
             }
             
             return {
@@ -109,7 +102,6 @@ export default function AttendTab() {
   };
 
   const isVisaSafe = attendData.currentRate >= attendData.visaThreshold;
-
   return (
     <div style={{ fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", fontSize: '0.875rem', color: '#111827', padding: '1.25rem', backgroundColor: '#F0F2F7', minHeight: '100vh' }}>
       <style>{`

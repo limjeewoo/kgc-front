@@ -1,18 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
-
-const BASE_URL = 'http://localhost:8080';
-
-const api = axios.create({
-  baseURL: BASE_URL,
-  headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+import api from '../../../api/axios'; // 🚀 통합된 API 인스턴스 사용
 
 const getRiskLevel = (ratio) => {
   const pct = (ratio || 0) * 100;

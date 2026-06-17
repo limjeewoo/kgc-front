@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const BASE_URL = 'http://localhost:8080';
+import api from '../../../../api/axios'; // 🚀 공통 API 인스턴스 가져오기
 
 const fmtDate = (d) => d ? d.replace(/-/g, '. ') : '-';
 
@@ -20,11 +18,6 @@ export default function TopikTab({ studentId }) {
     basicTestResult: ''
   });
 
-  const api = axios.create({
-    baseURL: BASE_URL,
-    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
-  });
-
   const switchMenu = (menuName) => {
     window.dispatchEvent(
       new CustomEvent('switch-admin-menu', {
@@ -33,7 +26,6 @@ export default function TopikTab({ studentId }) {
     );
   };
 
-  // 삭제 후 목록 리프레시를 위해 useEffect 외부로 로직 추출
   const fetchTopikData = async () => {
     if (!studentId) return;
     try {
@@ -112,7 +104,6 @@ export default function TopikTab({ studentId }) {
     }
   };
 
-  // 삭제 처리 핸들러 함수
   const handleDelete = async (langId) => {
     if (!langId) {
       alert('삭제할 항목의 식별자(ID)가 올바르지 않습니다.');
@@ -128,7 +119,7 @@ export default function TopikTab({ studentId }) {
       
       if (response.data?.success || response.status === 200) {
         alert('성적 이력이 성공적으로 삭제되었습니다.');
-        fetchTopikData(); // 삭제 후 목록 최신화
+        fetchTopikData(); 
       } else {
         alert('삭제에 실패했습니다.');
       }

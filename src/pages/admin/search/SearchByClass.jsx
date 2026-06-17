@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SearchByCourse from './SearchByCourse.jsx';
-
-const BASE_URL = 'http://localhost:8080';
+import api from '../../../api/axios'; // 🚀 공통 API 인스턴스 가져오기 (파일 위치에 따라 ../ 개수 조절)
 
 export default function SearchByClass({ onBack }) {
   const navigate = useNavigate();
-  const accessToken = localStorage.getItem('accessToken');
 
   const [depts, setDepts] = useState([]);
   const [filters, setFilters] = useState({ deptId: '', classSec: 'A' });
@@ -16,15 +14,12 @@ export default function SearchByClass({ onBack }) {
   const [quickFilter, setQuickFilter] = useState(false);
   const [showCourse, setShowCourse] = useState(false);
 
-  const headers = {
-    'Authorization': `Bearer ${accessToken}`,
-    'Content-Type': 'application/json'
-  };
-
   const fetchDepts = useCallback(async () => {
     try {
-      const res = await fetch(`${BASE_URL}/api/v1/depts`, { headers });
-      const json = await res.json();
+      // 🚀 fetch 대신 api.get 사용 (도메인 생략, headers 생략)
+      const res = await api.get('/api/v1/depts');
+      const json = res.data; // Axios는 데이터가 data 속성에 담겨 옵니다.
+
       if (json.success && json.data) {
         setDepts(json.data);
         if (json.data.length > 0 && !filters.deptId) {
@@ -39,8 +34,12 @@ export default function SearchByClass({ onBack }) {
   const fetchAdvisors = useCallback(async (deptId) => {
     if (!deptId) return;
     try {
-      const res = await fetch(`${BASE_URL}/api/v1/professors?deptId=${deptId}`, { headers });
-      const json = await res.json();
+      // 🚀 쿼리 스트링 파라미터는 params 옵션으로 우아하게 넘길 수 있습니다.
+      const res = await api.get('/api/v1/professors', {
+        params: { deptId }
+      });
+      const json = res.data;
+
       if (json.success && json.data) setAdvisors(json.data);
     } catch (err) {
       console.error("교수 목록 로드 실패:", err);
@@ -51,11 +50,15 @@ export default function SearchByClass({ onBack }) {
     if (!filters.deptId || !filters.classSec) return;
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `${BASE_URL}/api/v1/search/class?deptId=${filters.deptId}&classSec=${filters.classSec}&_t=${Date.now()}`,
-        { headers }
-      );
-      const json = await res.json();
+      // 🚀 주소창 복잡하게 엮지 않고 params 객체로 깔끔하게 정리
+      const res = await api.get('/api/v1/search/class', {
+        params: {
+          deptId: filters.deptId,
+          classSec: filters.classSec,
+          _t: Date.now() // 캐시 방지용 타임스탬프
+        }
+      });
+      const json = res.data;
 
       if (json.success && json.data) {
         const parsedStudents = json.data.map(student => {

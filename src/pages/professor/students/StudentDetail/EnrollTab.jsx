@@ -1,48 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
-
-// ─── 환경 설정 ─────────────────────────────────────────
-// const BASE_URL = 'https://api.kmgc.world'; // 배포용
-const BASE_URL = 'http://localhost:8080'; // 개발용
+import api from '../../../../api/axios';
 
 export default function EnrollTab({ studentId: propsStudentId }) {
   const { id: urlStudentId } = useParams();
   const studentId = propsStudentId || urlStudentId;
   
-  // 상태 관리
   const [enrollments, setEnrollments] = useState([]);
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const api = axios.create({
-    baseURL: BASE_URL,
-    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
-  });
 
   useEffect(() => {
     const fetchEnrollData = async () => {
       try {
         setIsLoading(true);
 
-        // 1. 수강 목록과 현재 학기 정보를 병렬로 가져옵니다. (academic-summary API 제거)
         const [enrollRes, semesterRes] = await Promise.all([
           api.get(`/api/v1/students/${studentId}/enrollments`),
           api.get(`/api/v1/semesters/current`).catch(() => ({ data: { data: { name: '알 수 없음' } } }))
         ]);
 
         let fetchedEnrollments = [];
-        if (enrollRes.data.success) {
+        if (enrollRes.data?.success) {
           fetchedEnrollments = enrollRes.data.data || [];
           setEnrollments(fetchedEnrollments);
         }
         
-        // 2. 프론트엔드에서 요약 데이터(GPA, 취득 학점) 직접 계산
         let totalCredits = 0;
         let totalGradePoints = 0;
         let gradedCredits = 0;
 
-        // 학점 변환표 (필요에 따라 학교 규정에 맞게 수정)
         const gradeScale = {
           'A+': 4.5, 'A0': 4.0, 'B+': 3.5, 'B0': 3.0,
           'C+': 2.5, 'C0': 2.0, 'D+': 1.5, 'D0': 1.0, 'F': 0.0
@@ -51,12 +38,10 @@ export default function EnrollTab({ studentId: propsStudentId }) {
         fetchedEnrollments.forEach(course => {
           const credits = course.credits || 0;
           
-          // 취득 학점 누적 (F가 아닌 이수 완료 과목)
           if (course.isCompleted || (course.grade && course.grade !== 'F')) {
             totalCredits += credits;
           }
           
-          // GPA 계산용 평점 누적 (성적이 부여된 과목만 계산)
           if (course.grade && gradeScale[course.grade] !== undefined) {
             gradedCredits += credits;
             totalGradePoints += (gradeScale[course.grade] * credits);
@@ -64,16 +49,13 @@ export default function EnrollTab({ studentId: propsStudentId }) {
         });
 
         const calculatedGpa = gradedCredits > 0 ? (totalGradePoints / gradedCredits) : 0;
-        
-        // 현재 학기 이름 추출 (API 응답 필드명에 맞게 조정: name 또는 semesterId 등)
         const currentSemesterStr = semesterRes.data?.data?.name || semesterRes.data?.data?.semesterId || '-';
 
-        // 계산된 데이터 상태에 저장
         setSummary({
           semesterId: currentSemesterStr,
           totalGpa: calculatedGpa,
           totalCredits: totalCredits,
-          graduationCredits: 110 // 졸업 학점 하드코딩 유지
+          graduationCredits: 110
         });
         
       } catch (error) {
@@ -84,7 +66,6 @@ export default function EnrollTab({ studentId: propsStudentId }) {
     };
 
     if (studentId) fetchEnrollData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   if (isLoading) {
@@ -95,12 +76,10 @@ export default function EnrollTab({ studentId: propsStudentId }) {
     );
   }
 
-  // API 데이터 매핑 안전 처리
   const currentSemester = summary?.semesterId || '-';
   const totalGpa = summary?.totalGpa || 0;
   const earnedCredits = summary?.totalCredits || 0;
   const totalGraduationCredits = summary?.graduationCredits || 110;
-
   return (
     <div style={{ 
       fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", 

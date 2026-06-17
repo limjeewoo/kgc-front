@@ -1,14 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from '../../../api/axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-const API_BASE = 'http://localhost:8080/api/v1';
-
 async function apiFetch(path) {
-  const token = localStorage.getItem('accessToken');
-  const res = await axios.get(`${API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await api.get(path);
   return res.data?.data ?? res.data;
 }
 
@@ -113,16 +108,16 @@ export default function MyEnroll() {
     setLoading(true);
     setError(null);
     try {
-      const me = await apiFetch('/auth/me');
+      const me = await apiFetch('/api/v1/auth/me');
       const sid = me?.userId ?? me?.studentId ?? (typeof me === 'string' || typeof me === 'number' ? String(me) : null);
       
       if (!sid) throw new Error('사용자 식별 번호(학번)를 찾을 수 없습니다.');
       setStudentId(sid);
 
       const [semRes, curRes, summaryRes] = await Promise.allSettled([
-        apiFetch('/semesters'),
-        apiFetch('/semesters/current'),
-        apiFetch(`/students/${sid}/academic-summary`)
+        apiFetch('/api/v1/semesters'),
+        apiFetch('/api/v1/semesters/current'),
+        apiFetch(`/api/v1/students/${sid}/academic-summary`)
       ]);
 
       if (summaryRes.status === 'fulfilled' && summaryRes.value) {
@@ -157,7 +152,7 @@ export default function MyEnroll() {
     
     try {
       const query = selSem ? `?semesterId=${selSem}` : '';
-      const data  = await apiFetch(`/students/${studentId}/enrollments${query}`);
+      const data  = await apiFetch(`/api/v1/students/${studentId}/enrollments${query}`);
       setEnrollments(toArray(data));
     } catch (err) {
       console.error("Enrollments fetch error:", err);

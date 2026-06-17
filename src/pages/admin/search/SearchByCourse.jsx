@@ -1,16 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: 'http://localhost:8080',
-  headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+import api from '../../../api/axios'; // 🚀 1. 하드코딩된 axios를 지우고 공통 api 인스턴스 임포트!
 
 const WEEK_LABELS = Array.from({ length: 15 }, (_, i) => `${i + 1}`);
 
@@ -36,7 +25,6 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [courseData, setCourseData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  // 기본값: 명세서 기준 ATTEND_WARNING_COUNT=2, ATTEND_DANGER_COUNT=4
   const [policy, setPolicy] = useState({ warningThreshold: 2, dangerThreshold: 4 });
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +39,7 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
   const initData = useCallback(async () => {
     try {
       const params = classSec ? { classSec } : {};
+      // 🚀 2. 주소 앞부분 지우고 공통 인스턴스로 호출
       const courseRes = await api.get('/api/v1/courses', { params });
 
       let dataList = courseRes.data?.data || courseRes.data || [];
@@ -69,11 +58,11 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
       console.error('❌ 과목 목록 로드 오류:', error);
     }
 
-    // ── 출결 정책 조회: GET /api/v1/admin/scheduler ──────────────
     try {
+      // 🚀 3. 출결 정책 주소 앞부분 지우고 호출
       const policyRes = await api.get('/api/v1/admin/scheduler');
       if (policyRes.data?.success) {
-        const configs = policyRes.data.data; // 배열: [{configKey, configValue, description}]
+        const configs = policyRes.data.data;
         const warningCfg = configs.find(c => c.configKey === 'ATTEND_WARNING_COUNT');
         const dangerCfg  = configs.find(c => c.configKey === 'ATTEND_DANGER_COUNT');
         setPolicy({
@@ -90,6 +79,7 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
 
   const fetchAllCourses = async () => {
     try {
+      // 🚀 4. 전체 과목 주소 앞부분 지우고 호출
       const res = await api.get('/api/v1/courses');
       const dataList = res.data?.data || res.data || [];
       setAllCourses(dataList.map(course => ({
@@ -106,13 +96,11 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
     setIsSelectModalOpen(true);
   };
 
-  // 명세서: GET /api/v1/search/course?courseId={courseId}
-  // 응답 data 각 항목: { studentId, engName, nationality, deptName, classSec,
-  //   totalCredits, gpa, courseId, courseName, totalAbsent, attendances:[{weekNo,status,statusLabel}] }
   const fetchCourseDetail = useCallback(async () => {
     if (!selectedCourseId) { setCourseData([]); return; }
     setIsLoading(true);
     try {
+      // 🚀 5. 수강생 상세조회 주소 앞부분 지우고 호출
       const res = await api.get('/api/v1/search/course', {
         params: { courseId: selectedCourseId },
       });
@@ -154,7 +142,6 @@ export default function SearchByCourse({ deptId, classSec, onBack }) {
 
   const students = courseData;
 
-  // 결석일수(totalAbsent)는 이제 백엔드에서 직접 내려준 값을 그대로 사용
   const dangerCount  = students.filter(s => (s.totalAbsent ?? 0) >= policy.dangerThreshold).length;
   const warningCount = students.filter(s => (s.totalAbsent ?? 0) >= policy.warningThreshold && (s.totalAbsent ?? 0) < policy.dangerThreshold).length;
   const safeCount    = students.length - dangerCount - warningCount;

@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const BASE_URL = 'http://localhost:8080';
+import api from '../../../../api/axios'; // 🚀 공통 API 인스턴스 가져오기
 
 const fmtDate = (d) => d ? d.replace(/-/g, '. ') : '-';
 
@@ -15,11 +13,6 @@ export default function VisaTab({ studentId }) {
     visaType: 'D-2',
     issueDate: '',
     expireDate: ''
-  });
-
-  const api = axios.create({
-    baseURL: BASE_URL,
-    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
   });
 
   const switchMenu = (menuName) => {

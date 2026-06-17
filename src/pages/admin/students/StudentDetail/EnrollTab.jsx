@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:8080';
+import api from '../../../../api/axios'; // 🚀 공통 API 인스턴스 가져오기
 
 export default function EnrollTab({ onTabChange }) {
   const { id } = useParams();
@@ -12,10 +10,7 @@ export default function EnrollTab({ onTabChange }) {
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
-  });
+  // 💡 [삭제] 로컬 하드코딩된 API_BASE_URL 및 axios.create 부분 완벽 제거
 
   useEffect(() => {
     const fetchEnrollData = async () => {
@@ -57,7 +52,7 @@ export default function EnrollTab({ onTabChange }) {
   const totalGpa = summary?.totalGpa || 0;
   const earnedCredits = summary?.totalCredits || 0;
   const totalGraduationCredits = summary?.graduationCredits || 110;
-
+  
   return (
     <div style={{ 
       fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", 
