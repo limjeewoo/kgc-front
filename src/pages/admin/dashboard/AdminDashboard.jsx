@@ -150,7 +150,6 @@ export default function AdminDashboard() {
         <div style={{ width:40, height:40, border:'3px solid #E5E7EB', borderTopColor:'#1A3A5C', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 12px' }} />
         <div style={{ color:'#6B7280', fontSize:'0.875rem' }}>데이터 동기화 중...</div>
       </div>
-      {/* 스타일 영역 (필요 시 작성) */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -288,7 +287,7 @@ export default function AdminDashboard() {
           </div>
           <div className="sb-sec">
             <div className="sb-lbl">학사</div>
-            <button className={`nav-btn ${activeMenu === '출결 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('출결 관리')}>출결 관리</button>
+            {/* 출결 관리 버튼 제거됨 */}
             <button className={`nav-btn ${activeMenu === '과목 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('과목 관리')}>과목 관리</button>
             <button className={`nav-btn ${activeMenu === '학과 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('학과 관리')}>학과 관리</button>
           </div>
@@ -466,7 +465,7 @@ export default function AdminDashboard() {
             {activeMenu === '마일리지 조회'            && <MileageManage />}
             {activeMenu === '전체 교수 목록'           && <ProfessorList />}
             {activeMenu === '교수 등록'                && <ProfessorRegister />}
-            {activeMenu === '전담교수 관리'            && <AdvisorAssign />}
+            {activeMenu === '학생-지도교수 배정 관리'  && <AdvisorAssign />}
             {activeMenu === '학과/학기 관리'           && <SemesterManagement />}
             {activeMenu === '학생 근로'                && <JobPending />}
             {activeMenu === '학생 근로 현황'           && <JobTab />}
