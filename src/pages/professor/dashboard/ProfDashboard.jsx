@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../../../api/axios';
 import TopBar from '../../../components/layout/TopBar.jsx';
 
 export default function ProfDashboard() {
@@ -11,88 +12,89 @@ export default function ProfDashboard() {
   const [crisisList, setCrisisList] = useState([]);
   const [absenceList, setAbsenceList] = useState([]);
 
-  const token = localStorage.getItem('accessToken');
   const professorId = localStorage.getItem('userId');
 
   useEffect(() => {
-    if (!token || !professorId) {
-      console.warn('인증 정보가 없어 로그인 페이지로 이동합니다.');
+    if (!professorId) {
       navigate('/login');
       return;
     }
 
     setLoading(true);
 
-    const headers = { Authorization: `Bearer ${token}` };
+    const fetchData = async () => {
+      try {
+        const [profRes, studentsRes, warningsRes] = await Promise.all([
+          api.get(`/api/v1/professors/${professorId}`),
+          api.get(`/api/v1/advisors/professor/${professorId}`),
+          api.get('/api/v1/attend/warnings'),
+        ]);
 
-    Promise.all([
-      fetch(`http://localhost:8080/api/v1/professors/${professorId}`, { headers }).then(r => r.json()),
-      fetch(`http://localhost:8080/api/v1/advisors/professor/${professorId}`, { headers }).then(r => r.json()),
-      fetch('http://localhost:8080/api/v1/attend/warnings', { headers }).then(r => r.json()),
-    ]).then(async ([profRes, studentsRes, warningsRes]) => {
-      setProfInfo({
-        name: profRes.data?.name || '정보 없음',
-        email: profRes.data?.email || '정보 없음',
-        dept: profRes.data?.deptName || '정보 없음',
-      });
+        setProfInfo({
+          name: profRes.data?.data?.name || '정보 없음',
+          email: profRes.data?.data?.email || '정보 없음',
+          dept: profRes.data?.data?.deptName || '정보 없음',
+        });
 
-      const assigned = studentsRes.data || [];
-      const myWarnings = (warningsRes.data || []).filter(w =>
-        assigned.some(s => s.studentId === w.studentId)
-      );
+        const assigned = studentsRes.data?.data || [];
+        const myWarnings = (warningsRes.data?.data || []).filter(w =>
+          assigned.some(s => s.studentId === w.studentId)
+        );
 
-      // 담당 학생들의 상담 이력에서 crisisFlag: true 건 수집
-      const crisisResults = await Promise.allSettled(
-        assigned.map(s =>
-          fetch(`http://localhost:8080/api/v1/students/${s.studentId}/consultations`, { headers })
-            .then(r => r.json())
-            .then(res => {
-              const list = Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
-              const crisisItems = list.filter(c => c.crisisFlag === true);
-              return crisisItems.map(c => ({
-                studentId: s.studentId,
-                name: s.studentName ?? s.korName ?? s.name ?? s.studentId,
-                date: c.consultDate,
-                keywords: c.rawContent?.slice(0, 30) ?? '',
-              }));
-            })
-        )
-      );
+        const crisisResults = await Promise.allSettled(
+          assigned.map(s =>
+            api.get(`/api/v1/students/${s.studentId}/consultations`)
+              .then(res => {
+                const list = res.data?.data || [];
+                const crisisItems = list.filter(c => c.crisisFlag === true);
+                return crisisItems.map(c => ({
+                  studentId: s.studentId,
+                  name: s.studentName ?? s.korName ?? s.name ?? s.studentId,
+                  date: c.consultDate,
+                  keywords: c.rawContent?.slice(0, 30) ?? '',
+                }));
+              })
+          )
+        );
 
-      const allCrisis = crisisResults
-        .filter(r => r.status === 'fulfilled')
-        .flatMap(r => r.value)
-        // 학생 중복 제거 (최신 상담 1건만 표시)
-        .reduce((acc, cur) => {
-          if (!acc.find(a => a.studentId === cur.studentId)) acc.push(cur);
-          return acc;
-        }, []);
+        const allCrisis = crisisResults
+          .filter(r => r.status === 'fulfilled')
+          .flatMap(r => r.value)
+          .reduce((acc, cur) => {
+            if (!acc.find(a => a.studentId === cur.studentId)) acc.push(cur);
+            return acc;
+          }, []);
 
-      setCrisisList(allCrisis);
-      setStats({
-        totalStudents: assigned.length,
-        crisis: allCrisis.length,
-        warnings: myWarnings.length,
-      });
+        setCrisisList(allCrisis);
+        setStats({
+          totalStudents: assigned.length,
+          crisis: allCrisis.length,
+          warnings: myWarnings.length,
+        });
 
-      setAbsenceList(myWarnings.map(w => ({
-        id: w.studentId,
-        name: w.studentName,
-        course: w.courseName,
-        count: w.absentCount,
-        level: w.warningLevel === '위험' ? 'danger' : 'warn',
-      })));
+        setAbsenceList(myWarnings.map(w => ({
+          id: w.studentId,
+          name: w.studentName,
+          course: w.courseName,
+          count: w.absentCount,
+          level: w.warningLevel === '위험' ? 'danger' : 'warn',
+        })));
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    }).catch(e => console.error(e))
-      .finally(() => setLoading(false));
-  }, [professorId, token, navigate]);
+    fetchData();
+  }, [professorId, navigate]);
 
   const goToDetail = (studentId) => {
     if (!studentId) return;
     navigate(`/professor/students/${studentId}`);
   };
 
-  if (!token || !professorId) return (
+  if (!professorId) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#F0F2F7' }}>
       <div style={{ textAlign: 'center', color: '#1A3A5C', fontSize: 14 }}>인증 정보를 확인 중입니다...</div>
     </div>
