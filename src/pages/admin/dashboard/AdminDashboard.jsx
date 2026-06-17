@@ -9,6 +9,7 @@ import SearchByClass from '../search/SearchByClass.jsx';
 import SearchByCourse from '../search/SearchByCourse.jsx';
 import OnlineViolation from '../search/OnlineViolation.jsx';
 import CourseList from '../courses/CourseList.jsx';
+import AttendUploadStatus from '../attend/AttendUploadStatus.jsx';
 import AdminExcelUploadModal from '../courses/AdminExcelUploadModal.jsx';
 import AdminVisaExpirePage from '../visa/AdminVisaExpirePage.jsx';
 import SearchByStudent from '../search/SearchByStudent.jsx';
@@ -288,6 +289,7 @@ export default function AdminDashboard() {
           <div className="sb-sec">
             <div className="sb-lbl">학사</div>
             {/* 출결 관리 버튼 제거됨 */}
+            <button className={`nav-btn ${activeMenu === '출결 업로드 현황' ? 'active' : ''}`} onClick={() => handleMenuClick('출결 업로드 현황')}>출결 업로드 현황</button>
             <button className={`nav-btn ${activeMenu === '과목 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('과목 관리')}>과목 관리</button>
             <button className={`nav-btn ${activeMenu === '학과 관리' ? 'active' : ''}`} onClick={() => handleMenuClick('학과 관리')}>학과 관리</button>
           </div>
@@ -464,6 +466,7 @@ export default function AdminDashboard() {
             {activeMenu === '학과 관리'                && <DeptManagement />}
             {activeMenu === '마일리지 조회'            && <MileageManage />}
             {activeMenu === '전체 교수 목록'           && <ProfessorList />}
+            {activeMenu === '출결 업로드 현황' && <AttendUploadStatus />}
             {activeMenu === '교수 등록'                && <ProfessorRegister />}
             {activeMenu === '전담교수 관리'            && <AdvisorAssign />}
             {activeMenu === '학과/학기 관리'           && <SemesterManagement />}
