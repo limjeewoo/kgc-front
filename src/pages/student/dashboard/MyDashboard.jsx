@@ -133,11 +133,59 @@ export default function MyDashboard() {
       if (topikRes.status === 'fulfilled' && topikRes.value?.success) {
         setTopiks(toArray(topikRes.value.data));
       }
-      if (enrollRes.status === 'fulfilled' && enrollRes.value?.success) {
-        setEnrollments(toArray(enrollRes.value.data));
-      }
       if (mileRes.status === 'fulfilled' && mileRes.value?.success) {
         setMileage(mileRes.value.data);
+      }
+      
+      // 📌 [핵심 수정] 수강 목록을 가져온 후, 각 과목의 출결 정보를 순회하며 가져오기
+      if (enrollRes.status === 'fulfilled' && enrollRes.value?.success) {
+        const enrollList = toArray(enrollRes.value.data);
+        
+        const enrollsWithAttend = await Promise.all(
+          enrollList.map(async (enroll) => {
+            const enrollId = enroll.enrollId || enroll.id;
+            if (!enrollId) return enroll; // enrollId가 없으면 패스
+
+            try {
+              // 백엔드 API 호출: GET /api/v1/enrollments/{enrollId}/attendances
+              const attRes = await apiFetch(`/enrollments/${enrollId}/attendances`);
+              const attData = toArray(attRes?.data || attRes);
+
+              let present = 0, absent = 0, late = 0;
+              
+              // status: 1=출석, 2=결석, 3=지각, 4=공결
+              attData.forEach(a => {
+                if (a.status === 1 || a.status === 4) present++;
+                else if (a.status === 2) absent++;
+                else if (a.status === 3) late++;
+              });
+
+              const totalWeeks = attData.length > 0 ? attData.length : 15; // 기본 15주차 가정
+
+              // 경고 로직 (지각 3회 = 결석 1회로 환산하여 통상 4회 결석시 F/위험 기준 적용)
+              const convertedAbsence = absent + Math.floor(late / 3);
+              let warningLevel = '정상';
+              if (convertedAbsence >= 4) warningLevel = '위험';
+              else if (convertedAbsence >= 3) warningLevel = '주의';
+
+              return {
+                ...enroll,
+                computedTotal: totalWeeks,
+                computedPresent: present,
+                computedAbsent: absent,
+                computedLate: late,
+                warningLevel: warningLevel
+              };
+            } catch (err) {
+              console.warn(`[과목 ID: ${enrollId}] 출결 정보를 불러오지 못했습니다.`, err);
+              return {
+                ...enroll,
+                computedTotal: 15, computedPresent: 0, computedAbsent: 0, computedLate: 0, warningLevel: '정상'
+              };
+            }
+          })
+        );
+        setEnrollments(enrollsWithAttend);
       }
       
       const isAdmin = userRole === 'ADMIN' || userRole === 'ROLE_ADMIN';
@@ -364,9 +412,15 @@ export default function MyDashboard() {
             <div style={{ padding:'1.5rem', textAlign:'center', color:'#94A3B8', fontSize:'.875rem' }}>수강 정보가 없습니다.</div>
           ) : (
             enrollments.map((e, i) => {
-              const present   = (e.totalWeeks ?? 0) - (e.absentCount ?? 0) - (e.lateCount ?? 0);
+              // API에서 새로 추가한 computed 값을 활용합니다.
+              const total   = e.computedTotal ?? 15;
+              const absent  = e.computedAbsent ?? 0;
+              const late    = e.computedLate ?? 0;
+              const present = e.computedPresent ?? (total - absent - late);
+              
               const isDanger  = e.warningLevel === '위험';
               const isWarning = e.warningLevel === '주의';
+              
               return (
                 <div className="att-row" key={i}>
                   <div className="att-col-name">
@@ -374,9 +428,9 @@ export default function MyDashboard() {
                     {e.courseCode && <div className="course-code">{e.courseCode}</div>}
                   </div>
                   <div className="att-col-bar">
-                    <AttendBar total={e.totalWeeks ?? 0} absent={e.absentCount ?? 0} late={e.lateCount ?? 0} />
+                    <AttendBar total={total} absent={absent} late={late} />
                   </div>
-                  <div className="att-col-nums">{present}회 / {e.absentCount ?? 0}회 / {e.lateCount ?? 0}회</div>
+                  <div className="att-col-nums">{present}회 / {absent}회 / {late}회</div>
                   <div className="att-col-status">
                     <span className={`pill ${isDanger ? 'pill-red' : isWarning ? 'pill-amber' : 'pill-green'}`}>
                       {isDanger ? '위험' : isWarning ? '주의' : '정상'}

@@ -336,7 +336,11 @@ export default function SearchByDept({ onBack }) {
                         </span>
                       </td>
                       <td className="center">
-                        <button className="sd-detail-btn" onClick={() => navigate(`/admin/students/${s.studentId}`)}>
+                        <button className="sd-detail-btn" onClick={() => {
+                          window.dispatchEvent(new CustomEvent('switch-admin-menu', {
+                            detail: { menu: '학생 기본 정보', studentId: s.studentId }
+                          }));
+                        }}>
                           상세보기
                         </button>
                       </td>

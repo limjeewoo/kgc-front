@@ -189,11 +189,11 @@ export default function AttendTab({ studentId: propsStudentId }) {
 
       <div className="legend-bar">
         <div className="legend-items">
-          <div className="legend-item"><div className="legend-cell lc-ok">출</div>출석(1)</div>
-          <div className="legend-item"><div className="legend-cell lc-abs">결</div>결석(2)</div>
-          <div className="legend-item"><div className="legend-cell lc-late">지</div>지각(3)</div>
-          <div className="legend-item"><div className="legend-cell lc-pub">공</div>공결(4)</div>
-          <div className="legend-item"><div className="legend-cell lc-none">-</div>미입력(0)</div>
+          <div className="legend-item"><div className="legend-cell lc-ok">출</div>출석</div>
+          <div className="legend-item"><div className="legend-cell lc-abs">결</div>결석</div>
+          <div className="legend-item"><div className="legend-cell lc-late">지</div>지각</div>
+          <div className="legend-item"><div className="legend-cell lc-pub">공</div>공결</div>
+          <div className="legend-item"><div className="legend-cell lc-none">-</div>미입력</div>
         </div>
         
         <button onClick={fetchAttendanceData} className="refresh-btn">
