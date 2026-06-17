@@ -8,8 +8,23 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  const id = studentIdProp || params.studentId || params.id;
-  const isNewMode = id === 'new';
+  // ★ prop이 있으면 prop 우선, 없으면 URL params, 둘 다 없으면 sessionStorage fallback
+  const resolveId = () => {
+    if (studentIdProp && studentIdProp !== 'undefined') return studentIdProp;
+    if (params.studentId && params.studentId !== 'undefined') return params.studentId;
+    if (params.id && params.id !== 'undefined') return params.id;
+    return sessionStorage.getItem('basicTab_studentId') || null;
+  };
+
+  const id = resolveId();
+  const isNewMode = !id || id === 'new';
+
+  // ★ id가 유효하면 sessionStorage에 저장 (새로고침 대비)
+  useEffect(() => {
+    if (id && id !== 'new') {
+      sessionStorage.setItem('basicTab_studentId', id);
+    }
+  }, [id]);
 
   const EMPTY_STUDENT = {
     studentId:'', korName:'', engName:'', deptId:'', deptName:'',
@@ -28,32 +43,24 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
   const [isSaving, setIsSaving]               = useState(false);
   const [isDeleting, setIsDeleting]           = useState(false);
   const [isVisaModalOpen, setIsVisaModalOpen] = useState(false);
+  const [photoError, setPhotoError]           = useState(false);
 
+  // ★ 서버 URL이 상대경로면 백엔드 origin 붙이기
   const getFullPhotoUrl = (url) => {
     if (!url) return null;
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
-      return url;
-    }
-    return url; 
+    if (url.startsWith('blob:') || url.startsWith('http://') || url.startsWith('https://')) return url;
+    // 상대경로인 경우 백엔드 origin 붙이기
+    return `${window.location.protocol}//${window.location.hostname}:8080${url}`;
   };
 
   const fetchCurrentVisa = async () => {
-    if (isNewMode || !id || id === 'undefined') return;
+    if (isNewMode || !id) return;
     try {
       const res = await api.get(`/api/v1/students/${id}/visas`);
       if (res.data.success && res.data.data && res.data.data.length > 0) {
         const currentVisa = res.data.data.find(v => v.isCurrent) || res.data.data[0];
-        
-        setStudent(prev => ({ 
-          ...prev, 
-          visaType: currentVisa.visaType || '-',
-          currentVisaId: currentVisa.visaId || null
-        }));
-        setOriginalStudent(prev => ({ 
-          ...prev, 
-          visaType: currentVisa.visaType || '-',
-          currentVisaId: currentVisa.visaId || null
-        }));
+        setStudent(prev => ({ ...prev, visaType: currentVisa.visaType || '-', currentVisaId: currentVisa.visaId || null }));
+        setOriginalStudent(prev => ({ ...prev, visaType: currentVisa.visaType || '-', currentVisaId: currentVisa.visaId || null }));
       } else {
         setStudent(prev => ({ ...prev, visaType: '-', currentVisaId: null }));
         setOriginalStudent(prev => ({ ...prev, visaType: '-', currentVisaId: null }));
@@ -65,13 +72,10 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
 
   const handleDeleteVisa = async () => {
     if (!student.currentVisaId) return;
-    
     if (!window.confirm(`현재 비자(${student.visaType}) 정보를 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.`)) return;
-
     try {
       setIsDeleting(true);
       const res = await api.delete(`/api/v1/visas/${student.currentVisaId}`);
-      
       if (res.data.success) {
         alert('비자 정보가 삭제되었습니다.');
         fetchCurrentVisa();
@@ -86,89 +90,58 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
   };
 
   useEffect(() => {
+    if (!id) { setIsLoading(false); return; }
+
     setIsLoading(true);
-    
     const initPromises = [
       api.get('/api/v1/depts').catch(() => ({ data: { success: false } })),
       api.get('/api/v1/nationalities').catch(() => ({ data: { success: false } })),
     ];
-
-    if (!isNewMode && id && id !== 'undefined') {
+    if (!isNewMode) {
       initPromises.push(api.get(`/api/v1/students/${id}`));
       initPromises.push(api.get(`/api/v1/students/${id}/visas`).catch(() => ({ data: { success: false } })));
       initPromises.push(api.get(`/api/v1/students/${id}/topik`).catch(() => ({ data: { success: false } })));
       initPromises.push(api.get(`/api/v1/topik/work-hours/${id}`).catch(() => ({ data: { success: false } })));
     }
-
     Promise.all(initPromises).then(([deptRes, natRes, studentRes, visaRes, topikRes, workHoursRes]) => {
       if (deptRes.data?.success) setDepartments(deptRes.data.data);
-      
       if (natRes.data?.success) {
         setNationalities(natRes.data.data);
       } else {
         setNationalities(['베트남', '중국', '몽골', '우즈베키스탄', '일본', '미국', '기타']);
       }
-
-      if (isNewMode) {
-        setStudent(EMPTY_STUDENT);
-        setIsLoading(false);
-        return;
-      }
-
-      if (!id || id === 'undefined') {
-        setIsLoading(false);
-        return;
-      }
-
+      if (isNewMode) { setStudent(EMPTY_STUDENT); setIsLoading(false); return; }
       if (studentRes && studentRes.data?.success) {
         const s = studentRes.data.data;
-        
-        let fetchedVisaType = '-';
-        let fetchedVisaId = null;
+        let fetchedVisaType = '-', fetchedVisaId = null;
         if (visaRes && visaRes.data?.success && visaRes.data.data?.length > 0) {
           const currentVisa = visaRes.data.data.find(v => v.isCurrent) || visaRes.data.data[0];
           fetchedVisaType = currentVisa.visaType || '-';
           fetchedVisaId = currentVisa.visaId || null;
         }
-
         let fetchedTopikLevel = '-';
         if (topikRes && topikRes.data?.success && topikRes.data.data?.length > 0) {
           fetchedTopikLevel = topikRes.data.data[0].topikLevel || '-';
         }
-
         let fetchedMaxWorkHours = '-';
         if (workHoursRes && workHoursRes.data?.success) {
           const whData = workHoursRes.data.data;
           const hours = typeof whData === 'object' && whData !== null ? (whData.maxWorkHours ?? whData.workHours) : whData;
           fetchedMaxWorkHours = hours !== undefined && hours !== null ? `${hours}시간` : '-';
         }
-
         const mapped = {
-          studentId:    s.studentId || id,
-          deptId:       s.deptId || '',
-          deptName:     s.deptName || '소속 정보 없음',
-          engName:      s.engName || '',
-          korName:      s.korName || '이름 없음',
-          gender:       s.gender || '',
-          nationality:  s.nationality || '',
-          birthDate:    s.birthDate || '',
-          phone:        s.phone || '',
-          address:      s.address || '',
-          classSec:     s.classSec || '',
-          grade:        s.grade ? String(s.grade) : '',
-          admissionDate: s.admissionDate || '',
-          enrollStatus: s.enrollStatus || '',
-          foreignRegNo: s.foreignRegNo || '',
-          visaType:     fetchedVisaType,
-          currentVisaId: fetchedVisaId,
-          topikLevel:   fetchedTopikLevel,
-          maxWorkHours: fetchedMaxWorkHours,
-          gpa:          s.gpa ?? null,
-          totalCredits: s.totalCredits ?? null,
-          photoUrl:     s.photoUrl || null,
+          studentId: s.studentId || id, deptId: s.deptId || '', deptName: s.deptName || '소속 정보 없음',
+          engName: s.engName || '', korName: s.korName || '이름 없음', gender: s.gender || '',
+          nationality: s.nationality || '', birthDate: s.birthDate || '', phone: s.phone || '',
+          address: s.address || '', classSec: s.classSec || '', grade: s.grade ? String(s.grade) : '',
+          admissionDate: s.admissionDate || '', enrollStatus: s.enrollStatus || '',
+          foreignRegNo: s.foreignRegNo || '', visaType: fetchedVisaType, currentVisaId: fetchedVisaId,
+          topikLevel: fetchedTopikLevel, maxWorkHours: fetchedMaxWorkHours,
+          gpa: s.gpa ?? null, totalCredits: s.totalCredits ?? null, photoUrl: s.photoUrl || null,
         };
         setStudent(mapped);
         setOriginalStudent(mapped);
+        setPhotoError(false);
       }
     })
     .catch(e => console.error('초기 데이터 로드 중 치명적 에러:', e))
@@ -178,50 +151,49 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
   const set = (field) => (e) => setStudent(p => ({ ...p, [field]: e.target.value }));
 
   const handlePhotoClick = () => {
-    if (isEditMode && !isNewMode) {
-      fileInputRef.current?.click();
-    }
+    if (isEditMode && !isNewMode) fileInputRef.current?.click();
   };
 
   const handlePhotoChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     if (!file.type.startsWith('image/')) {
       alert('이미지 파일만 업로드 가능합니다.');
       return;
     }
 
+    // blob URL로 즉시 미리보기 (업로드 결과와 무관하게 유지)
     const localPreviewUrl = URL.createObjectURL(file);
     setStudent(p => ({ ...p, photoUrl: localPreviewUrl }));
+    setPhotoError(false);
 
     const formData = new FormData();
-    formData.append('file', file);  
-    formData.append('photo', file); 
-    formData.append('image', file); 
+    formData.append('photo', file);
 
     try {
       setIsSaving(true);
-      const res = await api.patch(`/api/v1/students/${id}/photo`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      if (res.data.success) {
+      const res = await api.patch(`/api/v1/students/${id}/photo`, formData);
+      if (res.data?.success) {
+        // ★ 서버 URL이 있으면 사용, 없으면 blob 미리보기 그대로 유지
+        const serverUrl = res.data.data?.photoUrl || res.data.data?.url || null;
+        const finalUrl = serverUrl || localPreviewUrl;
+        setStudent(p => ({ ...p, photoUrl: finalUrl }));
+        setOriginalStudent(p => ({ ...p, photoUrl: finalUrl }));
+        setPhotoError(false);
         alert('프로필 사진이 변경되었습니다.');
-        const newPhotoUrl = res.data.data?.photoUrl || localPreviewUrl;
-        setStudent(p => ({ ...p, photoUrl: newPhotoUrl }));
-        setOriginalStudent(p => ({ ...p, photoUrl: newPhotoUrl }));
       } else {
-        alert(`사진 업로드 실패: ${res.data.message}`);
+        alert(`사진 업로드 실패: ${res.data?.message || '알 수 없는 오류'}`);
         setStudent(p => ({ ...p, photoUrl: originalStudent.photoUrl }));
+        setPhotoError(!originalStudent.photoUrl);
       }
     } catch (error) {
       const serverMessage = error.response?.data?.message || error.response?.data?.error;
       alert(serverMessage || '사진 업로드 중 오류가 발생했습니다.');
       setStudent(p => ({ ...p, photoUrl: originalStudent.photoUrl }));
+      setPhotoError(!originalStudent.photoUrl);
     } finally {
       setIsSaving(false);
-      if (fileInputRef.current) fileInputRef.current.value = ''; 
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -235,26 +207,18 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
 
   const handleRegisterSubmit = async () => {
     if (!validateForm()) return;
-
     try {
       const res = await api.post('/api/v1/students', {
-        studentId:     student.studentId,
-        korName:       student.korName,
-        engName:       student.engName || null,
-        deptId:        student.deptId,
-        grade:         parseInt(student.grade),
-        classSec:      student.classSec || null,
-        gender:        student.gender,
-        nationality:   student.nationality,
-        birthDate:     student.birthDate || null,
-        phone:         student.phone || null,
-        address:       student.address || null,
-        admissionDate: student.admissionDate || null,
-        enrollStatus:  student.enrollStatus,
-        foreignRegNo:  student.foreignRegNo || null,
+        studentId: student.studentId, korName: student.korName, engName: student.engName || null,
+        deptId: student.deptId, grade: parseInt(student.grade), classSec: student.classSec || null,
+        gender: student.gender, nationality: student.nationality, birthDate: student.birthDate || null,
+        phone: student.phone || null, address: student.address || null,
+        admissionDate: student.admissionDate || null, enrollStatus: student.enrollStatus,
+        foreignRegNo: student.foreignRegNo || null,
       });
       if (res.data.success) {
         alert('학생 등록이 완료되었습니다.');
+        sessionStorage.removeItem('basicTab_studentId');
         navigate('/admin/dashboard');
       } else {
         alert(`등록 실패: ${res.data.message}`);
@@ -266,24 +230,15 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
 
   const handleEditSave = async () => {
     if (!validateForm()) return;
-
     try {
       setIsSaving(true);
       const res = await api.put(`/api/v1/students/${id}`, {
-        studentId:     id,
-        korName:       student.korName,
-        engName:       student.engName || null,
-        deptId:        student.deptId,
-        grade:         parseInt(student.grade),
-        classSec:      student.classSec || null,
-        gender:        student.gender,
-        nationality:   student.nationality,
-        birthDate:     student.birthDate || null,
-        phone:         student.phone || null,
-        address:       student.address || null,
-        admissionDate: student.admissionDate || null,
-        enrollStatus:  student.enrollStatus,
-        foreignRegNo:  student.foreignRegNo || null,
+        studentId: id, korName: student.korName, engName: student.engName || null,
+        deptId: student.deptId, grade: parseInt(student.grade), classSec: student.classSec || null,
+        gender: student.gender, nationality: student.nationality, birthDate: student.birthDate || null,
+        phone: student.phone || null, address: student.address || null,
+        admissionDate: student.admissionDate || null, enrollStatus: student.enrollStatus,
+        foreignRegNo: student.foreignRegNo || null,
       });
       if (res.data.success) {
         alert('학생 정보가 수정되었습니다.');
@@ -301,6 +256,7 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
 
   const handleEditCancel = () => {
     setStudent(originalStudent);
+    setPhotoError(false);
     setIsEditMode(false);
   };
 
@@ -314,13 +270,8 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
   const renderInput = (field, type = 'text', placeholder = '') => {
     if (isViewOnly) return <span className="bt-info-val">{student[field] || '–'}</span>;
     return (
-      <input
-        type={type}
-        className="bt-form-input"
-        placeholder={placeholder}
-        value={student[field] || ''}
-        onChange={set(field)}
-      />
+      <input type={type} className="bt-form-input" placeholder={placeholder}
+        value={student[field] || ''} onChange={set(field)} />
     );
   };
 
@@ -357,63 +308,18 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         .bt-chip { display:inline-block; padding:2px 9px; border-radius:6px; font-size:11px; font-weight:600; margin-right:5px; }
         .bt-chip-green { background:#ECFDF5; color:#059669; }
         .bt-chip-blue  { background:#EFF6FF; color:#1D4ED8; }
-        
         .bt-profile-photo.edit-active { cursor: pointer; }
-        .bt-profile-photo.edit-active::after {
-          content: '변경';
-          position: absolute; bottom: 0; left: 0; right: 0;
-          background: rgba(0, 0, 0, 0.6); color: #fff;
-          font-size: 11px; font-weight: 500; padding: 2px 0; text-align: center;
-        }
-
-        .bt-visa-reg-btn {
-          background: #EFF6FF;
-          color: #1D4ED8;
-          border: 1px solid #BFDBFE;
-          border-radius: 6px;
-          padding: 4px 10px;
-          font-size: 11px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.15s;
-        }
-        .bt-visa-reg-btn:hover {
-          background: #DBEAFE;
-          border-color: #93C5FD;
-        }
-
-        .bt-visa-del-btn {
-          background: #FEF2F2;
-          color: #DC2626;
-          border: 1px solid #FECACA;
-          border-radius: 6px;
-          padding: 4px 10px;
-          font-size: 11px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.15s;
-          margin-left: 8px;
-        }
-        .bt-visa-del-btn:hover {
-          background: #FEE2E2;
-          border-color: #FCA5A5;
-        }
+        .bt-profile-photo.edit-active::after { content: '변경'; position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: #fff; font-size: 11px; font-weight: 500; padding: 2px 0; text-align: center; }
+        .bt-visa-reg-btn { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+        .bt-visa-reg-btn:hover { background: #DBEAFE; border-color: #93C5FD; }
+        .bt-visa-del-btn { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; margin-left: 8px; }
+        .bt-visa-del-btn:hover { background: #FEE2E2; border-color: #FCA5A5; }
       `}</style>
 
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        style={{ display: 'none' }} 
-        accept="image/*" 
-        onChange={handlePhotoChange} 
-      />
+      <input type="file" ref={fileInputRef} style={{ display:'none' }} accept="image/*" onChange={handlePhotoChange} />
 
       {isVisaModalOpen && (
-        <VisaRegisterModal 
-          studentId={id} 
-          onClose={() => setIsVisaModalOpen(false)} 
-          onSuccess={fetchCurrentVisa} 
-        />
+        <VisaRegisterModal studentId={id} onClose={() => setIsVisaModalOpen(false)} onSuccess={fetchCurrentVisa} />
       )}
 
       <div className="bt-topbar">
@@ -436,35 +342,29 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
       </div>
 
       {readOnly && (
-        <div className="bt-readonly-banner">
-          🔒 교수 권한으로 조회 중입니다. 학적 정보 수정은 관리자만 가능합니다.
-        </div>
+        <div className="bt-readonly-banner">🔒 교수 권한으로 조회 중입니다. 학적 정보 수정은 관리자만 가능합니다.</div>
       )}
       {isEditMode && (
-        <div className="bt-editmode-banner">
-          ✏️ 수정 모드입니다. 변경 후 하단 [변경사항 저장하기] 버튼을 눌러주세요.
-        </div>
+        <div className="bt-editmode-banner">✏️ 수정 모드입니다. 변경 후 하단 [변경사항 저장하기] 버튼을 눌러주세요.</div>
       )}
 
       <div className="bt-profile-header">
-        <div 
+        <div
           className={`bt-profile-photo ${isEditMode && !isNewMode ? 'edit-active' : ''}`}
           onClick={handlePhotoClick}
         >
-          {student.photoUrl ? (
-            <img 
-              src={getFullPhotoUrl(student.photoUrl)} 
-              alt="프로필 사진" 
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-              onError={() => { 
-                setStudent(prev => ({ ...prev, photoUrl: null })); 
-              }} 
+          {student.photoUrl && !photoError ? (
+            <img
+              src={getFullPhotoUrl(student.photoUrl)}
+              alt="프로필 사진"
+              style={{ width:'100%', height:'100%', objectFit:'cover' }}
+              onError={() => setPhotoError(true)}
             />
           ) : (
             initials
           )}
         </div>
-        
+
         <div style={{ flex:1 }}>
           {isNewMode ? (
             <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
@@ -488,18 +388,15 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
             </>
           )}
         </div>
+
         {!isNewMode && (
           <div style={{ display:'flex', gap:'2rem', textAlign:'center' }}>
             <div>
-              <div style={{ fontSize:'1.3rem', fontWeight:700, color:'#3B82F6' }}>
-                {student.totalCredits ?? '-'}
-              </div>
+              <div style={{ fontSize:'1.3rem', fontWeight:700, color:'#3B82F6' }}>{student.totalCredits ?? '-'}</div>
               <div style={{ fontSize:'0.7rem', color:'#9CA3AF' }}>총이수학점</div>
             </div>
             <div>
-              <div style={{ fontSize:'1.3rem', fontWeight:700, color:'#0F172A' }}>
-                {student.gpa?.toFixed(2) ?? '-'}
-              </div>
+              <div style={{ fontSize:'1.3rem', fontWeight:700, color:'#0F172A' }}>{student.gpa?.toFixed(2) ?? '-'}</div>
               <div style={{ fontSize:'0.7rem', color:'#9CA3AF' }}>누적평점</div>
             </div>
           </div>
@@ -510,10 +407,10 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         <div className="bt-info-card">
           <div className="bt-info-card-title">인적 사항</div>
           {[
-            { key:'생년월일',      field:'birthDate',    type:'date' },
-            { key:'연락처',        field:'phone',        type:'tel',   ph:'010-0000-0000' },
-            { key:'주소',          field:'address',      type:'text', ph:'거주 주소 입력' },
-            { key:'외국인등록번호',  field:'foreignRegNo', type:'text', ph:'비밀번호 초기화용' },
+            { key:'생년월일',       field:'birthDate',    type:'date' },
+            { key:'연락처',         field:'phone',        type:'tel',  ph:'010-0000-0000' },
+            { key:'주소',           field:'address',      type:'text', ph:'거주 주소 입력' },
+            { key:'외국인등록번호', field:'foreignRegNo', type:'text', ph:'비밀번호 초기화용' },
           ].map(({ key, field, type, ph }) => (
             <div key={field} className="bt-info-row">
               <span className="bt-info-key">{key}</span>
@@ -587,16 +484,10 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         </div>
 
         <div className="bt-info-card">
-          <div className="bt-info-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="bt-info-card-title" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <span>비자 및 국적</span>
             {isEditMode && !isNewMode && (
-              <button 
-                type="button" 
-                className="bt-visa-reg-btn" 
-                onClick={() => setIsVisaModalOpen(true)}
-              >
-                비자 등록하기
-              </button>
+              <button type="button" className="bt-visa-reg-btn" onClick={() => setIsVisaModalOpen(true)}>비자 등록하기</button>
             )}
           </div>
           <div className="bt-info-row">
@@ -614,17 +505,12 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
           </div>
           <div className="bt-info-row">
             <span className="bt-info-key">현재 비자</span>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ display:'flex', alignItems:'center' }}>
               <span className="bt-info-val" style={{ color: isNewMode ? '#9CA3AF' : '#111827', fontWeight: isNewMode ? 400 : 600 }}>
                 {isNewMode ? '등록 완료 후 지정 가능' : student.visaType}
               </span>
               {isEditMode && !isNewMode && student.currentVisaId && (
-                <button
-                  type="button"
-                  className="bt-visa-del-btn"
-                  onClick={handleDeleteVisa}
-                  disabled={isDeleting}
-                >
+                <button type="button" className="bt-visa-del-btn" onClick={handleDeleteVisa} disabled={isDeleting}>
                   {isDeleting ? '삭제 중...' : '삭제'}
                 </button>
               )}
@@ -660,7 +546,7 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
             {isSaving ? '저장 중...' : '변경사항 저장하기'}
           </button>
         </div>
-      )}            
+      )}
     </div>
   );
 }
