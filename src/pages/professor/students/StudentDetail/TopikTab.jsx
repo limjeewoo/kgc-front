@@ -1,23 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const BASE_URL = 'http://localhost:8080';
 
 const fmt = (d) => d ? d.replace(/-/g, '. ') : '–';
 
-export default function TopikTab() {
-  const { studentId } = useParams();
-  const id = studentId;
-  const navigate = useNavigate();
-  
+export default function TopikTab({ studentId }) {
   const [student, setStudent] = useState(null);
   const [topikHistory, setTopikHistory] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(null);
 
   const [hasEditPermission, setHasEditPermission] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  const switchMenu = (menuName) => {
+    window.dispatchEvent(
+      new CustomEvent('switch-admin-menu', {
+        detail: { menu: menuName }
+      })
+    );
+  };
 
   const api = axios.create({
     baseURL: BASE_URL,
@@ -43,37 +46,49 @@ export default function TopikTab() {
   }, []);
 
   const fetchTopikData = async () => {
+    if (!studentId) return;
+
     try {
       setIsLoading(true);
 
       const [studentRes, topikRes] = await Promise.all([
-        api.get(`/api/v1/students/${id}`).catch(() => ({ data: { data: {} } })),
-        api.get(`/api/v1/students/${id}/topik`).catch(() => ({ data: { data: [] } }))
+        api.get(`/api/v1/students/${studentId}`).catch(() => ({ data: { data: {} } })),
+        api.get(`/api/v1/students/${studentId}/topik`).catch(() => ({ data: { data: [] } }))
       ]);
 
       if (studentRes.data?.success) {
         setStudent(studentRes.data.data);
+      } else if (studentRes.data) {
+        setStudent(studentRes.data);
       }
 
+      let rawList = [];
       if (topikRes.data?.success) {
-        const rawList = topikRes.data.data?.topiks || topikRes.data.data || [];
-        
-        const sortedHistory = [...rawList].sort(
-          (a, b) => new Date(b.examDate || '') - new Date(a.examDate || '')
-        );
-        setTopikHistory(sortedHistory);
+        rawList = topikRes.data.data?.topiks || topikRes.data.data || [];
+      } else if (Array.isArray(topikRes.data)) {
+        rawList = topikRes.data;
       }
+
+      const sortedHistory = [...rawList].sort(
+        (a, b) => new Date(b.examDate || '') - new Date(a.examDate || '')
+      );
+      setTopikHistory(sortedHistory);
 
     } catch (error) {
-      console.error("TOPIK 이력 데이터 로드 실패:", error);
+      console.error("TOPIK 데이터 로드 실패:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (id) fetchTopikData();
-  }, [id]);
+    if (!studentId) {
+      alert('TOPIK 이력을 조회할 학생이 선택되지 않았습니다.');
+      switchMenu('학생 목록');
+      return;
+    }
+    fetchTopikData();
+  }, [studentId]);
 
   const handleDelete = async (langId) => {
     if (!window.confirm("해당 TOPIK 이력을 정말 삭제하시겠습니까?")) return;
@@ -81,25 +96,16 @@ export default function TopikTab() {
     try {
       setIsDeleting(langId);
       const res = await api.delete(`/api/v1/topik/${langId}`);
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200 || res.status === 204) {
         alert("성공적으로 삭제되었습니다.");
         fetchTopikData();
       }
     } catch (error) {
       console.error("TOPIK 삭제 실패:", error);
-      alert(error.response?.data?.message || "삭제 권한이 없거나 실패했습니다.");
+      alert(error.response?.data?.message || "삭제 실패했습니다.");
     } finally {
       setIsDeleting(null);
     }
-  };
-
-  const checkStatus = (expiryDate, apiStatus) => {
-    if (apiStatus) return apiStatus; 
-    if (!expiryDate) return '확인 불가';
-    
-    const today = new Date();
-    const expDate = new Date(expiryDate);
-    return expDate >= today ? '유효' : '만료';
   };
 
   if (isLoading) {
@@ -134,10 +140,6 @@ export default function TopikTab() {
         .tt-table th { background: #F9FAFB; padding: 12px; font-size: 12px; color: #6B7280; font-weight: 600; text-align: left; border-bottom: 1px solid #F3F4F6; }
         .tt-table td { padding: 14px 12px; font-size: 13px; border-bottom: 1px solid #F9FAFB; color: #374151; }
         
-        .status-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; }
-        .status-valid { background: #F0FDF4; color: #16A34A; }
-        .status-expired { background: #FEF2F2; color: #EF4444; }
-
         .add-btn { background: #1A3A5C; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
         .add-btn:hover { background: #112740; }
 
@@ -151,13 +153,13 @@ export default function TopikTab() {
 
       <div className="tt-topbar">
         <div className="tt-topbar-left">
-          <button className="tt-back-btn" onClick={() => navigate(-1)} title="뒤로가기">
+          <button className="tt-back-btn" onClick={() => switchMenu('학생 목록')} title="뒤로가기">
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
               <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
           <div className="tt-breadcrumb">
-            학생 관리 › {student?.korName || '학생 이름'} › <span>TOPIK 이력 조회</span>
+            학생 관리 › {student?.korName || '불러오는 중...'} › <span>TOPIK 이력 조회</span>
           </div>
         </div>
       </div>
@@ -178,8 +180,8 @@ export default function TopikTab() {
               <th>시험일</th>
               <th>TOPIK 급수</th>
               <th>어학원 정보</th>
+              <th>한국어학습 시작년월</th>
               <th>기초한국어능력평가</th>
-              <th>유효기간 및 상태</th>
               {isAdmin && <th style={{ textAlign: 'center' }}>관리</th>}
             </tr>
           </thead>
@@ -192,7 +194,6 @@ export default function TopikTab() {
               </tr>
             ) : (
               topikHistory.map((item) => {
-                const status = checkStatus(item.expiryDate, item.status);
                 const targetId = item.langId || item.id || item.topikId;
                 
                 return (
@@ -212,17 +213,10 @@ export default function TopikTab() {
                       ) : '–'}
                     </td>
                     <td>
-                      {item.basicTestResult || '–'}
+                      {item.koreanStartDate ? fmt(item.koreanStartDate) : '–'}
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className={`status-badge ${status === '유효' ? 'status-valid' : 'status-expired'}`}>
-                          {status}
-                        </span>
-                        <span style={{ color: '#9CA3AF', fontSize: '12px' }}>
-                          ({item.expiryDate ? fmt(item.expiryDate) : '만료일 없음'})
-                        </span>
-                      </div>
+                      {item.basicTestResult || '–'}
                     </td>
                     {isAdmin && (
                       <td style={{ textAlign: 'center' }}>

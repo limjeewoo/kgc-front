@@ -1,278 +1,303 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-// const BASE_URL = 'https://api.kmgc.world'; // 배포용
-const BASE_URL = 'http://localhost:8080'; // 개발용
+const BASE_URL = 'http://localhost:8080';
 
-export default function VisaTab() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const fileInputRef = useRef(null);
-  
-  const [visaData, setVisaData] = useState({ currentVisa: null, history: [] });
-  const [isLoading, setIsLoading] = useState(true);
+const fmtDate = (d) => d ? d.replace(/-/g, '. ') : '-';
 
-  // Axios 인스턴스 (인증 토큰 포함)
+export default function VisaTab({ studentId }) {
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [visaHistory, setVisaHistory] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [visaInfo, setVisaInfo] = useState({
+    visaType: 'D-2',
+    issueDate: '',
+    expireDate: ''
+  });
+
   const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: BASE_URL,
     headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
   });
 
-  useEffect(() => {
-    const fetchVisaData = async () => {
-      try {
-        setIsLoading(true);
-        // 비자 정보 목록 조회 API 호출
-        const response = await api.get(`/api/v1/students/${id}/visas`);
-
-        if (response.data?.success) {
-          const visas = response.data.data || [];
-          
-          if (visas.length > 0) {
-            // 최신(현재) 비자와 과거 이력 분리
-            // API에 isCurrent 플래그가 있다면 그것을 사용하고, 없다면 발급일/만료일 기준으로 최신 항목을 찾습니다.
-            const current = visas.find(v => v.isCurrent) || visas[0];
-            const history = visas.filter(v => v.visaId !== current.visaId);
-
-            // D-Day 계산 (API 응답에 dDay가 없을 경우 대비)
-            let dDay = current.dDay;
-            const expireDate = current.expiryDate || current.expireDate;
-            if (dDay === undefined && expireDate) {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0); // 시간 제외, 자정 기준
-              const expDate = new Date(expireDate);
-              const diffTime = expDate.getTime() - today.getTime();
-              dDay = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            }
-
-            setVisaData({
-              currentVisa: {
-                ...current,
-                dDay: dDay || 0,
-                expireDate: expireDate // 통일된 필드명 사용
-              },
-              history: history
-            });
-          }
-        }
-      } catch (error) {
-        console.error("비자 정보 로드 실패:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (id) fetchVisaData();
-  }, [id]);
-
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem', color: '#9CA3AF', fontSize: '14px' }}>
-        데이터 로딩 중...
-      </div>
+  const switchMenu = (menuName) => {
+    window.dispatchEvent(
+      new CustomEvent('switch-admin-menu', {
+        detail: { menu: menuName }
+      })
     );
-  }
-
-  const { currentVisa, history } = visaData;
-
-  const getStatus = (dDay) => {
-    if (dDay < 0) return { chipClass: 'vt-chip-red', barColor: '#DC2626', label: '체류 기간 만료', textColor: '#991B1B' };
-    if (dDay <= 30) return { chipClass: 'vt-chip-red', barColor: '#EF4444', label: '긴급 연장 필요', textColor: '#DC2626' };
-    if (dDay <= 90) return { chipClass: 'vt-chip-amber', barColor: '#F59E0B', label: '갱신 준비 기간', textColor: '#D97706' };
-    return { chipClass: 'vt-chip-green', barColor: '#22C55E', label: '체류 기간 넉넉함', textColor: '#16A34A' };
   };
 
-  const status = currentVisa ? getStatus(currentVisa.dDay) : null;
-  const progress = currentVisa ? Math.max(0, Math.min(100, (currentVisa.dDay / 365) * 100)) : 0;
+  const fetchVisaData = async () => {
+    if (!studentId) return;
+    try {
+      setIsLoading(true);
+
+      const [studentRes, visaRes] = await Promise.all([
+        api.get(`/api/v1/students/${studentId}`).catch(() => ({ data: null })),
+        api.get(`/api/v1/students/${studentId}/visas`).catch(() => ({ data: [] }))
+      ]);
+
+      if (studentRes.data?.success) {
+        setSelectedStudent(studentRes.data.data);
+      } else if (studentRes.data) {
+        setSelectedStudent(studentRes.data);
+      }
+
+      let rawList = [];
+      if (visaRes.data?.success) {
+        rawList = visaRes.data.data || [];
+      } else if (Array.isArray(visaRes.data)) {
+        rawList = visaRes.data;
+      }
+
+      const sortedHistory = [...rawList].sort(
+        (a, b) => new Date(b.expireDate || '') - new Date(a.expireDate || '')
+      );
+      setVisaHistory(sortedHistory);
+
+      if (sortedHistory.length > 0) {
+        const currentVisa = sortedHistory.find(v => v.isCurrent) || sortedHistory[0];
+        setVisaInfo({
+          visaType: currentVisa.visaType || 'D-2',
+          issueDate: currentVisa.issueDate || '',
+          expireDate: currentVisa.expireDate || ''
+        });
+      }
+    } catch (error) {
+      console.error("데이터 로드 실패:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!studentId) {
+      alert('비자를 등록할 학생이 선택되지 않았습니다. 학생 목록에서 대상을 선택해 주세요.');
+      switchMenu('학생 목록');
+      return;
+    }
+
+    fetchVisaData();
+  }, [studentId]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    
+    setVisaInfo(prev => {
+      const updated = { ...prev, [name]: value };
+      if (name === 'issueDate' && updated.expireDate && updated.expireDate < value) {
+        updated.expireDate = '';
+      }
+      return updated;
+    });
+  };
+
+  const handleBackToStudentList = () => {
+    switchMenu('학생 목록');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!studentId) return;
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        ...visaInfo,
+        isCurrent: true 
+      };
+
+      const response = await api.post(`/api/v1/students/${studentId}/visas`, payload);
+      
+      if (response.data?.success || response.status === 200 || response.status === 201) {
+        alert(`${selectedStudent?.korName || '해당'} 학생의 비자 정보 등록이 완료되었습니다.`);
+        switchMenu('학생 목록');
+      } else {
+        alert('저장에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || '저장 중 오류가 발생했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (visaId) => {
+    if (!visaId) {
+      alert('삭제할 항목의 식별자(ID)가 올바르지 않습니다.');
+      return;
+    }
+
+    if (!window.confirm('해당 비자 체류 이력을 정말 삭제하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      const response = await api.delete(`/api/v1/visas/${visaId}`);
+      
+      if (response.data?.success || response.status === 200) {
+        alert('비자 체류 이력이 성공적으로 삭제되었습니다.');
+        fetchVisaData();
+      } else {
+        alert('삭제에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || '삭제 처리 중 오류가 발생했습니다.');
+    }
+  };
 
   return (
-    <div style={{ fontFamily: "'DM Sans', 'Noto Sans KR', sans-serif", fontSize: '14px', color: '#111827' }}>
+    <div className="main-content">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-
-        .vt-topbar { background: #fff; padding: 0 28px; height: 58px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E5E7EB; margin-bottom: 24px; }
-        .vt-topbar-left { display: flex; align-items: center; gap: 10px; }
-        .vt-topbar-right { display: flex; align-items: center; gap: 8px; }
-        .vt-back-btn { width: 30px; height: 30px; border-radius: 7px; background: #F3F4F6; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; color: #374151; }
-        .vt-back-btn:hover { background: #E5E7EB; }
-        .vt-breadcrumb { font-size: 13px; color: #9CA3AF; }
-        .vt-breadcrumb span { color: #111827; font-weight: 600; }
-        .vt-btn { padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: inherit; display: flex; align-items: center; gap: 5px; }
-        .vt-btn-secondary { background: #F9FAFB; border: 1px solid #E5E7EB; color: #374151; }
-        .vt-btn-secondary:hover { background: #F3F4F6; }
-        .vt-btn-primary { background: #1A3A5C; border: 1px solid #1A3A5C; color: #fff; }
-        .vt-btn-primary:hover { background: #153150; }
-
-        .vt-chip { font-size: 11.5px; font-weight: 500; padding: 4px 10px; border-radius: 20px; }
-        .vt-chip-blue  { background: #EFF6FF; color: #1D4ED8; }
-        .vt-chip-green { background: #F0FDF4; color: #16A34A; }
-        .vt-chip-amber { background: #FFFBEB; color: #D97706; }
-        .vt-chip-red   { background: #FEF2F2; color: #DC2626; }
-
-        .vt-card { background: #fff; border-radius: 14px; border: 1px solid #F3F4F6; padding: 20px 22px; }
-        .vt-card-title { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #F3F4F6; display: flex; align-items: center; justify-content: space-between; }
-        
-        .vt-dday-banner { background: #fff; border-radius: 14px; border: 1px solid #F3F4F6; padding: 24px 28px; margin-bottom: 18px; display: flex; align-items: center; gap: 32px; }
-        .vt-dday-left { display: flex; flex-direction: column; align-items: center; min-width: 130px; padding-right: 32px; border-right: 1px solid #F3F4F6; }
-        .vt-dday-label { font-size: 11px; color: #9CA3AF; margin-bottom: 6px; }
-        .vt-dday-value { font-size: 36px; font-weight: 700; letter-spacing: -1px; line-height: 1; margin-bottom: 10px; }
-        .vt-progress-track { width: 100%; height: 6px; background: #F3F4F6; border-radius: 99px; overflow: hidden; margin-bottom: 8px; }
-        .vt-progress-fill { height: 100%; border-radius: 99px; transition: width 0.8s ease; }
-        .vt-dday-status { font-size: 11.5px; font-weight: 600; }
-
-        .vt-dday-right { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-        .vt-dday-field-label { font-size: 11px; color: #9CA3AF; margin-bottom: 4px; }
-        .vt-dday-field-val { font-size: 14px; font-weight: 600; color: #111827; }
-
-        .vt-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; }
-
-        .vt-timeline { padding-left: 4px; }
-        .vt-tl-item { position: relative; padding: 0 0 20px 20px; border-left: 2px solid #E5E7EB; }
-        .vt-tl-item:last-child { border-left: 2px solid transparent; padding-bottom: 0; }
-        .vt-tl-item::before { content: ''; position: absolute; left: -7px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid #CBD5E1; }
-        .vt-tl-item.active::before { background: #1A3A5C; border-color: #1A3A5C; }
-        .vt-tl-main { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 2px; }
-        .vt-tl-main.active { color: #1D4ED8; }
-        .vt-tl-sub { font-size: 12px; color: #9CA3AF; }
-
-        .vt-file-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .vt-file-box { border: 1.5px dashed #E5E7EB; padding: 20px 12px; border-radius: 10px; text-align: center; cursor: pointer; transition: all 0.15s; background: #FAFAFA; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-        .vt-file-box:hover { border-color: #3B82F6; background: #EFF6FF; }
-        .vt-file-name { font-size: 12.5px; font-weight: 500; color: #374151; }
-
-        @media (max-width: 768px) {
-          .vt-dday-banner { flex-direction: column; }
-          .vt-dday-left { border-right: none; border-bottom: 1px solid #F3F4F6; padding-right: 0; padding-bottom: 16px; width: 100%; }
-          .vt-dday-right { grid-template-columns: 1fr 1fr; }
-          .vt-grid { grid-template-columns: 1fr; }
-          .vt-file-grid { grid-template-columns: 1fr 1fr; }
-        }
+        .main-content { padding: 1.5rem 1.75rem; background: #F0F2F7; min-height: 100vh; font-family: 'DM Sans', 'Noto Sans KR', sans-serif; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .page-title { font-size: 1.375rem; font-weight: 700; color: #111827; margin: 0; }
+        .tab-desc { font-size: 0.8125rem; color: #6B7280; margin: 0.25rem 0 0 0; }
+        .visa-tab-wrapper { background: #fff; border-radius: 0.875rem; padding: 1.5rem; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem; }
+        .selected-student-panel { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 0.5rem; padding: 1.25rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #1A3A5C; }
+        .student-info-meta h4 { margin: 0 0 0.375rem 0; font-size: 1.0625rem; color: #0F172A; font-weight: 700; }
+        .student-info-meta p { margin: 0; font-size: 0.875rem; color: #475569; }
+        .student-info-meta span { font-weight: 600; color: #1A3A5C; }
+        .badge-target { background: #E2E8F0; color: #475569; font-size: 0.75rem; padding: 0.375rem 0.75rem; border-radius: 1rem; font-weight: 600; }
+        .section-subtitle { font-size: 0.9375rem; font-weight: 700; color: #111827; margin: 0 0 1.25rem 0; padding-bottom: 0.75rem; border-bottom: 1px solid #F3F4F6; }
+        .visa-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.375rem; }
+        .form-group.full { grid-column: span 2; }
+        .form-group label { font-size: 0.8125rem; font-weight: 600; color: #374151; }
+        .form-group input, .form-group select { padding: 0.625rem 0.875rem; border: 1px solid #E5E7EB; border-radius: 0.5rem; font-size: 0.875rem; background: #fff; transition: border-color 0.2s; }
+        .form-group input:focus, .form-group select:focus { border-color: #1A3A5C; outline: none; box-shadow: 0 0 0 1px #1A3A5C; }
+        .action-row { grid-column: span 2; margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.5rem; border-top: 1px solid #F3F4F6; padding-top: 1.25rem; }
+        .btn-cancel { background: #fff; border: 1px solid #D1D5DB; color: #374151; padding: 0.625rem 1.25rem; border-radius: 0.5rem; font-size: 0.8125rem; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .btn-cancel:hover { background: #F9FAFB; border-color: #9CA3AF; color: #1F2937; }
+        .btn-submit { background: #1A3A5C; color: #fff; border: none; padding: 0.625rem 1.5rem; border-radius: 0.5rem; font-size: 0.8125rem; cursor: pointer; font-weight: 600; transition: background-color 0.2s; }
+        .btn-submit:hover { background: #112740; }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+        .history-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .history-table th { background: #F9FAFB; color: #6B7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; padding: 0.875rem 1.25rem; border-bottom: 1px solid #F3F4F6; }
+        .history-table td { padding: 1rem 1.25rem; border-bottom: 1px solid #F9FAFB; font-size: 0.875rem; color: #111827; }
+        .chip-current-true { background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; padding: 0.25rem 0.625rem; border-radius: 1.25rem; font-size: 0.6875rem; font-weight: 600; display: inline-flex; }
+        .chip-current-false { background: #F3F4F6; color: #6B7280; border: 1px solid #E5E7EB; padding: 0.25rem 0.625rem; border-radius: 1.25rem; font-size: 0.6875rem; font-weight: 600; display: inline-flex; }
+        .btn-delete { background: #EF4444; color: #fff; border: none; padding: 0.375rem 0.75rem; border-radius: 0.375rem; font-size: 0.75rem; cursor: pointer; font-weight: 600; transition: background-color 0.2s; }
+        .btn-delete:hover { background: #DC2626; }
       `}</style>
 
-      {/* 숨겨진 파일 인풋 */}
-      <input type="file" ref={fileInputRef} style={{ display: 'none' }}
-        onChange={(e) => console.log('파일 업로드 준비:', e.target.files[0])} />
-
-      {/* 탑바 */}
-      <div className="vt-topbar">
-        <div className="vt-topbar-left">
-          <button className="vt-back-btn" onClick={() => navigate(-1)}>
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-              <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <div className="vt-breadcrumb">
-            학생 관리 › 학생 목록 › <span>비자 및 체류 정보</span>
-          </div>
-        </div>
-        <div className="vt-topbar-right">
-          <button className="vt-btn vt-btn-secondary">
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            갱신 이력
-          </button>
-          <button className="vt-btn vt-btn-primary">
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M12 4v16m8-8H4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            비자 등록
-          </button>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">체류 자격(비자) 정보 등록</h1>
+          <p className="tab-desc">외국인 유학생의 비자 코드 정보 및 기한 만료일을 조회하고 갱신 처리합니다.</p>
         </div>
       </div>
 
-      {currentVisa ? (
-        <>
-          {/* D-Day 배너 */}
-          <div className="vt-dday-banner">
-            <div className="vt-dday-left">
-              <div className="vt-dday-label">체류 만료 D-Day</div>
-              <div className="vt-dday-value" style={{ color: status.textColor }}>
-                {currentVisa.dDay < 0 ? `D+${Math.abs(currentVisa.dDay)}` : `D-${currentVisa.dDay}`}
-              </div>
-              <div className="vt-progress-track" style={{ width: '100px' }}>
-                <div className="vt-progress-fill"
-                  style={{ width: `${progress}%`, background: status.barColor }} />
-              </div>
-              <span className="vt-dday-status" style={{ color: status.textColor }}>
-                {status.label}
-              </span>
-            </div>
-
-            <div className="vt-dday-right">
-              <div className="vt-dday-field">
-                <div className="vt-dday-field-label">비자 종류</div>
-                <div className="vt-dday-field-val" style={{ color: '#1D4ED8' }}>
-                  {currentVisa.visaType}
-                </div>
-              </div>
-              <div className="vt-dday-field">
-                <div className="vt-dday-field-label">외국인 등록번호</div>
-                <div className="vt-dday-field-val">{currentVisa.foreignerRegNo || '미등록'}</div>
-              </div>
-              <div className="vt-dday-field">
-                <div className="vt-dday-field-label">발급 일자</div>
-                <div className="vt-dday-field-val">{currentVisa.issueDate || '-'}</div>
-              </div>
-              <div className="vt-dday-field">
-                <div className="vt-dday-field-label">만료 일자</div>
-                <div className="vt-dday-field-val" style={{ color: status.textColor }}>
-                  {currentVisa.expireDate || '-'}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 하단 2열 */}
-          <div className="vt-grid">
-            {/* 갱신 이력 타임라인 */}
-            <div className="vt-card">
-              <div className="vt-card-title">갱신 이력</div>
-              <div className="vt-timeline">
-                <div className="vt-tl-item active">
-                  <div className="vt-tl-main active">현재 · {currentVisa.visaType} 등록 완료</div>
-                  <div className="vt-tl-sub">승인일 {currentVisa.issueDate || '-'}</div>
-                </div>
-                {history.map((h, i) => (
-                  <div key={h.visaId || i} className="vt-tl-item">
-                    <div className="vt-tl-main">
-                      이전 · {h.visaType}
-                      <span className="vt-chip vt-chip-red" style={{ fontSize: '11px', marginLeft: 6 }}>만료</span>
-                    </div>
-                    <div className="vt-tl-sub">만료일 {h.expiryDate || h.expireDate}</div>
-                  </div>
-                ))}
-                {history.length === 0 && (
-                   <div style={{ fontSize: '12.5px', color: '#9CA3AF', marginTop: '10px' }}>이전 갱신 이력이 없습니다.</div>
-                )}
-              </div>
-            </div>
-
-            {/* 서류 업로드 */}
-            <div className="vt-card">
-              <div className="vt-card-title">
-                증명 서류 업로드
-                <span className="vt-chip vt-chip-blue" style={{ fontSize: '11px' }}>3개 항목</span>
-              </div>
-              <div className="vt-file-grid">
-                {['등록증 (앞면)', '등록증 (뒷면)', '여권 사본'].map((label) => (
-                  <div key={label} className="vt-file-box" onClick={() => fileInputRef.current.click()}>
-                    <svg width="22" height="22" fill="none" stroke="#3B82F6" strokeWidth="2" viewBox="0 0 24 24">
-                      <path d="M12 4v16m8-8H4" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    <span className="vt-file-name">{label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </>
-      ) : (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#9CA3AF', background: '#fff', borderRadius: '14px', border: '1px solid #F3F4F6' }}>
-          등록된 비자 정보가 없습니다. 상단의 '비자 등록' 버튼을 눌러 정보를 추가해주세요.
+      {isLoading && (
+        <div style={{ textAlign: 'center', color: '#1A3A5C', fontSize: '0.875rem', marginBottom: '1.5rem', fontWeight: 600 }}>
+          🔄 학생 프로필 및 비자 이력 동기화 중...
         </div>
       )}
+
+      <div className="visa-tab-wrapper">
+        {selectedStudent && (
+          <div className="selected-student-panel">
+            <div className="student-info-meta">
+              <h4>{selectedStudent.korName || '이름 없음'} {selectedStudent.engName ? `(${selectedStudent.engName})` : ''}</h4>
+              <p>
+                학번: <span>{selectedStudent.studentId || selectedStudent.id}</span> &nbsp;|&nbsp; 
+                국적: <span>{selectedStudent.nationality || '-'}</span> &nbsp;|&nbsp; 
+                소속: <span>{selectedStudent.department || selectedStudent.deptName || '-'}</span>
+              </p>
+            </div>
+            <span className="badge-target">대상 학생 지정됨</span>
+          </div>
+        )}
+
+        <h3 className="section-subtitle">신규 비자 정보 등록</h3>
+
+        <form onSubmit={handleSubmit} className="visa-form-grid">
+          <div className="form-group">
+            <label>비자 발급일 </label>
+            <input type="date" name="issueDate" value={visaInfo.issueDate} onChange={handleInputChange} required />
+          </div>
+
+          <div className="form-group">
+            <label>체류 만료일</label>
+            <input type="date" name="expireDate" value={visaInfo.expireDate} min={visaInfo.issueDate} onChange={handleInputChange} required />
+          </div>
+
+          <div className="form-group full">
+            <label>비자 자격 코드</label>
+            <select name="visaType" value={visaInfo.visaType} onChange={handleInputChange}>
+              <option value="D-2">D-2 (유학)</option>
+              <option value="D-4">D-4 (일반연수)</option>
+              <option value="F-2">F-2 (거주)</option>
+              <option value="E-7">E-7 (특정활동)</option>
+            </select>
+          </div>
+
+          <div className="action-row">
+            <button type="button" className="btn-cancel" onClick={handleBackToStudentList}>취소</button>
+            <button type="submit" className="btn-submit" disabled={isSubmitting}>
+              {isSubmitting ? '저장 중...' : '저장'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="visa-tab-wrapper" style={{ padding: '1.25rem 0 0 0', overflow: 'hidden' }}>
+        <div style={{ padding: '0 1.5rem 1rem 1.5rem' }}>
+          <h3 className="section-subtitle" style={{ margin: 0, border: 'none', padding: 0 }}>비자 현황 목록</h3>
+        </div>
+
+        <table className="history-table">
+          <thead>
+            <tr>
+              <th>비자 종류</th>
+              <th>발급일</th>
+              <th>만료일</th>
+              <th>현재 비자 여부</th>
+              <th style={{ textAlign: 'center' }}>관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visaHistory.length === 0 ? (
+              <tr>
+                <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: '#9CA3AF' }}>
+                  등록된 과거 비자 체류 이력이 없습니다.
+                </td>
+              </tr>
+            ) : (
+              visaHistory.map((item, idx) => (
+                <tr key={item.visaId || item.id || idx}>
+                  <td style={{ fontWeight: 600, color: '#1A3A5C' }}>
+                    {item.visaType ? `${item.visaType}` : '-'}
+                  </td>
+                  <td style={{ color: '#4B5563' }}>{fmtDate(item.issueDate)}</td>
+                  <td style={{ fontWeight: 600, color: '#4B5563' }}>{fmtDate(item.expireDate)}</td>
+                  <td>
+                    {item.isCurrent ? (
+                      <span className="chip-current-true">현재 비자</span>
+                    ) : (
+                      <span className="chip-current-false">이전 이력</span>
+                    )}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button 
+                      type="button" 
+                      className="btn-delete"
+                      onClick={() => handleDelete(item.visaId || item.id)}
+                    >
+                      삭제
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

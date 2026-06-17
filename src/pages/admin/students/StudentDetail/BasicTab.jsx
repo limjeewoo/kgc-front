@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../../../api/axios';
+import VisaRegisterModal from './VisaRegisterModal';
 
-// 1. 백엔드 기본 서버 주소 자동 추출 (예: http://localhost:8080)
 const SERVER_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/v1\/?$/, '') : 'http://localhost:8080';
 
 export default function BasicTab({ readOnly = false, onTabChange, studentId: studentIdProp }) {
@@ -13,13 +13,12 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
   const id = studentIdProp || params.studentId || params.id;
   const isNewMode = id === 'new';
 
-  // 2. 초기 고정값(하드코딩) 제거 -> 빈 문자열로 변경하여 사용자가 직접 선택하도록 유도
   const EMPTY_STUDENT = {
     studentId:'', korName:'', engName:'', deptId:'', deptName:'',
     gender:'', nationality:'', birthDate:'', phone:'', address:'',
     classSec:'', grade:'', admissionDate:'', enrollStatus:'',
-    foreignRegNo:'', visaType:'정보없음', topikLevel:'정보없음',
-    maxWorkHours:'정보없음', gpa:null, totalCredits:null, photoUrl:null,
+    foreignRegNo:'', visaType: '-', currentVisaId: null, topikLevel: '-',
+    maxWorkHours: '-', gpa:null, totalCredits:null, photoUrl:null,
   };
 
   const [isLoading, setIsLoading]             = useState(true);
@@ -29,8 +28,9 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
   const [nationalities, setNationalities]     = useState([]);
   const [isEditMode, setIsEditMode]           = useState(false);
   const [isSaving, setIsSaving]               = useState(false);
+  const [isDeleting, setIsDeleting]           = useState(false);
+  const [isVisaModalOpen, setIsVisaModalOpen] = useState(false);
 
-  // 3. 이미지 절대경로 변환 함수 (서버 주소가 없으면 붙여줌)
   const getFullPhotoUrl = (url) => {
     if (!url) return null;
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
@@ -39,65 +39,145 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
     return `${SERVER_URL}${url}`;
   };
 
+  const fetchCurrentVisa = async () => {
+    if (isNewMode || !id || id === 'undefined') return;
+    try {
+      const res = await api.get(`/api/v1/students/${id}/visas`);
+      if (res.data.success && res.data.data && res.data.data.length > 0) {
+        const currentVisa = res.data.data.find(v => v.isCurrent) || res.data.data[0];
+        
+        setStudent(prev => ({ 
+          ...prev, 
+          visaType: currentVisa.visaType || '-',
+          currentVisaId: currentVisa.visaId || null
+        }));
+        setOriginalStudent(prev => ({ 
+          ...prev, 
+          visaType: currentVisa.visaType || '-',
+          currentVisaId: currentVisa.visaId || null
+        }));
+      } else {
+        setStudent(prev => ({ ...prev, visaType: '-', currentVisaId: null }));
+        setOriginalStudent(prev => ({ ...prev, visaType: '-', currentVisaId: null }));
+      }
+    } catch (e) {
+      console.error('비자 최신 정보 동기화 실패:', e);
+    }
+  };
+
+  const handleDeleteVisa = async () => {
+    if (!student.currentVisaId) return;
+    
+    if (!window.confirm(`현재 비자(${student.visaType}) 정보를 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.`)) return;
+
+    try {
+      setIsDeleting(true);
+      const res = await api.delete(`/api/v1/visas/${student.currentVisaId}`);
+      
+      if (res.data.success) {
+        alert('비자 정보가 삭제되었습니다.');
+        fetchCurrentVisa();
+      } else {
+        alert(`삭제 실패: ${res.data.message}`);
+      }
+    } catch (e) {
+      alert(e.response?.data?.message || '비자 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   useEffect(() => {
     setIsLoading(true);
-    Promise.all([
+    
+    const initPromises = [
       api.get('/api/v1/depts').catch(() => ({ data: { success: false } })),
       api.get('/api/v1/nationalities').catch(() => ({ data: { success: false } })),
-    ]).then(([deptRes, natRes]) => {
+    ];
+
+    if (!isNewMode && id && id !== 'undefined') {
+      initPromises.push(api.get(`/api/v1/students/${id}`));
+      initPromises.push(api.get(`/api/v1/students/${id}/visas`).catch(() => ({ data: { success: false } })));
+      initPromises.push(api.get(`/api/v1/students/${id}/topik`).catch(() => ({ data: { success: false } })));
+      initPromises.push(api.get(`/api/v1/topik/work-hours/${id}`).catch(() => ({ data: { success: false } })));
+    }
+
+    Promise.all(initPromises).then(([deptRes, natRes, studentRes, visaRes, topikRes, workHoursRes]) => {
       if (deptRes.data?.success) setDepartments(deptRes.data.data);
+      
       if (natRes.data?.success) {
         setNationalities(natRes.data.data);
       } else {
         setNationalities(['베트남', '중국', '몽골', '우즈베키스탄', '일본', '미국', '기타']);
       }
-    });
 
-    if (isNewMode) {
-      setStudent(EMPTY_STUDENT);
-      setIsLoading(false);
-      return;
-    }
+      if (isNewMode) {
+        setStudent(EMPTY_STUDENT);
+        setIsLoading(false);
+        return;
+      }
 
-    if (!id || id === 'undefined') {
-      console.warn('유효하지 않은 학생 ID:', params);
-      setIsLoading(false);
-      return;
-    }
+      if (!id || id === 'undefined') {
+        console.warn('유효하지 않은 학생 ID:', params);
+        setIsLoading(false);
+        return;
+      }
 
-    api.get(`/api/v1/students/${id}`)
-      .then(res => {
-        if (res.data.success) {
-          const s = res.data.data;
-          const mapped = {
-            studentId:    s.studentId || id,
-            deptId:       s.deptId || '',
-            deptName:     s.deptName || '소속 정보 없음',
-            engName:      s.engName || '',
-            korName:      s.korName || '이름 없음',
-            gender:       s.gender || '',
-            nationality:  s.nationality || '',
-            birthDate:    s.birthDate || '',
-            phone:        s.phone || '',
-            address:      s.address || '',
-            classSec:     s.classSec || '',
-            grade:        s.grade ? String(s.grade) : '',
-            admissionDate: s.admissionDate || '',
-            enrollStatus: s.enrollStatus || '',
-            foreignRegNo: s.foreignRegNo || '',
-            visaType:     '정보없음',
-            topikLevel:   '정보없음',
-            maxWorkHours: '정보없음',
-            gpa:          s.gpa ?? null,
-            totalCredits: s.totalCredits ?? null,
-            photoUrl:     s.photoUrl || null,
-          };
-          setStudent(mapped);
-          setOriginalStudent(mapped);
+      if (studentRes && studentRes.data?.success) {
+        const s = studentRes.data.data;
+        
+        let fetchedVisaType = '-';
+        let fetchedVisaId = null;
+        if (visaRes && visaRes.data?.success && visaRes.data.data?.length > 0) {
+          const currentVisa = visaRes.data.data.find(v => v.isCurrent) || visaRes.data.data[0];
+          fetchedVisaType = currentVisa.visaType || '-';
+          fetchedVisaId = currentVisa.visaId || null;
         }
-      })
-      .catch(e => console.error('학생 조회 실패:', e))
-      .finally(() => setIsLoading(false));
+
+        let fetchedTopikLevel = '-';
+        if (topikRes && topikRes.data?.success && topikRes.data.data?.length > 0) {
+          // 가장 최신 이력 혹은 첫 번째 항목을 기준 데이터로 바인딩합니다.
+          fetchedTopikLevel = topikRes.data.data[0].topikLevel || '-';
+        }
+
+        let fetchedMaxWorkHours = '-';
+        if (workHoursRes && workHoursRes.data?.success) {
+          const whData = workHoursRes.data.data;
+          // API 응답 형태가 단일 필드값 또는 객체일 경우를 모두 유연하게 방어 처리합니다.
+          const hours = typeof whData === 'object' && whData !== null ? (whData.maxWorkHours ?? whData.workHours) : whData;
+          fetchedMaxWorkHours = hours !== undefined && hours !== null ? `${hours}시간` : '-';
+        }
+
+        const mapped = {
+          studentId:    s.studentId || id,
+          deptId:       s.deptId || '',
+          deptName:     s.deptName || '소속 정보 없음',
+          engName:      s.engName || '',
+          korName:      s.korName || '이름 없음',
+          gender:       s.gender || '',
+          nationality:  s.nationality || '',
+          birthDate:    s.birthDate || '',
+          phone:        s.phone || '',
+          address:      s.address || '',
+          classSec:     s.classSec || '',
+          grade:        s.grade ? String(s.grade) : '',
+          admissionDate: s.admissionDate || '',
+          enrollStatus: s.enrollStatus || '',
+          foreignRegNo: s.foreignRegNo || '',
+          visaType:     fetchedVisaType,
+          currentVisaId: fetchedVisaId,
+          topikLevel:   fetchedTopikLevel,
+          maxWorkHours: fetchedMaxWorkHours,
+          gpa:          s.gpa ?? null,
+          totalCredits: s.totalCredits ?? null,
+          photoUrl:     s.photoUrl || null,
+        };
+        setStudent(mapped);
+        setOriginalStudent(mapped);
+      }
+    })
+    .catch(e => console.error('초기 데이터 로드 중 치명적 에러:', e))
+    .finally(() => setIsLoading(false));
   }, [id]);
 
   const set = (field) => (e) => setStudent(p => ({ ...p, [field]: e.target.value }));
@@ -117,7 +197,6 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
       return;
     }
 
-    // 업로드 전 브라우저에서 사진 즉시 미리보기 처리
     const localPreviewUrl = URL.createObjectURL(file);
     setStudent(p => ({ ...p, photoUrl: localPreviewUrl }));
 
@@ -128,7 +207,6 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
 
     try {
       setIsSaving(true);
-      
       const res = await api.patch(`/api/v1/students/${id}/photo`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -140,20 +218,19 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         setOriginalStudent(p => ({ ...p, photoUrl: newPhotoUrl }));
       } else {
         alert(`사진 업로드 실패: ${res.data.message}`);
-        setStudent(p => ({ ...p, photoUrl: originalStudent.photoUrl })); // 실패 시 롤백
+        setStudent(p => ({ ...p, photoUrl: originalStudent.photoUrl }));
       }
     } catch (error) {
       console.error("사진 업로드 에러 상세 데이터:", error.response || error);
       const serverMessage = error.response?.data?.message || error.response?.data?.error;
-      alert(serverMessage || '사진 업로드 중 오류가 발생했습니다. (백엔드 정적 리소스 설정 확인 필요)');
-      setStudent(p => ({ ...p, photoUrl: originalStudent.photoUrl })); // 실패 시 롤백
+      alert(serverMessage || '사진 업로드 중 오류가 발생했습니다.');
+      setStudent(p => ({ ...p, photoUrl: originalStudent.photoUrl }));
     } finally {
       setIsSaving(false);
       if (fileInputRef.current) fileInputRef.current.value = ''; 
     }
   };
 
-  // 등록 및 수정 시 필수값 체크 강화
   const validateForm = () => {
     if (!student.studentId || !student.korName || !student.deptId || !student.nationality || !student.gender || !student.grade || !student.enrollStatus) {
       alert('학번, 한글 이름, 학과, 국적, 성별, 학년, 학적상태는 필수 선택 및 입력 항목입니다.');
@@ -294,6 +371,39 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
           background: rgba(0, 0, 0, 0.6); color: #fff;
           font-size: 11px; font-weight: 500; padding: 2px 0; text-align: center;
         }
+
+        .bt-visa-reg-btn {
+          background: #EFF6FF;
+          color: #1D4ED8;
+          border: 1px solid #BFDBFE;
+          border-radius: 6px;
+          padding: 4px 10px;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .bt-visa-reg-btn:hover {
+          background: #DBEAFE;
+          border-color: #93C5FD;
+        }
+
+        .bt-visa-del-btn {
+          background: #FEF2F2;
+          color: #DC2626;
+          border: 1px solid #FECACA;
+          border-radius: 6px;
+          padding: 4px 10px;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.15s;
+          margin-left: 8px;
+        }
+        .bt-visa-del-btn:hover {
+          background: #FEE2E2;
+          border-color: #FCA5A5;
+        }
       `}</style>
 
       <input 
@@ -303,6 +413,14 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         accept="image/*" 
         onChange={handlePhotoChange} 
       />
+
+      {isVisaModalOpen && (
+        <VisaRegisterModal 
+          studentId={id} 
+          onClose={() => setIsVisaModalOpen(false)} 
+          onSuccess={fetchCurrentVisa} 
+        />
+      )}
 
       <div className="bt-topbar">
         <div style={{ display:'flex', alignItems:'center' }}>
@@ -475,7 +593,18 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
         </div>
 
         <div className="bt-info-card">
-          <div className="bt-info-card-title">비자 및 국적</div>
+          <div className="bt-info-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>비자 및 국적</span>
+            {isEditMode && !isNewMode && (
+              <button 
+                type="button" 
+                className="bt-visa-reg-btn" 
+                onClick={() => setIsVisaModalOpen(true)}
+              >
+                비자 등록하기
+              </button>
+            )}
+          </div>
           <div className="bt-info-row">
             <span className="bt-info-key">국적</span>
             {isViewOnly
@@ -491,9 +620,21 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
           </div>
           <div className="bt-info-row">
             <span className="bt-info-key">현재 비자</span>
-            <span className="bt-info-val" style={{ color: isNewMode ? '#9CA3AF' : '#374151' }}>
-              {isNewMode ? '등록 완료 후 지정 가능' : student.visaType}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <span className="bt-info-val" style={{ color: isNewMode ? '#9CA3AF' : '#111827', fontWeight: isNewMode ? 400 : 600 }}>
+                {isNewMode ? '등록 완료 후 지정 가능' : student.visaType}
+              </span>
+              {isEditMode && !isNewMode && student.currentVisaId && (
+                <button
+                  type="button"
+                  className="bt-visa-del-btn"
+                  onClick={handleDeleteVisa}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? '삭제 중...' : '삭제'}
+                </button>
+              )}
+            </div>
           </div>
           <div className="bt-info-row">
             <span className="bt-info-key">TOPIK 급수</span>
@@ -503,7 +644,9 @@ export default function BasicTab({ readOnly = false, onTabChange, studentId: stu
           </div>
           <div className="bt-info-row">
             <span className="bt-info-key">최대 근로시간</span>
-            <span className="bt-info-val">{student.maxWorkHours}</span>
+            <span className="bt-info-val" style={{ color: isNewMode ? '#9CA3AF' : '#374151' }}>
+              {isNewMode ? '등록 완료 후 지정 가능' : student.maxWorkHours}
+            </span>
           </div>
         </div>
       </div>
