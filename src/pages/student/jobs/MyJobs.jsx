@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../../api/axios'; // 🚀 전역 공통 API 인스턴스 임포트
 import TopBar from '../../../components/layout/TopBar.jsx';
 
 // 1. 공통 Axios 인스턴스 설정 (토큰 자동 주입)

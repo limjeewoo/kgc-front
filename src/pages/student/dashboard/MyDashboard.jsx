@@ -1,14 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../../api/axios'; // 🚀 공통 API 인스턴스 임포트
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-const API_BASE = '/api/v1';
-
 async function apiFetch(path) {
-  const token = localStorage.getItem('accessToken');
-  const res = await axios.get(`${API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await api.get(`/api/v1${path}`);
   return res.data; 
 }
 

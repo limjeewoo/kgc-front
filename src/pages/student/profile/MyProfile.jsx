@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import axios from 'axios';
+import api from '../../../api/axios'; // 🚀 전역 공통 API 인스턴스 임포트
 import TopBar from '../../../components/layout/TopBar.jsx';
 
-const SERVER_URL = '/api/v1'.replace(/\/api\/v1\/?$/, ''); 
+const SERVER_URL = api.defaults.baseURL?.replace(/\/api\/v1\/?$/, '') || '';
 
 const api = axios.create({
   baseURL: '/api/v1',
